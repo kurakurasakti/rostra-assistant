@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -10,9 +11,10 @@ import {
   Upload,
   Settings,
   LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -25,6 +27,7 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const { resolvedTheme, setTheme } = useTheme()
 
   async function handleLogout() {
     const supabase = createClient()
@@ -33,35 +36,71 @@ export function Sidebar() {
     router.refresh()
   }
 
+  function toggleTheme() {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  }
+
   return (
-    <aside className="w-60 flex-shrink-0 border-r bg-white flex flex-col h-screen">
-      <div className="px-6 py-5 border-b">
-        <h1 className="text-xl font-bold">Rostra</h1>
-        <p className="text-xs text-muted-foreground">Asisten bisnis WhatsApp</p>
+    <aside className="w-60 flex-shrink-0 border-r border-border bg-sidebar flex flex-col h-screen">
+      {/* Logo */}
+      <div className="px-5 py-5 border-b border-border">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+            <MessageSquare className="w-3.5 h-3.5 text-primary-foreground" />
+          </div>
+          <div>
+            <p className="font-display font-semibold text-sm leading-none tracking-tight">Rostra</p>
+            <p className="text-[11px] text-muted-foreground leading-none mt-1">Asisten WhatsApp</p>
+          </div>
+        </div>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-              pathname === href
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-gray-100 hover:text-foreground'
-            )}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </Link>
-        ))}
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5">
+        {navItems.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href || (href !== '/' && pathname.startsWith(href))
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )}
+            >
+              <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-primary' : '')} />
+              {label}
+            </Link>
+          )
+        })}
       </nav>
-      <div className="px-3 py-4 border-t">
+
+      {/* Bottom actions */}
+      <div className="px-3 py-4 border-t border-border space-y-0.5">
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground w-full transition-colors"
+        >
+          {resolvedTheme === 'dark' ? (
+            <>
+              <Sun className="w-4 h-4 flex-shrink-0" />
+              Mode Terang
+            </>
+          ) : (
+            <>
+              <Moon className="w-4 h-4 flex-shrink-0" />
+              Mode Gelap
+            </>
+          )}
+        </button>
+
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-gray-100 hover:text-foreground w-full transition-colors"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-4 h-4 flex-shrink-0" />
           Keluar
         </button>
       </div>

@@ -5,7 +5,8 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Phase 0 — Foundation
-**Goal:** Login, layout kosong, session persist setelah refresh.
+
+**Goal:** Login, register (invite-only), layout kosong, session persist setelah refresh.
 
 - [x] Scaffold Next.js 15 + TypeScript + Tailwind via `pnpm create next-app`
 - [x] Init shadcn/ui + install semua komponen
@@ -19,12 +20,29 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] Buat `app/(dashboard)/layout.tsx` — sidebar + header layout
 - [x] Buat `app/(dashboard)/page.tsx` — dashboard placeholder
 - [x] Setup `.env.local.example` template
+- [ ] Tambah `INVITE_CODE=` ke `.env.local` dan `.env.local.example`
+- [ ] Buat `app/register/page.tsx` — form: Nama Bisnis + Email + Password + Kode Undangan
+- [ ] Validasi invite code di register: bandingkan input dengan `process.env.INVITE_CODE`
+      Jika salah → tampilkan error "Kode undangan tidak valid" — jangan reveal kode yang benar
+      Jika benar → lanjut `supabase.auth.signUp({ email, password, options: { data: { business_name } } })`
+- [ ] Update `proxy.ts` — whitelist `/register` di samping `/login` dan `/api/webhook`
+- [ ] Login page — tambah link: "Belum punya akun? Hubungi kami untuk mendapat kode undangan"
+      (jangan link langsung ke /register — biarkan URL /register hanya diketahui beta user)
+- [ ] Onboarding redirect logic — setelah login DAN setelah register:
+      cek `profiles.onboarding_complete`
+      jika false → redirect ke `/settings`
+      jika true → redirect ke `/`
+- [ ] Settings page — jika `onboarding_complete = false`, tampilkan banner:
+      "Lengkapi koneksi WhatsApp kamu untuk mulai menggunakan Rostra"
+      Setelah Fonnte token + device number disimpan → set `onboarding_complete = true`
 
-**Done when:** Bisa login, lihat layout kosong, session persist setelah refresh.
+**Done when:** Bisa register dengan kode undangan, login, lihat layout kosong,
+session persist setelah refresh, redirect ke /settings jika belum onboarding.
 
 ---
 
 ## Phase 1 — Client & Order Management
+
 **Goal:** Tambah klien → buat pesanan dengan payment stages + appointments → lihat timeline → tandai lunas.
 
 - [ ] Settings page — profil bisnis + Fonnte token + device number (`/settings`)
@@ -49,6 +67,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Phase 2 — WhatsApp Inbox
+
 **Goal:** Webhook terima pesan → muncul di inbox → AI draft → kirim balasan → status update realtime.
 
 - [ ] `/lib/openrouter.ts` — callAI + system prompts
@@ -65,6 +84,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Phase 3 — Automation Scheduler
+
 **Goal:** Pesan reminder terkirim otomatis tanpa intervensi manual.
 
 - [ ] Buat Supabase Edge Function `send-scheduled-messages`
@@ -77,6 +97,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Phase 4 — Excel Importer
+
 **Goal:** Upload Excel 50+ baris → AI mapping kolom → preview → import berhasil.
 
 - [ ] `/lib/importer.ts` — parseFile + validateRow
@@ -90,6 +111,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Phase 5 — Dashboard & Polish
+
 **Goal:** MVP complete. Semua flow berjalan. Deployed dan webhook live.
 
 - [ ] Dashboard — stats row (4 kartu)
