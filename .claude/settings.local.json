@@ -3,7 +3,8 @@
     "allow": [
       "Bash(New-Item -Path \"C:\\\\Users\\\\IT-ROY\\\\Documents\\\\Roy\\\\rostra-assistant\\\\.env.local.example\" -ItemType File -Force)",
       "Bash(Out-Null)",
-      "Bash(Set-Content -Path \"C:\\\\Users\\\\IT-ROY\\\\Documents\\\\Roy\\\\rostra-assistant\\\\.env.local.example\" -Value \"NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co`nNEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here`nINVITE_CODE=your-secret-invite-code\" -Encoding utf8)"
+      "Bash(Set-Content -Path \"C:\\\\Users\\\\IT-ROY\\\\Documents\\\\Roy\\\\rostra-assistant\\\\.env.local.example\" -Value \"NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co`nNEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here`nINVITE_CODE=your-secret-invite-code\" -Encoding utf8)",
+      "Bash(npx tsc *)"
     ]
   }
 }

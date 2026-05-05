@@ -9,8 +9,9 @@ export interface Profile {
   id: string
   business_name: string
   brand_voice: string
-  fonnte_token: string | null
-  fonnte_device_number: string | null
+  fonnte_device_id: string | null
+  fonnte_device_token: string | null
+  wa_connected: boolean
   onboarding_complete: boolean
   created_at: string
   updated_at: string
