@@ -250,16 +250,20 @@ atau "kami", cukup langsung saja.
 
 **Goal:** Webhook terima pesan → muncul di inbox → AI draft → kirim balasan → status update realtime.
 
-- [ ] `/lib/openrouter.ts` — callAI + system prompts
-- [ ] `POST /api/webhook/whatsapp` — multi-tenant routing
-- [ ] `POST /api/messages/send` route
-- [ ] `POST /api/messages/draft` route
-- [ ] `POST /api/classify` route
-- [ ] Inbox page — conversation list + message thread (`/inbox`)
-- [ ] Realtime subscription di inbox (Supabase channels)
-- [ ] AI draft panel — Muat Draft AI + Kirim + Eskalasi
+- [x] `/lib/openrouter.ts` — `classifyMessage()`, `draftReply()` dengan brand_voice + history
+- [x] `POST /api/webhook/whatsapp` — multi-tenant routing + auto-link ke clients
+- [x] `POST /api/messages/send` — kirim via Fonnte + save outgoing message
+- [x] `POST /api/messages/draft` — updated dengan auto brand_voice fetch + conversation context
+- [x] `POST /api/classify` — AI message classification (rutin/sensitif/tidak_diketahui)
+- [x] Inbox page — conversation list + message thread + realtime + draft panel
+- [x] Realtime subscription di inbox — Supabase channels + live updates
+- [x] AI draft panel — Muat Draft AI + Kirim + Eskalasi (dieskalasi/diabaikan)
 
-**Done when:** Webhook terima pesan → muncul di inbox → AI draft → kirim balasan → status update realtime.
+**DB Migration:** `inbox_messages` ditambah ke `supabase_realtime` publication.
+
+**Prerequisites:** SUPABASE_SERVICE_ROLE_KEY in .env.local + Fonnte webhook URL configured.
+
+**Done when:** Webhook terima pesan → muncul di inbox → AI draft → kirim balasan → status update realtime. ✓
 
 ---
 
