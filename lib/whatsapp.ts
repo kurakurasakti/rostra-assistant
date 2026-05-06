@@ -60,8 +60,16 @@ export async function getDeviceStatus(
   })
   if (!res.ok) return { connected: false }
   const data = await res.json()
-  // Fonnte returns: { status: true, device: [...] }
-  const device = Array.isArray(data.device) ? data.device[0] : data.device
-  const connected = !!device?.status && device.status !== 'disconnect'
-  return { connected, number: device?.device ?? undefined }
+
+  // Device token response: { status: true, device: "628xxx", name: "...", ... }
+  // Master token response: { status: true, device: [{ device: "628xxx", status: "connect", ... }] }
+  if (Array.isArray(data.device)) {
+    const device = data.device[0]
+    const connected = !!device?.status && device.status !== 'disconnect'
+    return { connected, number: device?.device ?? undefined }
+  }
+
+  const connected = data.status === true
+  const number = typeof data.device === 'string' ? data.device : undefined
+  return { connected, number }
 }

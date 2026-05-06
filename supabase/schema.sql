@@ -42,8 +42,9 @@ CREATE TABLE profiles (
   id                   UUID        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   business_name        TEXT        NOT NULL DEFAULT '',
   brand_voice          TEXT        NOT NULL DEFAULT 'Ramah, profesional, dan informatif',
-  fonnte_token         TEXT,
-  fonnte_device_number TEXT,
+  fonnte_device_id     TEXT,
+  fonnte_device_token  TEXT,
+  wa_connected         BOOLEAN     NOT NULL DEFAULT FALSE,
   onboarding_complete  BOOLEAN     NOT NULL DEFAULT FALSE,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()

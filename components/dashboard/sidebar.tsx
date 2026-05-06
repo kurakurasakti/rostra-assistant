@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -28,6 +29,8 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   async function handleLogout() {
     const supabase = createClient()
@@ -83,7 +86,7 @@ export function Sidebar() {
           onClick={toggleTheme}
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground w-full transition-colors"
         >
-          {resolvedTheme === 'dark' ? (
+          {mounted && resolvedTheme === 'dark' ? (
             <>
               <Sun className="w-4 h-4 flex-shrink-0" />
               Mode Terang
