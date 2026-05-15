@@ -47,6 +47,7 @@ export default function ClientDetailPage() {
   const [editWA, setEditWA] = useState('')
   const [editEmail, setEditEmail] = useState('')
   const [editNotes, setEditNotes] = useState('')
+  const [editAINotes, setEditAINotes] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
 
   // Order form state
@@ -80,7 +81,7 @@ export default function ClientDetailPage() {
     const c = clientRes.data
     setClient(c)
     setEditName(c.name); setEditWA(c.whatsapp_number)
-    setEditEmail(c.email ?? ''); setEditNotes(c.notes ?? '')
+    setEditEmail(c.email ?? ''); setEditNotes(c.notes ?? ''); setEditAINotes(c.ai_notes ?? '')
     setOrders(ordersRes.data ?? [])
     setLoading(false)
   }, [clientId, router])
@@ -103,6 +104,7 @@ export default function ClientDetailPage() {
       whatsapp_number: normalized,
       email: editEmail.trim() || null,
       notes: editNotes.trim() || null,
+      ai_notes: editAINotes.trim() || null,
       updated_at: new Date().toISOString(),
     }).eq('id', clientId)
 
@@ -341,6 +343,17 @@ export default function ClientDetailPage() {
             <div className="space-y-1.5">
               <Label>Catatan <span className="text-muted-foreground font-normal">(opsional)</span></Label>
               <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} className="resize-none text-sm" />
+            </div>
+            <div className="space-y-1.5 border-t border-border pt-4">
+              <Label>Catatan untuk AI <span className="text-muted-foreground font-normal">(opsional)</span></Label>
+              <Textarea
+                value={editAINotes}
+                onChange={e => setEditAINotes(e.target.value)}
+                placeholder="Contoh: Pelanggan VIP, boleh diskon max 10%. Panggil dengan nama."
+                rows={2}
+                className="resize-none text-sm"
+              />
+              <p className="text-xs text-muted-foreground">Catatan ini dibaca AI setiap kali membalas pesan klien ini.</p>
             </div>
             <div className="flex justify-between items-center pt-1">
               <p className="text-xs text-muted-foreground">Klien sejak {format(parseISO(client.created_at), 'd MMM yyyy')}</p>

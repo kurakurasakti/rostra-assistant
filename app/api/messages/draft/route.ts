@@ -1,6 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/client'
 import { NextResponse } from 'next/server'
-import { draftReply } from '@/lib/openrouter'
+import { draftReply, buildAIContext } from '@/lib/openrouter'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -10,21 +10,36 @@ export async function POST(request: Request) {
   const body = await request.json() as {
     message: string
     brand_voice?: string
+    client_id?: string
     history?: Array<{ direction: string; message_body: string }>
   }
   if (!body.message) return NextResponse.json({ error: 'message required' }, { status: 400 })
 
-  let brandVoice = body.brand_voice ?? ''
-  if (!brandVoice) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('brand_voice')
-      .eq('id', user.id)
+  // Fetch profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+
+  // Fetch client if provided
+  let client = null
+  if (body.client_id) {
+    const { data: c } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', body.client_id)
+      .eq('user_id', user.id)
       .single()
-    brandVoice = profile?.brand_voice ?? ''
+    client = c
   }
 
-  const draft = await draftReply(body.message, brandVoice, body.history)
+  // Build full AI context with client order info
+  const systemPrompt = await buildAIContext(profile, client, user.id)
+
+  const draft = await draftReply(body.message, body.brand_voice ?? '', body.history, systemPrompt)
 
   return NextResponse.json({ draft })
 }

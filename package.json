@@ -33,6 +33,7 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "ngrok": "5.0.0-beta.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

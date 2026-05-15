@@ -1,17 +1,35 @@
 const FONNTE_BASE = 'https://api.fonnte.com'
 
+export interface FonnteWebhookPayload {
+  device: string
+  sender: string
+  message: string
+  name: string
+  timestamp: number
+  inboxid: string
+  url?: string
+  filename?: string
+  extension?: string
+}
+
 export async function sendTextMessage(
   to: string,
   message: string,
   deviceToken: string,
+  inboxid?: string,
 ): Promise<void> {
+  const body: any = { target: to, message }
+  if (inboxid) {
+    body.inboxid = inboxid
+  }
+
   const res = await fetch(`${FONNTE_BASE}/send`, {
     method: 'POST',
     headers: {
       Authorization: deviceToken,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ target: to, message }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) {
     const text = await res.text()
