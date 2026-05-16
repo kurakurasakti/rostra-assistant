@@ -12,7 +12,9 @@
       "Bash(pnpm build *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Skill(vercel:status)",
+      "Bash(vercel --version)"
     ]
   }
 }
