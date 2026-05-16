@@ -15,6 +15,18 @@ export interface Profile {
   onboarding_complete: boolean
   created_at: string
   updated_at: string
+  // Business knowledge fields
+  product_knowledge?: unknown
+  operating_hours?: string | null
+  location_info?: string | null
+  processing_time?: string | null
+  payment_methods?: string | null
+  minimal_dp?: string | null
+  po_status?: boolean | null
+  po_close_date?: string | null
+  slot_info?: string | null
+  special_notes?: string | null
+  escalation_keywords?: string[] | null
 }
 
 export interface Client {
@@ -24,6 +36,7 @@ export interface Client {
   whatsapp_number: string
   email: string | null
   notes: string | null
+  ai_notes?: string | null
   created_at: string
   updated_at: string
 }
