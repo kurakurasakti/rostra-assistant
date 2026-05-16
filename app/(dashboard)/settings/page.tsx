@@ -40,7 +40,13 @@ interface Product {
 }
 
 type WaStep = "idle" | "generating" | "scanning" | "connected";
-type AnalyzeStep = "idle" | "uploading" | "selecting" | "analyzing" | "preview";
+type AnalyzeStep = "idle" | "building" | "analyzing" | "preview";
+
+interface UploadedFile {
+  name: string;
+  text: string;
+  senders: string[];
+}
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -53,11 +59,14 @@ export default function SettingsPage() {
 
   // Brand voice analysis state
   const [analyzeStep, setAnalyzeStep] = useState<AnalyzeStep>("idle");
-  const [fileContent, setFileContent] = useState("");
-  const [chatSenders, setChatSenders] = useState<string[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [selectedSender, setSelectedSender] = useState("");
   const [brandVoicePreview, setBrandVoicePreview] = useState("");
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const addFileInputRef = useRef<HTMLInputElement>(null);
+
+  const allSenders = [...new Set(uploadedFiles.flatMap((f) => f.senders))];
+  const combinedText = uploadedFiles.map((f) => f.text).join("\n");
 
   // Draft test state
   const [testMessage, setTestMessage] = useState("");
@@ -185,13 +194,15 @@ export default function SettingsPage() {
 
   // --- Brand voice analysis ---
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
+  async function handleAddFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const newFiles = Array.from(e.target.files ?? []);
+    if (!newFiles.length) return;
+    // Reset input so same file can be re-added after removal
+    e.target.value = "";
     setAnalyzeLoading(true);
 
     const formData = new FormData();
-    files.forEach((f) => formData.append("files", f));
+    newFiles.forEach((f) => formData.append("files", f));
 
     const res = await fetch("/api/settings/analyze-chat", {
       method: "POST",
@@ -205,13 +216,24 @@ export default function SettingsPage() {
       return;
     }
 
-    // Combine all file contents for analyze-voice step
-    const texts = await Promise.all(files.map((f) => f.text()));
-    setFileContent(texts.join("\n"));
-    setChatSenders(data.senders);
-    setSelectedSender(data.senders[0] ?? "");
-    setAnalyzeStep("selecting");
+    const texts = await Promise.all(newFiles.map((f) => f.text()));
+    const entries: UploadedFile[] = newFiles.map((f, i) => ({
+      name: f.name,
+      text: texts[i],
+      senders: data.senders,
+    }));
+
+    setUploadedFiles((prev) => {
+      // dedupe by name — re-adding same filename replaces old entry
+      const kept = prev.filter((p) => !newFiles.some((f) => f.name === p.name));
+      return [...kept, ...entries];
+    });
+    setAnalyzeStep("building");
     setAnalyzeLoading(false);
+  }
+
+  function handleRemoveFile(name: string) {
+    setUploadedFiles((prev) => prev.filter((f) => f.name !== name));
   }
 
   async function handleAnalyzeVoice() {
@@ -224,14 +246,14 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sender: selectedSender,
-        file_content: fileContent,
+        file_content: combinedText,
       }),
     });
     const data = await res.json();
 
     if (!res.ok || data.error) {
       toast.error(data.error ?? "Gagal menganalisa chat.");
-      setAnalyzeStep("selecting");
+      setAnalyzeStep("building");
       setAnalyzeLoading(false);
       return;
     }
@@ -245,6 +267,8 @@ export default function SettingsPage() {
     setBrandVoice(brandVoicePreview);
     setAnalyzeStep("idle");
     setBrandVoicePreview("");
+    setUploadedFiles([]);
+    setSelectedSender("");
     toast.success(
       'Gaya komunikasi diterapkan. Klik "Simpan Profil" untuk menyimpan.',
     );
@@ -410,16 +434,17 @@ export default function SettingsPage() {
               </span>
             </Label>
             {analyzeStep === "idle" && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs gap-1.5"
-                onClick={() => setAnalyzeStep("uploading")}
-              >
+              <label className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors">
                 <Sparkles className="w-3 h-3" />
                 Analisa dari Chat WA
-              </Button>
+                <input
+                  type="file"
+                  accept=".txt"
+                  multiple
+                  className="hidden"
+                  onChange={handleAddFiles}
+                />
+              </label>
             )}
           </div>
 
@@ -433,77 +458,98 @@ export default function SettingsPage() {
           />
 
           {/* Analyze flow */}
-          {analyzeStep === "uploading" && (
-            <div className="rounded-lg border border-dashed border-border p-4 space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Upload file export WhatsApp (.txt). Bisa pilih beberapa file sekaligus. Buka WA → Obrolan → titik
-                tiga → Export Chat.
-              </p>
-              <label className="flex items-center gap-2 cursor-pointer w-fit">
-                <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium hover:bg-muted transition-colors cursor-pointer">
-                  <Upload className="w-3 h-3" />
-                  {analyzeLoading ? "Membaca..." : "Pilih File .txt"}
-                </span>
-                <input
-                  type="file"
-                  accept=".txt"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  disabled={analyzeLoading}
-                />
-              </label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground"
-                onClick={() => setAnalyzeStep("idle")}
-              >
-                Batal
-              </Button>
-            </div>
-          )}
-
-          {analyzeStep === "selecting" && (
-            <div className="rounded-lg border border-border p-4 space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Ditemukan {chatSenders.length} pengirim. Pilih nama admin bisnis
-                kamu:
-              </p>
-              <Select
-                value={selectedSender}
-                onValueChange={(v) => {
-                  if (v !== null) setSelectedSender(v);
-                }}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Pilih pengirim..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {chatSenders.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
+          {analyzeStep === "building" && (
+            <div className="rounded-lg border border-border p-4 space-y-4">
+              {/* File list */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  File chat ({uploadedFiles.length})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {uploadedFiles.map((f) => (
+                    <div
+                      key={f.name}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs"
+                    >
+                      <span className="max-w-[160px] truncate">{f.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFile(f.name)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
+                  {/* Add more files button */}
+                  <label className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted/40 cursor-pointer transition-colors">
+                    {analyzeLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Plus className="w-3 h-3" />
+                    )}
+                    {analyzeLoading ? "Membaca..." : "Tambah File"}
+                    <input
+                      ref={addFileInputRef}
+                      type="file"
+                      accept=".txt"
+                      multiple
+                      className="hidden"
+                      onChange={handleAddFiles}
+                      disabled={analyzeLoading}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Sender selector — only shown after files loaded */}
+              {uploadedFiles.length > 0 && allSenders.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Siapa nama admin bisnis kamu di chat ini?
+                  </p>
+                  <Select
+                    value={selectedSender}
+                    onValueChange={(v) => { if (v) setSelectedSender(v); }}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Pilih nama admin..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allSenders.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    AI akan mempelajari gaya balas pesan dari nama yang kamu pilih.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
                 <Button
                   type="button"
                   size="sm"
                   className="h-8 text-xs"
                   onClick={handleAnalyzeVoice}
+                  disabled={!selectedSender || uploadedFiles.length === 0 || analyzeLoading}
                 >
                   <Sparkles className="w-3 h-3 mr-1.5" />
-                  Analisa
+                  Analisa Gaya Chat
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="h-8 text-xs"
-                  onClick={() => setAnalyzeStep("idle")}
+                  onClick={() => {
+                    setAnalyzeStep("idle");
+                    setUploadedFiles([]);
+                    setSelectedSender("");
+                  }}
                 >
                   Batal
                 </Button>
@@ -538,7 +584,7 @@ export default function SettingsPage() {
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs"
-                  onClick={() => setAnalyzeStep("uploading")}
+                  onClick={() => setAnalyzeStep("building")}
                 >
                   <RefreshCcw className="w-3 h-3 mr-1" />
                   Analisa Ulang
