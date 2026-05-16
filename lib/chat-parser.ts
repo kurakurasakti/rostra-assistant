@@ -10,7 +10,10 @@ export interface ChatAnalysis {
   totalMessages: number
 }
 
-const MSG_REGEX = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s+(\d{1,2}[.:]\d{2}[.:]\d{2})\]\s+([^:]+):\s+([\s\S]*)/
+// Format 1 (Android/iOS bracketed): [DD/MM/YY, HH:MM:SS] Sender: msg
+const MSG_REGEX_BRACKETED = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s+(\d{1,2}[.:]\d{2}(?:[.:]\d{2})?)\]\s+([^:]+):\s+([\s\S]*)/
+// Format 2 (Indonesian dash): DD/MM/YY HH.MM - Sender: msg
+const MSG_REGEX_DASH = /^(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}[.:]\d{2})\s+-\s+([^:]+):\s+([\s\S]*)/
 
 const SYSTEM_PATTERNS = [
   /end-to-end encrypted/i,
@@ -42,7 +45,7 @@ export function parseWhatsAppExport(text: string): ChatAnalysis {
   let current: ParsedMessage | null = null
 
   for (const line of lines) {
-    const match = MSG_REGEX.exec(line)
+    const match = MSG_REGEX_BRACKETED.exec(line) ?? MSG_REGEX_DASH.exec(line)
     if (match) {
       if (current) messages.push(current)
       const [, date, time, sender, content] = match

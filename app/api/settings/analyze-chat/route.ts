@@ -8,11 +8,12 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const formData = await request.formData()
-  const file = formData.get('file') as File | null
-  if (!file) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
+  const files = formData.getAll('files') as File[]
+  if (!files.length) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
 
-  const text = await file.text()
-  const analysis = parseWhatsAppExport(text)
+  const texts = await Promise.all(files.map(f => f.text()))
+  const combined = texts.join('\n')
+  const analysis = parseWhatsAppExport(combined)
 
   return NextResponse.json({
     senders: analysis.senders,

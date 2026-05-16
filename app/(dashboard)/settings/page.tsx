@@ -186,12 +186,12 @@ export default function SettingsPage() {
   // --- Brand voice analysis ---
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
     setAnalyzeLoading(true);
 
     const formData = new FormData();
-    formData.append("file", file);
+    files.forEach((f) => formData.append("files", f));
 
     const res = await fetch("/api/settings/analyze-chat", {
       method: "POST",
@@ -205,9 +205,9 @@ export default function SettingsPage() {
       return;
     }
 
-    // Store file content for analyze-voice step
-    const text = await file.text();
-    setFileContent(text);
+    // Combine all file contents for analyze-voice step
+    const texts = await Promise.all(files.map((f) => f.text()));
+    setFileContent(texts.join("\n"));
     setChatSenders(data.senders);
     setSelectedSender(data.senders[0] ?? "");
     setAnalyzeStep("selecting");
@@ -436,7 +436,7 @@ export default function SettingsPage() {
           {analyzeStep === "uploading" && (
             <div className="rounded-lg border border-dashed border-border p-4 space-y-2">
               <p className="text-xs text-muted-foreground">
-                Upload file export WhatsApp (.txt). Buka WA → Obrolan → titik
+                Upload file export WhatsApp (.txt). Bisa pilih beberapa file sekaligus. Buka WA → Obrolan → titik
                 tiga → Export Chat.
               </p>
               <label className="flex items-center gap-2 cursor-pointer w-fit">
@@ -447,6 +447,7 @@ export default function SettingsPage() {
                 <input
                   type="file"
                   accept=".txt"
+                  multiple
                   className="hidden"
                   onChange={handleFileUpload}
                   disabled={analyzeLoading}
