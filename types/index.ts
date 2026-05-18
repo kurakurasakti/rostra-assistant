@@ -5,6 +5,26 @@ export type InboxStatus = 'baru' | 'dibalas' | 'diabaikan' | 'dieskalasi'
 export type MessageClassification = 'rutin' | 'sensitif' | 'tidak_diketahui'
 export type TemplateType = 'konfirmasi_pesanan' | 'pengingat_pembayaran' | 'pengingat_janji_temu' | 'custom'
 
+export interface BusinessKnowledgeStructured {
+  services: {
+    name: string
+    price_range: string
+    description?: string
+  }[]
+  operating_hours: string | null
+  location: string | null
+  payment_methods: string[]
+  po_status: boolean
+  po_close_date: string | null
+  special_notes: string | null
+}
+
+export interface CompletenessResult {
+  score: number
+  missing: string[]
+  isComplete: boolean
+}
+
 export interface Profile {
   id: string
   business_name: string
@@ -15,7 +35,7 @@ export interface Profile {
   onboarding_complete: boolean
   created_at: string
   updated_at: string
-  // Business knowledge fields
+  // Legacy business knowledge fields (kept for backwards compat during migration)
   product_knowledge?: unknown
   operating_hours?: string | null
   location_info?: string | null
@@ -27,6 +47,11 @@ export interface Profile {
   slot_info?: string | null
   special_notes?: string | null
   escalation_keywords?: string[] | null
+  // New business knowledge fields
+  business_knowledge_raw?: string | null
+  business_knowledge_structured?: BusinessKnowledgeStructured | null
+  auto_reply_level?: number | null
+  feedback_count?: number | null
 }
 
 export interface Client {

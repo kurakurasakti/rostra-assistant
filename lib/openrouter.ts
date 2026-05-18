@@ -1,6 +1,7 @@
-import type { MessageClassification, Profile, Client } from '@/types'
+import type { MessageClassification, Profile, Client, BusinessKnowledgeStructured } from '@/types'
 import { createClient as createSupabaseClient } from '@/lib/supabase/server'
 import { validateAIOutput } from '@/lib/security'
+import { formatBusinessContextForAI } from '@/lib/business-knowledge'
 
 const BASE = 'https://openrouter.ai/api/v1'
 const DEFAULT_MODEL = 'google/gemini-flash-1.5'
@@ -71,10 +72,18 @@ export async function getClientOrderSummary(userId: string, clientId: string): P
 }
 
 export function buildBusinessContext(profile: Profile): string {
+  // Use new hybrid fields if available
+  if (profile.business_knowledge_raw && profile.business_knowledge_structured) {
+    return formatBusinessContextForAI(
+      profile.business_knowledge_raw,
+      profile.business_knowledge_structured as BusinessKnowledgeStructured,
+    )
+  }
+
+  // Fallback to legacy fields
   const products = (profile.product_knowledge as Product[] | null) || []
   let ctx = ''
 
-  // Products
   if (products.length > 0) {
     ctx += 'Produk yang tersedia:\n'
     products.forEach(p => {
@@ -83,20 +92,16 @@ export function buildBusinessContext(profile: Profile): string {
     ctx += '\n'
   }
 
-  // Operating info
   if (profile.operating_hours) ctx += `Jam operasional: ${profile.operating_hours}\n`
   if (profile.location_info) ctx += `Lokasi: ${profile.location_info}\n`
   if (profile.processing_time) ctx += `Estimasi waktu proses: ${profile.processing_time}\n`
   if (profile.payment_methods) ctx += `Metode pembayaran: ${profile.payment_methods}\n`
   if (profile.minimal_dp) ctx += `Minimal DP: ${profile.minimal_dp}\n`
 
-  // PO status
   if (profile.po_status) {
-    if (profile.po_close_date) {
-      ctx += `PO terbuka sampai: ${profile.po_close_date}\n`
-    } else {
-      ctx += `PO terbuka sekarang\n`
-    }
+    ctx += profile.po_close_date
+      ? `PO terbuka sampai: ${profile.po_close_date}\n`
+      : `PO terbuka sekarang\n`
   } else {
     ctx += `PO sedang tutup\n`
   }
@@ -105,6 +110,54 @@ export function buildBusinessContext(profile: Profile): string {
   if (profile.special_notes) ctx += `Catatan khusus: ${profile.special_notes}\n`
 
   return ctx.trim()
+}
+
+export async function extractBusinessKnowledge(
+  rawText: string,
+): Promise<BusinessKnowledgeStructured> {
+  const system = `
+Kamu mengekstrak informasi bisnis jasa Indonesia dari teks bebas.
+Fokus pada: layanan/produk, kisaran harga, jam operasional, lokasi,
+metode pembayaran, status PO/antrian, dan catatan khusus.
+
+ATURAN KETAT:
+- Harga SELALU simpan sebagai string: "750rb-2jt", "mulai 500rb", "5jt"
+  JANGAN konversi ke angka
+- Jika informasi tidak disebutkan → isi null, JANGAN mengarang
+- payment_methods → array of string: ["BCA", "GoPay"]
+- po_status → true jika open PO, false jika tutup/tidak disebutkan
+- Jangan masukkan DP percentage, lama proses, atau requirement fitting
+  (itu per-order, bukan business-level)
+
+Output HANYA JSON valid sesuai schema. Tidak ada teks lain.
+
+Schema:
+{
+  "services": [{"name": "string", "price_range": "string", "description": "string|null"}],
+  "operating_hours": "string|null",
+  "location": "string|null",
+  "payment_methods": ["string"],
+  "po_status": boolean,
+  "po_close_date": "YYYY-MM-DD|null",
+  "special_notes": "string|null"
+}
+`
+
+  try {
+    const result = await callAI(system, rawText, 800)
+    const clean = result.replace(/```json|```/g, '').trim()
+    return JSON.parse(clean) as BusinessKnowledgeStructured
+  } catch {
+    return {
+      services: [],
+      operating_hours: null,
+      location: null,
+      payment_methods: [],
+      po_status: false,
+      po_close_date: null,
+      special_notes: null,
+    }
+  }
 }
 
 export function buildSecurePrompt(

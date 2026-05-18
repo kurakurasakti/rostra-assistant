@@ -20,24 +20,15 @@ import {
   Loader2,
   Link2,
   Link2Off,
-  Upload,
   RefreshCcw,
   QrCode,
   Sparkles,
   MessageSquare,
-  Trash2,
   Plus,
   X,
 } from "lucide-react";
-import type { Profile } from "@/types";
-// import { formatPhoneNumber } from "@/helper/formatPhoneNumber";
-
-interface Product {
-  id?: string;
-  name: string;
-  price_range: string;
-  description?: string;
-}
+import type { Profile, BusinessKnowledgeStructured } from "@/types";
+import BusinessKnowledgeSection from "@/components/settings/BusinessKnowledgeSection";
 
 type WaStep = "idle" | "generating" | "scanning" | "connected";
 type AnalyzeStep = "idle" | "building" | "analyzing" | "preview";
@@ -81,16 +72,8 @@ export default function SettingsPage() {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Section C: Business Knowledge state
-  const [products, setProducts] = useState<Product[]>([]);
-  const [operatingHours, setOperatingHours] = useState("");
-  const [location, setLocation] = useState("");
-  const [processingTime, setProcessingTime] = useState("");
-  const [paymentMethods, setPaymentMethods] = useState("");
-  const [minimalDP, setMinimalDP] = useState("");
-  const [poStatus, setPoStatus] = useState(true);
-  const [poCloseDate, setPoCloseDate] = useState("");
-  const [slotInfo, setSlotInfo] = useState("");
-  const [specialNotes, setSpecialNotes] = useState("");
+  const [businessKnowledgeRaw, setBusinessKnowledgeRaw] = useState<string | null>(null);
+  const [businessKnowledgeStructured, setBusinessKnowledgeStructured] = useState<BusinessKnowledgeStructured | null>(null);
 
   // Section D: Escalation Rules state
   const [escalationKeywords, setEscalationKeywords] = useState<string[]>([]);
@@ -125,16 +108,8 @@ export default function SettingsPage() {
         setBrandVoice(data.brand_voice ?? "");
 
         // Section C
-        setProducts(Array.isArray(data.product_knowledge) ? data.product_knowledge : []);
-        setOperatingHours(data.operating_hours ?? "Senin–Sabtu, 09:00–17:00 WIB");
-        setLocation(data.location_info ?? "");
-        setProcessingTime(data.processing_time ?? "");
-        setPaymentMethods(data.payment_methods ?? "Transfer BCA, GoPay, OVO");
-        setMinimalDP(data.minimal_dp ?? "");
-        setPoStatus(data.po_status ?? true);
-        setPoCloseDate(data.po_close_date ?? "");
-        setSlotInfo(data.slot_info ?? "");
-        setSpecialNotes(data.special_notes ?? "");
+        setBusinessKnowledgeRaw(data.business_knowledge_raw ?? null);
+        setBusinessKnowledgeStructured(data.business_knowledge_structured ?? null);
 
         // Section D
         setEscalationKeywords(Array.isArray(data.escalation_keywords) ? data.escalation_keywords : []);
@@ -172,16 +147,6 @@ export default function SettingsPage() {
       .update({
         business_name: businessName.trim(),
         brand_voice: brandVoice.trim(),
-        product_knowledge: products,
-        operating_hours: operatingHours.trim(),
-        location_info: location.trim(),
-        processing_time: processingTime.trim(),
-        payment_methods: paymentMethods.trim(),
-        minimal_dp: minimalDP.trim(),
-        po_status: poStatus,
-        po_close_date: poCloseDate || null,
-        slot_info: slotInfo.trim(),
-        special_notes: specialNotes.trim(),
         escalation_keywords: escalationKeywords,
         updated_at: new Date().toISOString(),
       })
@@ -650,210 +615,10 @@ export default function SettingsPage() {
         </div>
 
         {/* Section C: Business Knowledge */}
-        <div className="space-y-5 border-t border-border pt-5 mt-5">
-          <div>
-            <h2 className="font-display font-semibold text-sm">Pengetahuan Bisnis</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Informasi produk, jam operasional, dan status PO untuk AI.
-            </p>
-          </div>
-
-          {/* Products table */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Produk & Layanan</Label>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2 px-2 font-medium text-muted-foreground">Nama</th>
-                    <th className="text-left py-2 px-2 font-medium text-muted-foreground">Kisaran Harga</th>
-                    <th className="text-left py-2 px-2 font-medium text-muted-foreground">Keterangan</th>
-                    <th className="text-center py-2 px-2 font-medium text-muted-foreground w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((product, idx) => (
-                    <tr key={idx} className="border-b border-border hover:bg-muted/30">
-                      <td className="py-2 px-2">
-                        <Input
-                          value={product.name}
-                          onChange={(e) => {
-                            const updated = [...products];
-                            updated[idx].name = e.target.value;
-                            setProducts(updated);
-                          }}
-                          placeholder="Gaun kebaya custom"
-                          className="h-8 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-2">
-                        <Input
-                          value={product.price_range}
-                          onChange={(e) => {
-                            const updated = [...products];
-                            updated[idx].price_range = e.target.value;
-                            setProducts(updated);
-                          }}
-                          placeholder="750k – 2.5jt"
-                          className="h-8 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-2">
-                        <Input
-                          value={product.description ?? ""}
-                          onChange={(e) => {
-                            const updated = [...products];
-                            updated[idx].description = e.target.value;
-                            setProducts(updated);
-                          }}
-                          placeholder="tergantung model"
-                          className="h-8 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-2 text-center">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={() => {
-                            setProducts(products.filter((_, i) => i !== idx));
-                          }}
-                        >
-                          <Trash2 className="w-3 h-3 text-destructive" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs gap-1.5"
-              onClick={() => {
-                setProducts([...products, { name: "", price_range: "", description: "" }]);
-              }}
-            >
-              <Plus className="w-3 h-3" />
-              Tambah Produk
-            </Button>
-          </div>
-
-          {/* Operating info */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Info Operasional</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Jam Operasional</Label>
-                <Input
-                  value={operatingHours}
-                  onChange={(e) => setOperatingHours(e.target.value)}
-                  placeholder="Senin–Sabtu, 09:00–17:00 WIB"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Lokasi/Alamat</Label>
-                <Input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Jalan Merdeka no. 123, Jakarta"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Estimasi Waktu Proses</Label>
-                <Input
-                  value={processingTime}
-                  onChange={(e) => setProcessingTime(e.target.value)}
-                  placeholder="2–4 minggu"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Metode Pembayaran</Label>
-                <Input
-                  value={paymentMethods}
-                  onChange={(e) => setPaymentMethods(e.target.value)}
-                  placeholder="Transfer BCA, GoPay, OVO"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Minimal DP</Label>
-                <Input
-                  value={minimalDP}
-                  onChange={(e) => setMinimalDP(e.target.value)}
-                  placeholder="50% dari total harga"
-                  className="h-9 text-xs"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* PO Status */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Status Sekarang</Label>
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-3">
-                <Label className="text-xs text-muted-foreground">Open PO</Label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant={poStatus ? "default" : "outline"}
-                    size="sm"
-                    className="h-7 text-xs px-3"
-                    onClick={() => setPoStatus(true)}
-                  >
-                    Ya
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={!poStatus ? "default" : "outline"}
-                    size="sm"
-                    className="h-7 text-xs px-3"
-                    onClick={() => setPoStatus(false)}
-                  >
-                    Tidak
-                  </Button>
-                </div>
-              </div>
-              {poStatus && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">PO Tutup Tanggal</Label>
-                  <Input
-                    type="date"
-                    value={poCloseDate}
-                    onChange={(e) => setPoCloseDate(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-              )}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Slot Tersedia</Label>
-                <Input
-                  value={slotInfo}
-                  onChange={(e) => setSlotInfo(e.target.value)}
-                  placeholder="Fitting: Senin & Rabu siang"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Catatan Khusus</Label>
-                <Textarea
-                  value={specialNotes}
-                  onChange={(e) => setSpecialNotes(e.target.value)}
-                  placeholder="Libur lebaran 1–7 April"
-                  rows={2}
-                  className="resize-none text-xs"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <BusinessKnowledgeSection
+          initialRaw={businessKnowledgeRaw}
+          initialStructured={businessKnowledgeStructured}
+        />
 
         {/* Section D: Escalation Rules */}
         <div className="space-y-5 border-t border-border pt-5 mt-5">
