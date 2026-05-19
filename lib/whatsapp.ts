@@ -1,39 +1,22 @@
-const FONNTE_BASE = 'https://api.fonnte.com'
-
-export interface FonnteWebhookPayload {
-  device: string
-  sender: string
-  message: string
-  name: string
-  timestamp: number
-  inboxid: string
-  url?: string
-  filename?: string
-  extension?: string
+const WA_BASE = () => {
+  const url = process.env.WA_SERVICE_URL
+  if (!url) throw new Error('WA_SERVICE_URL not set')
+  return url
 }
 
 export async function sendTextMessage(
   to: string,
   message: string,
-  deviceToken: string,
-  inboxid?: string,
+  userId: string,
 ): Promise<void> {
-  const body: any = { target: to, message }
-  if (inboxid) {
-    body.inboxid = inboxid
-  }
-
-  const res = await fetch(`${FONNTE_BASE}/send`, {
+  const res = await fetch(`${WA_BASE()}/session/${userId}/send`, {
     method: 'POST',
-    headers: {
-      Authorization: deviceToken,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, message }),
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Fonnte send failed ${res.status}: ${text}`)
+    throw new Error(`WA service send failed ${res.status}: ${text}`)
   }
 }
 
@@ -70,24 +53,14 @@ export function normalizeWANumber(input: string): string | null {
 }
 
 export async function getDeviceStatus(
-  deviceToken: string,
+  userId: string,
 ): Promise<{ connected: boolean; number?: string }> {
-  const res = await fetch(`${FONNTE_BASE}/device`, {
-    method: 'POST',
-    headers: { Authorization: deviceToken },
-  })
-  if (!res.ok) return { connected: false }
-  const data = await res.json()
-
-  // Device token response: { status: true, device: "628xxx", name: "...", ... }
-  // Master token response: { status: true, device: [{ device: "628xxx", status: "connect", ... }] }
-  if (Array.isArray(data.device)) {
-    const device = data.device[0]
-    const connected = !!device?.status && device.status !== 'disconnect'
-    return { connected, number: device?.device ?? undefined }
+  try {
+    const res = await fetch(`${WA_BASE()}/session/${userId}/status`)
+    if (!res.ok) return { connected: false }
+    const data = await res.json()
+    return { connected: data.connected === true, number: data.number }
+  } catch {
+    return { connected: false }
   }
-
-  const connected = data.status === true
-  const number = typeof data.device === 'string' ? data.device : undefined
-  return { connected, number }
 }

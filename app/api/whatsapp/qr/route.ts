@@ -1,20 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-export async function POST() {
+export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const waUrl = process.env.WA_SERVICE_URL
-  if (waUrl) {
-    await fetch(`${waUrl}/session/${user.id}/disconnect`, { method: 'POST' }).catch(() => {})
-  }
+  if (!waUrl) return NextResponse.json({ error: 'WA_SERVICE_URL not configured' }, { status: 500 })
 
-  await supabase
-    .from('profiles')
-    .update({ wa_connected: false, onboarding_complete: false })
-    .eq('id', user.id)
-
-  return NextResponse.json({ ok: true })
+  const res = await fetch(`${waUrl}/session/${user.id}/qr`)
+  const data = await res.json()
+  return NextResponse.json(data)
 }

@@ -1,13 +1,14 @@
-import { createClient as createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { FonnteWebhookPayload, normalizeWANumber } from '@/lib/whatsapp'
+import { normalizeWANumber } from '@/lib/whatsapp'
 import { scanForInjection } from '@/lib/security'
 import { classifyAndDraft } from '@/lib/openrouter'
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
+  console.log('[webhook] received payload:', JSON.stringify(body).slice(0, 200))
 
-  // Return 200 IMMEDIATELY — Fonnte must not timeout
+  // Return 200 IMMEDIATELY — WA service must not timeout
   processIncomingMessage(body).catch((err) =>
     console.error('[webhook] processing error:', err),
   )
@@ -16,48 +17,26 @@ export async function POST(request: Request) {
 }
 
 async function processIncomingMessage(payload: any) {
-  // Validate required fields
-  const device = String(payload.device ?? '').trim()
+  // Baileys payload: { userId, sender, message, name, timestamp, messageId }
+  const userId = String(payload.userId ?? '').trim()
   const sender = String(payload.sender ?? '').trim()
   const message = String(payload.message ?? '').trim()
   const name = String(payload.name ?? '').trim()
-  const inboxid = String(payload.inboxid ?? '').trim()
+  const messageId = String(payload.messageId ?? '').trim()
 
-  if (!device || !sender || !message) {
-    console.warn('[webhook] missing required fields', { device: !!device, sender: !!sender, message: !!message })
-    return
-  }
+  console.log('[webhook] processing:', { userId: userId.slice(0, 8) + '...', sender, message: message.slice(0, 50) })
 
-  // Skip media-only messages
-  if (payload.url && !message) {
-    console.log('[webhook] skipping media-only message')
+  if (!userId || !sender || !message) {
+    console.warn('[webhook] missing required fields', { userId: !!userId, sender: !!sender, message: !!message })
     return
   }
 
   const supabase = await createServiceClient()
-
-  // Multi-tenant routing: find user by device
-  const normalizedDevice = normalizeWANumber(device)
-  if (!normalizedDevice) {
-    console.warn('[webhook] invalid device format', { device })
-    return
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, fonnte_device_token, brand_voice')
-    .eq('fonnte_device_number', normalizedDevice)
-    .maybeSingle()
-
-  if (!profile) {
-    console.warn('[webhook] device not found', { device: normalizedDevice })
-    return
-  }
-
-  const userId = profile.id
+  console.log('[webhook] supabase client created, SERVICE_ROLE_KEY set:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
   // Normalize sender number
   const normalizedSender = normalizeWANumber(sender)
+  console.log('[webhook] normalized sender:', { raw: sender, normalized: normalizedSender })
   if (!normalizedSender) {
     console.warn('[webhook] invalid sender format', { sender })
     return
@@ -80,7 +59,6 @@ async function processIncomingMessage(payload: any) {
       reason: injectionCheck.reason,
     })
 
-    // Insert as injection attempt
     await supabase.from('inbox_messages').insert({
       user_id: userId,
       client_id: client?.id ?? null,
@@ -88,8 +66,7 @@ async function processIncomingMessage(payload: any) {
       whatsapp_number: normalizedSender,
       sender_name: name || null,
       message_body: message,
-      fonnte_inbox_id: inboxid || null,
-      wa_message_id: inboxid || null,
+      wa_message_id: messageId || null,
       classification: 'injection_attempt',
       status: 'dieskalasi',
       received_at: new Date().toISOString(),
@@ -108,8 +85,7 @@ async function processIncomingMessage(payload: any) {
       whatsapp_number: normalizedSender,
       sender_name: name || null,
       message_body: message,
-      fonnte_inbox_id: inboxid || null,
-      wa_message_id: inboxid || null,
+      wa_message_id: messageId || null,
       classification: 'tidak_diketahui',
       status: 'baru',
       received_at: new Date().toISOString(),
@@ -118,11 +94,11 @@ async function processIncomingMessage(payload: any) {
     .single()
 
   if (insertError || !insertedMessage) {
-    console.error('[webhook] insert failed', insertError)
+    console.error('[webhook] insert failed:', JSON.stringify(insertError))
     return
   }
 
-  console.log('[webhook] message inserted', { messageId: insertedMessage.id, sender: normalizedSender })
+  console.log('[webhook] insert SUCCESS id:', insertedMessage.id, 'sender:', normalizedSender)
 
   // Background: classify and draft (fire-and-forget)
   classifyAndDraft(insertedMessage.id, message, userId).catch((err) =>

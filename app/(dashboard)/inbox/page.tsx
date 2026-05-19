@@ -474,7 +474,7 @@ export default function InboxPage() {
             <MessageSquare className="w-12 h-12 mx-auto opacity-15" />
             <div>
               <p className="text-sm font-medium">Pilih percakapan</p>
-              <p className="text-xs mt-1 opacity-70">Pesan masuk via webhook Fonnte muncul di sini</p>
+              <p className="text-xs mt-1 opacity-70">Pesan masuk via WhatsApp muncul di sini</p>
             </div>
           </div>
         </div>

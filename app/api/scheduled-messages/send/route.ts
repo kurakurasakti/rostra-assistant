@@ -19,13 +19,13 @@ export async function POST(request: Request) {
       .single(),
     supabase
       .from('profiles')
-      .select('fonnte_device_token')
+      .select('wa_connected')
       .eq('id', user.id)
       .single(),
   ])
 
   if (!msgRes.data) return NextResponse.json({ error: 'Message not found' }, { status: 404 })
-  if (!profileRes.data?.fonnte_device_token) {
+  if (!profileRes.data?.wa_connected) {
     return NextResponse.json({ error: 'WhatsApp not connected' }, { status: 400 })
   }
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     await sendTextMessage(
       msgRes.data.whatsapp_number,
       msgRes.data.message_body,
-      profileRes.data.fonnte_device_token,
+      user.id,
     )
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to send'

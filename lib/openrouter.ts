@@ -1,7 +1,8 @@
 import type { MessageClassification, Profile, Client, BusinessKnowledgeStructured } from '@/types'
-import { createClient as createSupabaseClient } from '@/lib/supabase/server'
+import { createServiceClient as createSupabaseClient } from '@/lib/supabase/server'
 import { validateAIOutput } from '@/lib/security'
 import { formatBusinessContextForAI } from '@/lib/business-knowledge'
+import { sendTextMessage } from '@/lib/whatsapp'
 
 const BASE = 'https://openrouter.ai/api/v1'
 const DEFAULT_MODEL = 'google/gemini-flash-1.5'
@@ -366,6 +367,39 @@ export async function classifyAndDraft(
         status: finalClassification === 'sensitif' ? 'dieskalasi' : 'baru',
       })
       .eq('id', messageId)
+
+    // 5. Auto-reply if level >= 2 and message is routine with valid draft
+    const autoReplyLevel = profile.auto_reply_level ?? 1
+    if (aiDraft && finalClassification === 'rutin' && autoReplyLevel >= 2) {
+      const { data: msg } = await supabase
+        .from('inbox_messages')
+        .select('whatsapp_number')
+        .eq('id', messageId)
+        .single()
+
+      if (msg?.whatsapp_number) {
+        try {
+          await sendTextMessage(msg.whatsapp_number, aiDraft, userId)
+
+          await Promise.all([
+            supabase
+              .from('inbox_messages')
+              .update({ status: 'dibalas', replied_at: new Date().toISOString() })
+              .eq('id', messageId),
+            supabase.from('inbox_messages').insert({
+              user_id: userId,
+              direction: 'keluar',
+              whatsapp_number: msg.whatsapp_number,
+              message_body: aiDraft,
+              classification: 'rutin',
+              status: 'dibalas',
+            }),
+          ])
+        } catch (err) {
+          console.error('[classifyAndDraft] auto-reply failed:', err)
+        }
+      }
+    }
   } catch (err) {
     console.error('[classifyAndDraft] error:', err)
   }

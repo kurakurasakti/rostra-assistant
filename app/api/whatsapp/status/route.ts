@@ -9,22 +9,18 @@ export async function GET() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('fonnte_device_token, wa_connected')
+    .select('wa_connected')
     .eq('id', user.id)
     .single()
 
-  if (!profile?.fonnte_device_token) {
-    return NextResponse.json({ connected: false, number: null })
-  }
+  const status = await getDeviceStatus(user.id)
 
-  const status = await getDeviceStatus(profile.fonnte_device_token)
-
-  if (status.connected && !profile.wa_connected) {
+  if (status.connected && !profile?.wa_connected) {
     await supabase
       .from('profiles')
       .update({ wa_connected: true, onboarding_complete: true })
       .eq('id', user.id)
-  } else if (!status.connected && profile.wa_connected) {
+  } else if (!status.connected && profile?.wa_connected) {
     await supabase
       .from('profiles')
       .update({ wa_connected: false })

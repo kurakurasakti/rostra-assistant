@@ -277,7 +277,13 @@ export default function SettingsPage() {
       return;
     }
 
-    setQrBase64(data.qr_base64);
+    if (!data.qr) {
+      toast.error("QR tidak tersedia. Coba lagi.");
+      setWaStep("idle");
+      return;
+    }
+
+    setQrBase64(data.qr);
     setWaStep("scanning");
     startPolling();
   }
@@ -839,21 +845,16 @@ export default function SettingsPage() {
             </p>
             <div className="flex items-start gap-4">
               <div className="rounded-lg border border-border bg-white p-2 inline-block">
-                {qrBase64.startsWith("http") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={qrBase64}
-                    alt="QR Code WhatsApp"
-                    className="w-48 h-48"
-                  />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`data:image/png;base64,${qrBase64}`}
-                    alt="QR Code WhatsApp"
-                    className="w-48 h-48"
-                  />
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={
+                    qrBase64?.startsWith("http") || qrBase64?.startsWith("data:")
+                      ? qrBase64
+                      : `data:image/png;base64,${qrBase64}`
+                  }
+                  alt="QR Code WhatsApp"
+                  className="w-48 h-48"
+                />
               </div>
               <div className="space-y-2 pt-1">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
