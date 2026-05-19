@@ -14,11 +14,15 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Skill(vercel:status)",
-      "Bash(vercel --version)"
+      "Bash(vercel --version)",
+      "Bash(git reset *)",
+      "Bash(git commit *)",
+      "Bash(vercel link *)",
+      "Bash(vercel *)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "supabase"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
