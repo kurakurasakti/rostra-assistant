@@ -19,33 +19,18 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('fonnte_device_token, wa_connected')
+    .select('wa_connected')
     .eq('id', user.id)
     .single()
 
-  if (!profile?.fonnte_device_token) {
+  if (!profile?.wa_connected) {
     return NextResponse.json({ error: 'WhatsApp belum terhubung' }, { status: 400 })
-  }
-  if (!profile.wa_connected) {
-    return NextResponse.json({ error: 'Perangkat WhatsApp tidak aktif' }, { status: 400 })
-  }
-
-  // Fetch fonnte_inbox_id if replying to a message
-  let inboxId: string | undefined
-  if (body.reply_to_id) {
-    const { data: inboxMsg } = await supabase
-      .from('inbox_messages')
-      .select('fonnte_inbox_id')
-      .eq('id', body.reply_to_id)
-      .eq('user_id', user.id)
-      .single()
-    inboxId = inboxMsg?.fonnte_inbox_id || undefined
   }
 
   try {
-    await sendTextMessage(body.whatsapp_number, body.message, profile.fonnte_device_token, inboxId)
+    await sendTextMessage(body.whatsapp_number, body.message, user.id)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Fonnte error'
+    const msg = err instanceof Error ? err.message : 'WA send error'
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 

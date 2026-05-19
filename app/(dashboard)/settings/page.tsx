@@ -66,7 +66,6 @@ export default function SettingsPage() {
 
   // Section B: WA connection state
   const [waStep, setWaStep] = useState<WaStep>("idle");
-  const [waNumber, setWaNumber] = useState("");
   const [qrBase64, setQrBase64] = useState("");
   const [connectedNumber, setConnectedNumber] = useState("");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -261,13 +260,12 @@ export default function SettingsPage() {
   // --- WhatsApp connection ---
 
   async function handleGenerateQR() {
-    if (!waNumber.trim()) return;
     setWaStep("generating");
 
     const res = await fetch("/api/whatsapp/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ whatsapp_number: waNumber.trim() }),
+      body: JSON.stringify({}),
     });
     const data = await res.json();
 
@@ -289,7 +287,7 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.connected) {
         stopPolling();
-        setConnectedNumber(data.number ?? waNumber);
+        setConnectedNumber(data.number ?? '');
         setWaStep("connected");
         setProfile((prev) =>
           prev
@@ -799,25 +797,10 @@ export default function SettingsPage() {
 
         {waStep === "idle" && (
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">
-                Nomor WhatsApp Bisnis
-              </Label>
-              <Input
-                placeholder="628123456789"
-                value={waNumber}
-                onChange={(e) => setWaNumber(e.target.value)}
-                className="h-10"
-              />
-              <p className="text-xs text-muted-foreground">
-                Format internasional tanpa +, contoh: 628123456789
-              </p>
-            </div>
-            <Button
-              onClick={handleGenerateQR}
-              disabled={!waNumber.trim()}
-              className="gap-2"
-            >
+            <p className="text-xs text-muted-foreground">
+              Scan QR dengan WhatsApp untuk menghubungkan nomor bisnis kamu.
+            </p>
+            <Button onClick={handleGenerateQR} className="gap-2">
               <QrCode className="w-4 h-4" />
               Generate QR
             </Button>
@@ -834,8 +817,7 @@ export default function SettingsPage() {
         {waStep === "scanning" && (
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Scan QR ini dengan WhatsApp di nomor <strong>{waNumber}</strong>.
-              Menunggu scan...
+              Scan QR ini dengan WhatsApp bisnis kamu. Menunggu scan...
             </p>
             <div className="flex items-start gap-4">
               <div className="rounded-lg border border-border bg-white p-2 inline-block">

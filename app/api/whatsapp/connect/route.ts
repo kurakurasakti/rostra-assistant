@@ -1,70 +1,46 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-const FONNTE = 'https://api.fonnte.com'
+const WA_SERVICE_URL = process.env.WA_SERVICE_URL || 'http://localhost:3001'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const masterToken = process.env.FONNTE_MASTER_TOKEN
-  if (!masterToken) return NextResponse.json({ error: 'FONNTE_MASTER_TOKEN not configured' }, { status: 500 })
+  // Consume body (ignored — number not needed with Baileys)
+  await request.json().catch(() => ({}))
 
-  const body = await request.json()
-  const { whatsapp_number } = body as { whatsapp_number: string }
-  if (!whatsapp_number) return NextResponse.json({ error: 'whatsapp_number required' }, { status: 400 })
-
-  // Get business name for device name
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('business_name')
-    .eq('id', user.id)
-    .single()
-
-  // Register device on Fonnte
-  const addRes = await fetch(`${FONNTE}/add-device`, {
+  const connectRes = await fetch(`${WA_SERVICE_URL}/session/${user.id}/connect`, {
     method: 'POST',
-    headers: { Authorization: masterToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: profile?.business_name ?? user.email,
-      device: whatsapp_number,
-    }),
   })
+  if (!connectRes.ok) {
+    return NextResponse.json({ error: 'Gagal membuat WA session' }, { status: 502 })
+  }
+  const connectData = await connectRes.json()
 
-  if (!addRes.ok) {
-    const text = await addRes.text()
-    return NextResponse.json({ error: `Fonnte error: ${text}` }, { status: 502 })
+  // Already connected — no QR needed
+  if (connectData.status === 'connected') {
+    return NextResponse.json({ connected: true, qr_base64: null })
   }
 
-  const addData = await addRes.json()
-  const deviceId: string = addData.device ?? addData.id ?? whatsapp_number
-  const deviceToken: string = addData.token
+  // Poll for QR (up to 10s)
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 1000))
+    const qrRes = await fetch(`${WA_SERVICE_URL}/session/${user.id}/qr`)
+    if (!qrRes.ok) continue
+    const qrData = await qrRes.json()
 
-  if (!deviceToken) {
-    return NextResponse.json({ error: 'No device token returned by Fonnte' }, { status: 502 })
+    if (qrData.status === 'connected') {
+      return NextResponse.json({ connected: true, qr_base64: null })
+    }
+    if (qrData.qr) {
+      // QRCode.toDataURL returns full data URL — strip prefix for frontend
+      const raw = qrData.qr as string
+      const qrBase64 = raw.startsWith('data:') ? raw.split(',')[1] : raw
+      return NextResponse.json({ qr_base64: qrBase64 })
+    }
   }
 
-  // Save device info to profile
-  await supabase
-    .from('profiles')
-    .update({ fonnte_device_id: deviceId, fonnte_device_token: deviceToken, wa_connected: false })
-    .eq('id', user.id)
-
-  // Get QR code
-  const qrRes = await fetch(`${FONNTE}/qr`, {
-    method: 'POST',
-    headers: { Authorization: deviceToken },
-  })
-
-  if (!qrRes.ok) {
-    const text = await qrRes.text()
-    return NextResponse.json({ error: `QR error: ${text}` }, { status: 502 })
-  }
-
-  const qrData = await qrRes.json()
-  // Fonnte returns qr as base64 string or URL
-  const qrBase64: string = qrData.qr ?? qrData.url ?? ''
-
-  return NextResponse.json({ qr_base64: qrBase64 })
+  return NextResponse.json({ error: 'QR timeout, coba lagi' }, { status: 504 })
 }
