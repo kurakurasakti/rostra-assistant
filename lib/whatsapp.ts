@@ -25,6 +25,16 @@ export function normalizeWANumber(input: string): string | null {
 
   let cleaned = input.trim()
 
+  // WhatsApp JID formats from Baileys
+  if (cleaned.endsWith('@lid')) {
+    // Linked Device ID — not a phone number, store numeric part as-is
+    const id = cleaned.slice(0, -4)
+    return id.length > 0 ? id + '@lid' : null
+  }
+  if (cleaned.endsWith('@s.whatsapp.net')) {
+    cleaned = cleaned.slice(0, -15)
+  }
+
   // Handle scientific notation from Excel (e.g. 6.28E+11)
   if (/^\d+\.?\d*[eE][+]?\d+$/.test(cleaned)) {
     try {

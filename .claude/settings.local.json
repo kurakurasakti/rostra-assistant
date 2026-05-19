@@ -16,5 +16,9 @@
       "Skill(vercel:status)",
       "Bash(vercel --version)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
 }
