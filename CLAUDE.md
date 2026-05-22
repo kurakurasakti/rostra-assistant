@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project: Rostra Assistant
 
-WhatsApp CRM + AI auto-reply for Indonesian SMBs (fashion/tailoring niche). Multi-tenant SaaS. One business owner = one Supabase user = one Fonnte device.
+WhatsApp CRM + AI auto-reply for Indonesian SMBs (fashion/tailoring niche). Multi-tenant SaaS. One business owner = one Supabase user = one WA device.
 
-**Stack:** Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Supabase (auth + DB + realtime) · Fonnte (WhatsApp API) · OpenRouter (AI, default model: `google/gemini-flash-1.5`)
+**Stack:** Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Supabase (auth + DB + realtime) · rostra-wa (WhatsApp via Baileys) · OpenRouter (AI, default model: `google/gemini-flash-1.5`)
 
-**Note:** This repo is the Next.js frontend only. WhatsApp socket layer (Baileys) lives in a separate repo (`rostra-wa`).
+**Note:** This repo is the Next.js frontend only. WhatsApp socket layer (Baileys) lives in a separate repo (`rostra-wa`). This service communicates with `rostra-wa` via REST API (`WA_SERVICE_URL`).
 
 ---
 
@@ -31,7 +31,7 @@ Webhook local testing: `ngrok` is a devDependency — run `npx ngrok http 3000` 
 - `lib/supabase/client.ts` — browser client (use in client components)
 - `lib/supabase/server.ts` — server client using cookies (use in Route Handlers + Server Components)
 - All tables have RLS enabled. Every query must be scoped to `auth.uid()`.
-- Multi-tenant: `profiles.fonnte_device_number` maps incoming webhooks to a user.
+- Multi-tenant: `profiles.wa_device_id` maps incoming webhooks to a user.
 
 ### AI Pipeline (`lib/openrouter.ts`)
 
@@ -57,9 +57,9 @@ Injection attempts are inserted with `classification = 'injection_attempt'` and 
 
 ### WhatsApp (`lib/whatsapp.ts`)
 
-Talks to Fonnte REST API. `normalizeWANumber()` handles Indonesian format variants (`08x`, `8x`, `62x`) and Excel scientific notation.
+Talks to `rostra-wa` REST API (`WA_SERVICE_URL`). `normalizeWANumber()` handles Indonesian format variants (`08x`, `8x`, `62x`) and Excel scientific notation.
 
-Webhook at `POST /api/webhook/whatsapp` must return 200 immediately — heavy processing is fire-and-forget via `processIncomingMessage()`.
+Webhook at `POST /api/webhook/whatsapp` receives events from `rostra-wa` — must return 200 immediately, heavy processing is fire-and-forget via `processIncomingMessage()`.
 
 ### Scheduler (`lib/scheduler.ts`)
 
@@ -80,12 +80,12 @@ All times calculated in `Asia/Jakarta` (WIB). Scheduler Edge Function (Phase 3) 
 
 | Route | Purpose |
 |---|---|
-| `POST /api/webhook/whatsapp` | Fonnte webhook — immediate 200, async process |
+| `POST /api/webhook/whatsapp` | rostra-wa webhook — immediate 200, async process |
 | `POST /api/messages/draft` | Generate AI draft for existing inbox message |
-| `POST /api/messages/send` | Send via Fonnte + save outgoing + feedback loop |
+| `POST /api/messages/send` | Send via rostra-wa + save outgoing + feedback loop |
 | `POST /api/classify` | Standalone message classification |
-| `POST /api/whatsapp/connect` | Add device to Fonnte master + return QR |
-| `GET /api/whatsapp/status` | Poll device connection status |
+| `POST /api/whatsapp/connect` | Register device on rostra-wa + return QR |
+| `GET /api/whatsapp/status` | Poll device connection status from rostra-wa |
 | `POST /api/settings/analyze-chat` | Parse WhatsApp .txt export, return senders |
 | `POST /api/settings/analyze-voice` | AI analyze chat messages → brand_voice string |
 | `POST /api/settings/extract-business` | AI extract business knowledge from free text |
@@ -96,7 +96,7 @@ All times calculated in `Asia/Jakarta` (WIB). Scheduler Edge Function (Phase 3) 
 
 ## Key Types (`types/index.ts`)
 
-`Profile` — business owner settings (brand_voice, business_knowledge_*, escalation_keywords, auto_reply_level, feedback_count, fonnte_device_*)
+`Profile` — business owner settings (brand_voice, business_knowledge_*, escalation_keywords, auto_reply_level, feedback_count, wa_device_*)
 
 `MessageClassification` — `'rutin' | 'sensitif' | 'tidak_diketahui' | 'injection_attempt'`
 
@@ -109,16 +109,18 @@ All times calculated in `Asia/Jakarta` (WIB). Scheduler Edge Function (Phase 3) 
 See `PHASES.md` for full checklist. Summary:
 
 - **Phase 0** ✅ Scaffold, auth, Supabase setup
-- **Phase 1A** ✅ WhatsApp connect via Fonnte QR
+- **Phase 1A** ✅ WhatsApp connect via rostra-wa QR
 - **Phase 1B** ✅ Brand voice analysis from chat export
-- **Phase 1C** ⬜ Business Knowledge settings UI (DB alters done in code, SQL may need manual run)
-- **Phase 1D** ⬜ Escalation Rules settings UI
-- **Phase 1E** ⬜ Client AI notes field
+- **Phase 1C** ✅ Business Knowledge settings UI
+- **Phase 1D** ✅ Escalation Rules settings UI
+- **Phase 1E** ✅ Client AI notes field
 - **Phase 1F** ✅ Client + order management
 - **Phase 2A** ✅ Inbox + realtime + AI draft panel
 - **Phase 2B** ✅ Security layer (security.ts, webhook scan, output validation)
-- **Phase 2C** ⬜ Feedback loop (ai_feedback table, correction tracking)
-- **Phase 3–6** ⬜ Scheduler Edge Function, Excel importer, Dashboard polish, Auto-reply L2
+- **Phase 2C** ✅ Feedback loop (ai_feedback table, correction tracking)
+- **Phase 3** ✅ Scheduler Edge Function (pg_cron every 5 min)
+- **Phase 4** ✅ Excel/CSV importer (heuristic mapping, dedup, bulk insert)
+- **Phase 5** ⬜ Dashboard polish, template editor, auto-reply L2, deploy
 
 ---
 
@@ -130,10 +132,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 OPENROUTER_API_KEY
 OPENROUTER_MODEL          # default: google/gemini-flash-1.5
-FONNTE_MASTER_TOKEN       # master account token, not device token
+WA_SERVICE_URL            # rostra-wa service base URL (e.g. https://wa.rostra.app)
 WEBHOOK_SECRET
 NEXT_PUBLIC_APP_URL
 INVITE_CODE               # controls registration
 ```
 
-Webhook URL for Fonnte (production): `https://rostra.vercel.app/api/webhook/whatsapp`
+Webhook URL for rostra-wa (production): `https://rostra.vercel.app/api/webhook/whatsapp`

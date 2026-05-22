@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type CSSProperties } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Users, ShoppingBag, CreditCard, MessageSquare, ArrowRight, Clock, TrendingUp, TrendingDown } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -168,7 +168,7 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="p-6 lg:p-8 max-w-5xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-5xl mx-auto animate-enter">
       <div className="mb-8">
         <h1 className="font-display font-bold text-2xl tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground text-sm mt-1">Selamat datang di Rostra. Pantau bisnis kamu dari sini.</p>
@@ -176,8 +176,8 @@ export default function DashboardPage() {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map(({ label, value, icon: Icon, description, color, bg, trend, trendLabel }) => (
-          <div key={label} className="rounded-xl border border-border bg-card p-4 space-y-3">
+        {statCards.map(({ label, value, icon: Icon, description, color, bg, trend, trendLabel }, i) => (
+          <div key={label} style={{ '--stagger-i': i } as CSSProperties} className="animate-stagger-item rounded-xl border border-border bg-card p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground">{label}</p>
               <div className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center`}>
@@ -252,7 +252,7 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-2">
               {pendingItems.map((item, i) => (
-                <div key={i} className={`flex items-start gap-3 p-3 rounded-lg ${
+                <div key={i} style={{ '--stagger-i': i } as CSSProperties} className={`animate-stagger-item flex items-start gap-3 p-3 rounded-lg ${
                   item.severity === "danger"
                     ? "bg-red-500/5 border border-red-500/20"
                     : "bg-amber-500/5 border border-amber-500/20"

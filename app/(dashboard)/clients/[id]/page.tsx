@@ -223,7 +223,7 @@ export default function ClientDetailPage() {
   if (!client) return null
 
   return (
-    <div className="p-6 lg:p-8 max-w-3xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-3xl mx-auto animate-enter">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/clients" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-8 px-2")}>

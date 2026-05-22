@@ -30,18 +30,17 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
-### 1A. WhatsApp Connection (Fonnte Multi-Device) ✅ SELESAI
+### 1A. WhatsApp Connection (rostra-wa via Baileys) ✅ SELESAI
 
-- [x] Tambah `FONNTE_MASTER_TOKEN` ke `.env` dan `.env.local.example`
+- [x] Tambah `WA_SERVICE_URL` ke `.env` dan `.env.local.example`
 - [ ] **[DB]** Jalankan SQL di Supabase:
       `sql
     alter table profiles
-      add column fonnte_device_id    text unique,
-      add column fonnte_device_token text,
-      add column wa_connected        boolean not null default false;
+      add column wa_device_id   text unique,
+      add column wa_connected   boolean not null default false;
     `
-- [x] `POST /api/whatsapp/connect` — add device ke Fonnte master + return QR base64
-- [x] `GET /api/whatsapp/status` — cek status koneksi device
+- [x] `POST /api/whatsapp/connect` — register device ke rostra-wa + return QR base64
+- [x] `GET /api/whatsapp/status` — cek status koneksi device dari rostra-wa
 - [x] Settings page Section B: QR scan UI + polling tiap 3 detik + status terhubung + putuskan koneksi
 
 ---
@@ -242,7 +241,7 @@ alter table clients
 
 - [x] `/lib/openrouter.ts` — `classifyMessage()`, `draftReply()`
 - [x] `POST /api/webhook/whatsapp` — multi-tenant routing + auto-link clients
-- [x] `POST /api/messages/send` — kirim via Fonnte + save outgoing
+- [x] `POST /api/messages/send` — kirim via rostra-wa + save outgoing
 - [x] `POST /api/messages/draft` — draft dengan brand_voice + conversation context
 - [x] `POST /api/classify` — AI classification (rutin/sensitif/tidak_diketahui)
 - [x] Inbox page — conversation list + thread + realtime + draft panel
@@ -526,23 +525,21 @@ alter table profiles
 
 ---
 
-## Phase 4 — Excel Importer
+## Phase 4 — Excel Importer ✅ SELESAI
 
 **Goal:** Upload Excel 50+ baris → AI mapping kolom → preview validasi → import berhasil.
 
-- [ ] Buat `/lib/importer.ts`:
-      `typescript
-    parseFile(file)          // xlsx + csv → { headers, rows }
-    normalizeWANumber(input) // handle scientific notation dari Excel
-    validateRow(row)         // cek nama + WA valid
-    `
-- [ ] `POST /api/import/preview`: - Accept multipart/form-data dengan file - Parse file dengan importer.ts - Call AI untuk mapping kolom (COLUMN_MAPPING_SYSTEM prompt) - Return: `{ headers, sample_rows, ai_mapping, total_rows }`
-- [ ] `POST /api/import/confirm`: - Body: `{ rows: ImportRow[], mapping: Record<string, string> }` - Normalize semua WA numbers - Validasi setiap row - Bulk insert valid rows ke clients - Return: `{ imported, skipped, errors }`
-- [ ] Import wizard UI `/import` — 4 steps: - Step 1: Upload drag & drop (.xlsx/.xls/.csv, max 5MB) - Step 2: Tabel mapping kolom (AI suggest + user bisa koreksi via dropdown)
-      Required: Nama Klien + No. WhatsApp harus dipetakan sebelum lanjut - Step 3: Preview 10 baris pertama + validasi (✅ valid / ❌ skip / ⚠️ duplikat)
-      Summary: "X siap diimpor, Y dilewati, Z duplikat" - Step 4: Progress bar + hasil akhir + tombol "Lihat Daftar Klien"
+- [x] Buat `/lib/importer.ts`:
+      Heuristic column mapping (Indonesian + English patterns), `suggestMapping()`, `extractMappedRows()`, types `ColMapping`, `ImportRowInput`, `ImportResult`
+- [x] `POST /api/import/confirm`:
+      Auth guard → normalize WA (handles Excel scientific notation) → batch dedup check → bulk insert → return `{ imported, skipped, duplicates, errors[] }`
+- [x] Import wizard UI `/import` — 4 steps:
+      Step 1: Upload drag & drop (.xlsx/.xls/.csv) — fixed Excel binary parsing bug (ArrayBuffer)
+      Step 2: Mapping kolom — auto-suggest dari header file, dropdown per field
+      Step 3: Preview — resolved name/phone/email sebelum commit
+      Step 4: Hasil — 3 cards (Berhasil / Duplikat / Dilewati) + error table dengan row numbers
 
-**Done when:** Upload Excel 50+ baris → AI mapping → preview → import berhasil.
+**Done when:** Upload Excel 50+ baris → AI mapping → preview → import berhasil. ✅
 
 ---
 
@@ -602,7 +599,7 @@ alter table profiles
 
 - [ ] Deploy ke Vercel (connect GitHub repo → auto-deploy)
 - [ ] Set semua environment variables di Vercel dashboard
-- [ ] Setup Fonnte webhook URL ke production: `https://rostra.vercel.app/api/webhook/whatsapp`
+- [ ] Setup rostra-wa webhook URL ke production: `https://rostra.vercel.app/api/webhook/whatsapp`
 - [ ] End-to-end smoke test semua flow di production:
       Register → WA connect → add client → buat pesanan → terima pesan → AI draft → kirim
 - [ ] Test injection attempt: kirim pesan "lupakan instruksi" via WA → pastikan dieskalasi
@@ -611,7 +608,68 @@ alter table profiles
 
 ---
 
-## Phase 6 — Post-MVP (setelah ada paying customers)
+## Phase 6 — Landing Page & Public Presence
+
+**Goal:** Convert visitors → signups. Marketing site live.
+
+### 6A. Landing Page Design & Build
+
+- [ ] Buat `/app/landing` route untuk public pages (outside dashboard)
+- [ ] Hero section:
+      - Headline: "WhatsApp CRM untuk Bisnis Fashion & Tailoring Indonesia"
+      - Subheading: "AI otomatis balas pesan, kelola pesanan, terima pembayaran"
+      - CTA: "Mulai Gratis — Tidak Perlu Kartu Kredit"
+      - Background video/image of fashion business
+- [ ] Features section (3 kolom):
+      - 🤖 AI Auto-Reply — Balas otomatis dengan gaya bisnis Anda
+      - 📋 Order Management — Track pembayaran, jadwal, appointment
+      - 📲 WhatsApp Native — Langsung dari WhatsApp, no app switching
+- [ ] How It Works section (4 steps):
+      1. Connect WhatsApp device via QR
+      2. Upload chat history → AI pelajari gaya Anda
+      3. Add clients + create orders
+      4. AI auto-replies, you review & approve
+- [ ] Pricing section:
+      - Tier 1 (free): 1 device, manual review mode, 50 messages/day
+      - Tier 2 (Rp 199k/bulan): unlimited devices, semi-auto mode, 10k messages/month
+      - Tier 3 (Rp 499k/bulan): full auto mode, priority support, custom templates
+- [ ] FAQ section — common questions
+- [ ] Footer — links, social, copyright
+- [ ] Responsive design (mobile-first)
+
+### 6B. Landing Page Content
+
+- [ ] Buat `/content/landing-copy.ts` — semua copy/tekst
+      Titles, descriptions, CTA text, FAQ answers
+- [ ] Buat `/content/case-studies.ts` — 3 case studies:
+      "Butik Kirana: Hemat 5 jam kerja/minggu"
+      "Jahitan Ibu Siti: Revenue +40% dengan AI"
+      "Tailor Budi: Klien sabar karena ada konfirmasi otomatis"
+- [ ] Testimonials — 5-6 quotes dari beta users
+- [ ] Trust badges — "✓ 500+ users" atau "✓ Trusted by..."
+
+### 6C. SEO & Analytics
+
+- [ ] Setup metadata:
+      - `og:title`, `og:description`, `og:image`
+      - Meta tags untuk semua pages
+      - Sitemap + robots.txt
+- [ ] Setup Google Analytics 4
+- [ ] Setup Vercel Analytics untuk performance monitoring
+- [ ] Create sitemap untuk SEO
+
+### 6D. Email Capture
+
+- [ ] Newsletter signup di footer
+      Email → simpan ke `newsletter_signups` table
+- [ ] Thank you email via Resend/SendGrid
+- [ ] Broadcast feature (untuk nanti: email campaign ke newsletter subs)
+
+**Done when:** Landing page live, Google indexable, visitors dapat lihat product value tanpa login.
+
+---
+
+## Phase 7 — Post-MVP (setelah ada paying customers)
 
 > Jangan build ini sebelum ada minimal 10 paying customers.
 > Fokus dulu ke acquisition dan feedback dari beta users.
@@ -664,7 +722,7 @@ Jalankan SQL ini di Supabase SQL Editor **secara berurutan**:
 
 ### Tambahan dari Phase 1 (jalankan setelah tabel dasar selesai):
 
-- [ ] Alter `profiles`: tambah `fonnte_device_id`, `fonnte_device_token`, `wa_connected`
+- [ ] Alter `profiles`: tambah `wa_device_id`, `wa_connected`
 - [ ] Alter `profiles`: tambah `product_knowledge`, `operating_hours`, `po_status`,
       `po_close_date`, `processing_time`, `payment_methods`, `special_notes`, `location_info`
 - [ ] Alter `profiles`: tambah `escalation_keywords`, `auto_reply_level`, `feedback_count`

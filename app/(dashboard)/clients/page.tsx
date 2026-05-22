@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -233,10 +233,11 @@ export default function ClientsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map(client => (
+              {filtered.map((client, i) => (
                 <tr
                   key={client.id}
-                  className="hover:bg-muted/30 cursor-pointer transition-colors"
+                  style={{ '--stagger-i': i } as CSSProperties}
+                  className="animate-stagger-item hover:bg-muted/30 cursor-pointer transition-colors"
                   onClick={() => window.location.href = `/clients/${client.id}`}
                 >
                   <td className="px-4 py-3.5">

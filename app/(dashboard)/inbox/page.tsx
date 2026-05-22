@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, type CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { InboxMessage } from '@/types'
 import { format, isToday, isYesterday } from 'date-fns'
@@ -19,6 +19,7 @@ import {
   RefreshCw,
   ChevronLeft,
 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
 interface Conversation {
@@ -291,8 +292,18 @@ export default function InboxPage() {
 
         <div className="flex-1 overflow-y-auto">
           {loadingMessages ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            <div>
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="px-4 py-3 border-b border-border/40">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="w-9 h-9 rounded-full flex-shrink-0" />
+                    <div className="flex-1 space-y-2 pt-0.5">
+                      <Skeleton className="h-2.5 w-20" />
+                      <Skeleton className="h-2.5 w-full" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : conversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
@@ -300,18 +311,19 @@ export default function InboxPage() {
               <p className="text-xs text-center">Belum ada pesan masuk</p>
             </div>
           ) : (
-            conversations.map(conv => (
+            conversations.map((conv, i) => (
               <button
                 key={conv.whatsapp_number}
+                style={{ '--stagger-i': i } as CSSProperties}
                 onClick={() => {
                   setSelectedNumber(conv.whatsapp_number)
                   setDraft('')
                   setMobileView('thread')
                 }}
                 className={cn(
-                  'w-full text-left px-4 py-3 border-b border-border/40',
-                  'transition-all duration-150 ease-in-out',
-                  'hover:bg-muted/50 hover:pl-5',
+                  'animate-stagger-item w-full text-left px-4 py-3 border-b border-border/40',
+                  'transition-colors duration-150 ease-out',
+                  'hover:bg-muted/50',
                   selectedNumber === conv.whatsapp_number &&
                     'bg-primary/[0.04] border-l-[3px] border-l-primary shadow-[inset_0_0_0_1px_rgba(124,58,237,0.08)]',
                 )}

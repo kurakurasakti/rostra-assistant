@@ -280,6 +280,68 @@ Analisa dan deskripsikan gaya komunikasi mereka.
   return callAI(system, user, 300)
 }
 
+const GREETING_PATTERNS = [
+  /^(halo|hai|hi|hello|hey|hei|assalamualaikum|waalaikumsalam|selamat (pagi|siang|sore|malam))[\s.!?]*$/i,
+  /^(oke|ok|baik|siap|noted|makasih|thanks|thank you|terima kasih)[\s.!?]*$/i,
+]
+
+function isPlainGreeting(message: string): boolean {
+  const trimmed = message.trim()
+  if (trimmed.length < 3) return true
+  return GREETING_PATTERNS.some(p => p.test(trimmed))
+}
+
+interface ClassifyDraftResult {
+  classification: MessageClassification
+  draft: string | null
+}
+
+async function classifyAndDraftSingle(
+  message: string,
+  secureSystemPrompt: string,
+  history?: Array<{ direction: string; message_body: string }>,
+): Promise<ClassifyDraftResult> {
+  const system = `${secureSystemPrompt}
+
+---
+TUGAS: Analisa pesan pelanggan dan return JSON berikut (tidak ada teks lain):
+{
+  "classification": "rutin" | "sensitif" | "tidak_diketahui",
+  "draft": "teks balasan" | null
+}
+
+Aturan:
+- "rutin": pertanyaan harga, ketersediaan, jadwal, status pesanan, info produk → tulis draft
+- "sensitif": keluhan, refund, konflik, ketidakpuasan → draft HARUS null
+- "tidak_diketahui": sapaan saja, tidak relevan → draft HARUS null
+- Draft maksimal 400 karakter
+- Jika rutin tapi tidak tahu jawaban: draft = "Boleh saya tanyakan ke tim dulu ya Kak 🙏"
+- Output HANYA JSON valid.`
+
+  let userPrompt = `Pesan pelanggan: ${message}`
+  if (history && history.length > 1) {
+    const historyText = history
+      .slice(-6)
+      .map(m => `${m.direction === 'masuk' ? 'Pelanggan' : 'Admin'}: ${m.message_body}`)
+      .join('\n')
+    userPrompt = `Riwayat percakapan:\n${historyText}\n\nPesan terbaru pelanggan: ${message}`
+  }
+
+  try {
+    const raw = await callAI(system, userPrompt, 500)
+    const clean = raw.replace(/```json|```/g, '').trim()
+    const parsed = JSON.parse(clean) as { classification: string; draft: string | null }
+    const classification: MessageClassification =
+      parsed.classification === 'rutin' || parsed.classification === 'sensitif'
+        ? parsed.classification
+        : 'tidak_diketahui'
+    return { classification, draft: parsed.draft ?? null }
+  } catch {
+    return { classification: 'tidak_diketahui', draft: null }
+  }
+}
+
+// Kept for standalone /api/classify route
 export async function classifyMessage(message: string): Promise<MessageClassification> {
   const system = `Kamu mengklasifikasikan pesan pelanggan bisnis Indonesia.
 Klasifikasikan sebagai:
@@ -295,6 +357,7 @@ Balas HANYA dengan satu kata: rutin, sensitif, atau tidak_diketahui`
   return 'tidak_diketahui'
 }
 
+// Kept for /api/messages/draft route (manual draft from inbox)
 export async function draftReply(
   message: string,
   brandVoice: string,
@@ -325,7 +388,6 @@ export async function classifyAndDraft(
   const supabase = await createSupabaseClient()
 
   try {
-    // 1. Fetch profile for brand_voice + business context
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -334,42 +396,17 @@ export async function classifyAndDraft(
 
     if (!profile) return
 
-    // 2. Classify message
-    const classification = await classifyMessage(messageBody)
+    // --- Rule-based gate (zero AI cost) ---
 
-    // Check escalation keywords
+    // Gate 1: escalation keywords → immediate sensitif, skip AI
     const hasEscalationKeyword = (profile.escalation_keywords || []).some(
-      (keyword: string) => messageBody.toLowerCase().includes(keyword.toLowerCase()),
+      (kw: string) => messageBody.toLowerCase().includes(kw.toLowerCase()),
     )
-
-    const finalClassification = hasEscalationKeyword ? 'sensitif' : classification
-
-    // 3. Generate AI draft (only for routine messages)
-    let aiDraft = null
-    if (finalClassification === 'rutin') {
-      const businessContext = buildBusinessContext(profile)
-      const secureSystem = buildSecurePrompt(profile, null, businessContext, profile.brand_voice || '')
-      aiDraft = await draftReply(messageBody, '', undefined, secureSystem)
-
-      // Validate output
-      const validation = validateAIOutput(aiDraft)
-      if (!validation.safe) {
-        aiDraft = null
-      }
-    }
-
-    // 4. Update inbox_messages
-    await supabase
-      .from('inbox_messages')
-      .update({
-        classification: finalClassification,
-        ai_draft_reply: aiDraft,
-        status: finalClassification === 'sensitif' ? 'dieskalasi' : 'baru',
-      })
-      .eq('id', messageId)
-
-    // 5. Notify owner if escalated (fire-and-forget, never blocks)
-    if (finalClassification === 'sensitif') {
+    if (hasEscalationKeyword) {
+      await supabase
+        .from('inbox_messages')
+        .update({ classification: 'sensitif', ai_draft_reply: null, status: 'dieskalasi' })
+        .eq('id', messageId)
       const { data: msgData } = await supabase
         .from('inbox_messages')
         .select('sender_name, whatsapp_number')
@@ -378,21 +415,75 @@ export async function classifyAndDraft(
       const contactName = msgData?.sender_name || msgData?.whatsapp_number || 'Pelanggan'
       const { sendEscalationNotification } = await import('@/lib/notifications')
       sendEscalationNotification(userId, contactName, messageBody, 'sensitif').catch(() => {})
+      return
     }
 
-    // 6. Auto-reply if level >= 2 and message is routine with valid draft
-    const autoReplyLevel = profile.auto_reply_level ?? 1
-    if (aiDraft && finalClassification === 'rutin' && autoReplyLevel >= 2) {
-      const { data: msg } = await supabase
+    // Gate 2: plain greeting → tidak_diketahui, skip AI
+    if (isPlainGreeting(messageBody)) {
+      await supabase
         .from('inbox_messages')
-        .select('whatsapp_number')
+        .update({ classification: 'tidak_diketahui', ai_draft_reply: null, status: 'baru' })
         .eq('id', messageId)
-        .single()
+      return
+    }
 
-      if (msg?.whatsapp_number) {
+    // --- Single AI call: classify + draft ---
+
+    // Fetch conversation history for context
+    const { data: msgRow } = await supabase
+      .from('inbox_messages')
+      .select('whatsapp_number, client_id, sender_name')
+      .eq('id', messageId)
+      .single()
+
+    let history: Array<{ direction: string; message_body: string }> = []
+    if (msgRow?.whatsapp_number) {
+      const { data: recent } = await supabase
+        .from('inbox_messages')
+        .select('direction, message_body')
+        .eq('user_id', userId)
+        .eq('whatsapp_number', msgRow.whatsapp_number)
+        .neq('id', messageId)
+        .order('received_at', { ascending: false })
+        .limit(6)
+      history = (recent ?? []).reverse()
+    }
+
+    const businessContext = buildBusinessContext(profile)
+    const securePrompt = buildSecurePrompt(profile, null, businessContext, profile.brand_voice || '')
+
+    const result = await classifyAndDraftSingle(messageBody, securePrompt, history)
+
+    // Validate AI output
+    let safeDraft = result.draft
+    if (safeDraft) {
+      const validation = validateAIOutput(safeDraft)
+      if (!validation.safe) safeDraft = null
+    }
+
+    await supabase
+      .from('inbox_messages')
+      .update({
+        classification: result.classification,
+        ai_draft_reply: safeDraft,
+        status: result.classification === 'sensitif' ? 'dieskalasi' : 'baru',
+      })
+      .eq('id', messageId)
+
+    // Notify if escalated
+    if (result.classification === 'sensitif') {
+      const contactName = msgRow?.sender_name || msgRow?.whatsapp_number || 'Pelanggan'
+      const { sendEscalationNotification } = await import('@/lib/notifications')
+      sendEscalationNotification(userId, contactName, messageBody, 'sensitif').catch(() => {})
+    }
+
+    // Auto-reply if level >= 2 and routine with valid draft
+    const autoReplyLevel = profile.auto_reply_level ?? 1
+    if (safeDraft && result.classification === 'rutin' && autoReplyLevel >= 2) {
+      const waNumber = msgRow?.whatsapp_number
+      if (waNumber) {
         try {
-          await sendTextMessage(msg.whatsapp_number, aiDraft, userId)
-
+          await sendTextMessage(waNumber, safeDraft, userId)
           await Promise.all([
             supabase
               .from('inbox_messages')
@@ -401,8 +492,8 @@ export async function classifyAndDraft(
             supabase.from('inbox_messages').insert({
               user_id: userId,
               direction: 'keluar',
-              whatsapp_number: msg.whatsapp_number,
-              message_body: aiDraft,
+              whatsapp_number: waNumber,
+              message_body: safeDraft,
               classification: 'rutin',
               status: 'dibalas',
             }),

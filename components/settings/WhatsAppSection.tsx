@@ -7,15 +7,16 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { CheckCircle2, Loader2, Link2, Link2Off, QrCode, Bell } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { Skeleton } from "@/components/ui/skeleton"
 
-type WaStep = "idle" | "generating" | "scanning" | "connected"
+type WaStep = "checking" | "idle" | "generating" | "scanning" | "connected"
 
 export default function WhatsAppSection({
   initialNotificationNumber,
 }: {
   initialNotificationNumber?: string | null
 }) {
-  const [waStep, setWaStep] = useState<WaStep>("idle")
+  const [waStep, setWaStep] = useState<WaStep>("checking")
   const [waNumber, setWaNumber] = useState("")
   const [qrBase64, setQrBase64] = useState("")
   const [connectedNumber, setConnectedNumber] = useState("")
@@ -35,11 +36,13 @@ export default function WhatsAppSection({
       .then((r) => r.json())
       .then((d) => {
         if (d.connected) {
+          setConnectedNumber(d.number ?? "")
           setWaStep("connected")
-          if (d.number) setConnectedNumber(d.number)
+        } else {
+          setWaStep("idle")
         }
       })
-      .catch(() => {})
+      .catch(() => setWaStep("idle"))
     return () => stopPolling()
   }, [stopPolling])
 
@@ -125,6 +128,14 @@ export default function WhatsAppSection({
             <Link2Off className="w-4 h-4 text-muted-foreground" />
           )}
         </div>
+
+        {waStep === "checking" && (
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        )}
 
         {waStep === "idle" && (
           <div className="space-y-3">

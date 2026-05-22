@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import type { Profile, BusinessKnowledgeStructured } from "@/types";
+import { Skeleton } from "@/components/ui/skeleton";
 import BusinessKnowledgeSection from "@/components/settings/BusinessKnowledgeSection";
 import { SettingsNav, type SettingsTab } from "@/components/settings/SettingsNav";
 import WhatsAppSection from "@/components/settings/WhatsAppSection";
@@ -235,14 +236,20 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+      <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+        <div className="space-y-1.5">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <Skeleton className="h-48 rounded-xl" />
+        <Skeleton className="h-32 rounded-xl" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6 animate-enter">
       <div>
         <h1 className="font-display font-bold text-2xl tracking-tight">Pengaturan</h1>
         <p className="text-muted-foreground text-sm mt-1">Kelola profil bisnis dan koneksi WhatsApp.</p>
