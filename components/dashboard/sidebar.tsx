@@ -67,13 +67,13 @@ export function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  ? 'bg-primary/10 text-primary border-l-2 border-accent pl-[10px]'
+                  : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'
               )}
             >
-              <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-primary' : '')} />
+              <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-accent' : '')} />
               {label}
             </Link>
           )

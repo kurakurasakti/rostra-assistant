@@ -77,7 +77,10 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 bg-primary relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #4a2560 0%, #703c8b 40%, #8b5aa3 100%)'
+        }}>
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -bottom-32 -left-32 w-[500px] h-[500px] rounded-full bg-white/5" />
           <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5" />
@@ -85,8 +88,8 @@ export default function RegisterPage() {
 
         <div className="relative">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-accent" />
             </div>
             <span className="text-white font-display font-semibold text-lg tracking-tight">Rostra</span>
           </div>
