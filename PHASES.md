@@ -373,7 +373,7 @@ create policy "Users view own security logs"
 
 ---
 
-### 2C. Feedback Loop — AI Belajar dari Koreksi (BARU)
+### 2C. Feedback Loop — AI Belajar dari Koreksi ✅ SELESAI
 
 > Setiap kali admin edit draft AI sebelum kirim → sistem catat koreksi.
 > Ini data untuk unlock Level 2 dan Level 3, dan untuk improve brand voice.
@@ -399,26 +399,19 @@ create index idx_ai_feedback_user on ai_feedback(user_id, created_at desc);
 
 **Checklist:**
 
-- [ ] Update `POST /api/messages/send`:
+- [x] Update `POST /api/messages/send`:
       Jika pesan yang dikirim BERBEDA dari `ai_draft_reply` yang tersimpan di inbox_messages:
-      `typescript
-    if (sentMessage !== originalDraft) {
-      // 1. Insert ke ai_feedback (original + corrected)
-      // 2. Increment profiles.feedback_count + 1
-      // 3. Cek apakah feedback_count sekarang unlock level baru
-      //    (50 → kirim notifikasi "Level 2 tersedia!", 200 → "Level 3 tersedia!")
-    }
-    `
+      Insert ke ai_feedback + call `increment_feedback_count` RPC (atomic increment).
+      Silent — zero UI change for admin.
 
-- [ ] Inbox page — perubahan UI di draft panel:
-      Setelah admin edit textarea dan klik "Kirim": - Jika teks berbeda dari draft asli → simpan feedback secara silent (tanpa konfirmasi user) - Tidak perlu UI khusus — feedback collection harus invisible
+- [x] Inbox page — feedback collection invisible:
+      Handled in send route, no UI change needed.
 
-- [ ] Tambah ke Settings page Section D (Aturan AI):
-      Progress bar feedback count:
-      `     Koreksi kamu: [=====>    ] 34/50 untuk Level 2
-    "Setiap kali kamu mengedit draft AI sebelum kirim, 
-     AI belajar dari koreksi tersebut."
-    `
+- [x] Settings page Section D: progress bar already renders `feedbackCount` from DB.
+      Confirmed `profiles.feedback_count` loaded in settings page, passed to AIRulesSection.
+
+- [x] DB: `ai_feedback` table + RLS + index created via migration.
+- [x] DB: `increment_feedback_count(uid)` SQL function created (security definer).
 
 ---
 
