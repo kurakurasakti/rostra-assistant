@@ -120,6 +120,12 @@ export interface ScheduledMessage {
   created_at: string
 }
 
+export type FullOrder = Order & {
+  payment_stages: PaymentStage[]
+  appointments: Appointment[]
+  scheduled_messages: ScheduledMessage[]
+}
+
 export interface InboxMessage {
   id: string
   user_id: string

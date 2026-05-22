@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
-import { Plus, Search, Users, Upload } from 'lucide-react'
+import { Plus, Search, Users, Upload, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
@@ -210,8 +210,10 @@ export default function ClientsPage() {
           {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Users className="w-10 h-10 text-muted-foreground/40 mb-3" />
+        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-dashed border-border">
+          <div className="bg-muted/50 rounded-full p-3 mb-3">
+            <UserPlus className="w-8 h-8 text-muted-foreground/40" />
+          </div>
           <p className="text-sm font-medium text-muted-foreground">
             {search ? 'Klien tidak ditemukan' : 'Belum ada klien'}
           </p>
