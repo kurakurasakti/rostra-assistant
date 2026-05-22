@@ -495,32 +495,31 @@ alter table profiles
 
 ---
 
-## Phase 3 — Automation Scheduler
+## Phase 3 — Automation Scheduler ✅ SELESAI
 
 **Goal:** Pesan reminder terkirim otomatis tanpa intervensi manual.
 
-- [ ] Buat Supabase Edge Function `send-scheduled-messages`:
-      `typescript
-    // Query scheduled_messages WHERE status='menunggu' AND scheduled_at <= now()
-    // Untuk setiap pesan: ambil fonnte_device_token dari profiles via JOIN
-    // Kirim via Fonnte API POST /send
-    // Update status = 'terkirim' jika sukses, 'gagal' jika error
-    // Batch max 50 per run untuk hindari timeout Edge Function
-    `
-- [ ] Deploy Edge Function: `supabase functions deploy send-scheduled-messages`
-- [ ] Setup pg_cron di Supabase SQL Editor:
-      `sql
-    select cron.schedule(
-      'send-scheduled-messages',
-      '*/5 * * * *',
-      $$ select net.http_post(
-        url := 'https://YOUR_PROJECT.supabase.co/functions/v1/send-scheduled-messages',
-        headers := jsonb_build_object(
-          'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
-        )
-      ) $$
-    );
-    `
+- [x] Buat Supabase Edge Function `send-scheduled-messages`:
+      File: `supabase/functions/send-scheduled-messages/index.ts`
+      Query scheduled_messages (status='menunggu', scheduled_at <= now()).
+      JOIN profiles untuk cek wa_connected. Batch max 50.
+      Call WA_SERVICE_URL/session/{user_id}/send per message.
+      Update status='terkirim' + sent_at on success, 'gagal' + error_message on fail.
+
+- [x] Deploy Edge Function via Supabase MCP — status: ACTIVE, verify_jwt: false
+      Function ID: c1e4cd1a-cf20-4d33-9d87-e41a68c1c2da
+
+- [x] Enable pg_cron + pg_net extensions via migration
+
+- [x] Setup pg_cron — jobid=1, schedule `*/5 * * * *`:
+      Calls `https://dpeyfucyrhyuhliitcfd.supabase.co/functions/v1/send-scheduled-messages`
+
+- [ ] **Manual step required:** Set `WA_SERVICE_URL` secret on Edge Function:
+      ```bash
+      supabase secrets set WA_SERVICE_URL=https://your-wa-service-url.com
+      ```
+      Or via Supabase Dashboard → Edge Functions → send-scheduled-messages → Secrets
+
 - [ ] Test end-to-end: buat pesanan → lihat scheduled_messages di DB → tunggu 5 menit → cek status berubah ke 'terkirim' → cek WA klien menerima pesan
 
 **Done when:** Pesan reminder terkirim otomatis tanpa intervensi manual.
