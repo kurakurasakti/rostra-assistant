@@ -431,12 +431,12 @@ create index idx_ai_feedback_user on ai_feedback(user_id, created_at desc);
 
 ---
 
-### 2D. Notification System
+### 2D. Notification System ✅ SELESAI
 
 > Pemilik bisnis tidak duduk di depan dashboard seharian.
 > Notifikasi proaktif memastikan eskalasi tidak terlewat.
 
-**DB** (sudah dijalankan):
+**DB** ✅ (sudah dijalankan):
 
 ```sql
 alter table profiles
@@ -459,6 +459,14 @@ alter table profiles
 - [x] Settings page — Section WhatsApp: tambah field "Nomor WA Pribadi (untuk notifikasi)"
       Simpan ke `profiles.notification_wa_number`.
       Help text: "Kosongkan jika tidak ingin notifikasi. Beda dari nomor bisnis di atas."
+
+- [x] Harden injection detection in `lib/security.ts`:
+      Add patterns: `###instruction`, `act as\b`, `override`, `jailbreak`, `peran baru`, system prompt markers
+      
+- [x] Audit escalation flow — verified clean:
+      Injection attempt → hard return in webhook (zero AI involvement)
+      Sensitif → aiDraft=null, auto-reply blocked by double guard
+      All paths → owner WA notification
 
 - [ ] **[FUTURE — Phase 5]** In-app notification center:
       Bell icon di sidebar dengan badge unread count.
