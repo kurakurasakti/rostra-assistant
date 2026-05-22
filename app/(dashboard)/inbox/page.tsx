@@ -302,13 +302,20 @@ export default function InboxPage() {
                   setDraft('')
                 }}
                 className={cn(
-                  'w-full text-left px-4 py-3 border-b border-border/40 hover:bg-accent transition-colors',
+                  'w-full text-left px-4 py-3 border-b border-border/40',
+                  'transition-all duration-150 ease-in-out',
+                  'hover:bg-muted/50 hover:pl-5',
                   selectedNumber === conv.whatsapp_number &&
-                    'bg-primary/5 border-l-2 border-l-primary',
+                    'bg-primary/[0.04] border-l-[3px] border-l-primary shadow-[inset_0_0_0_1px_rgba(124,58,237,0.08)]',
                 )}
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-xs font-semibold text-primary">
+                  <div className={cn(
+                    'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold transition-colors duration-150',
+                    selectedNumber === conv.whatsapp_number
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-primary/10 text-primary',
+                  )}>
                     {getInitials(conv.contact_name)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -356,7 +363,7 @@ export default function InboxPage() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2.5">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
             {thread.map(msg => (
               <div
                 key={msg.id}
@@ -365,105 +372,104 @@ export default function InboxPage() {
                   msg.direction === 'keluar' ? 'justify-end' : 'justify-start',
                 )}
               >
-                <div
-                  className={cn(
-                    'max-w-[68%] px-3.5 py-2.5 rounded-2xl text-sm',
-                    msg.direction === 'keluar'
-                      ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                      : 'bg-muted text-foreground rounded-tl-sm',
-                  )}
-                >
-                  <p className="whitespace-pre-wrap leading-relaxed text-[13px]">
-                    {msg.message_body}
-                  </p>
-                  <p
+                  <div
                     className={cn(
-                      'text-[10px] mt-1',
+                      'max-w-[72%] px-3.5 py-2.5 text-sm leading-relaxed',
+                      msg.direction === 'keluar'
+                        ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm shadow-sm'
+                        : 'bg-muted/80 text-foreground rounded-2xl rounded-tl-sm border border-border/50',
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap text-[13px]">{msg.message_body}</p>
+                    <p className={cn(
+                      'text-[10px] mt-1.5',
                       msg.direction === 'keluar'
                         ? 'text-primary-foreground/60 text-right'
                         : 'text-muted-foreground',
-                    )}
-                  >
-                    {format(new Date(msg.received_at), 'HH:mm')}
-                  </p>
-                </div>
+                    )}>
+                      {format(new Date(msg.received_at), 'HH:mm')}
+                    </p>
+                  </div>
               </div>
             ))}
             <div ref={threadEndRef} />
           </div>
 
           {/* Draft panel */}
-          <div className="border-t border-border px-4 py-3 flex-shrink-0 space-y-2.5 bg-background">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                Balas
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleGenerateDraft}
-                disabled={loadingDraft}
-                className="h-7 text-xs gap-1.5 text-primary hover:text-primary hover:bg-primary/10"
-              >
-                {loadingDraft ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3 h-3" />
-                )}
-                Muat Draft AI
-              </Button>
-            </div>
-            <Textarea
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              placeholder="Ketik balasan atau muat draft AI..."
-              className="resize-none text-[13px] min-h-[80px]"
-              rows={3}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault()
-                  handleSend()
-                }
-              }}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleUpdateStatus('dieskalasi')}
-                  className="h-7 text-[11px] gap-1 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                >
-                  <AlertTriangle className="w-3 h-3" />
-                  Eskalasi
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleUpdateStatus('diabaikan')}
-                  className="h-7 text-[11px] gap-1 text-muted-foreground"
-                >
-                  <EyeOff className="w-3 h-3" />
-                  Abaikan
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground hidden sm:block">
-                  Ctrl+Enter kirim
+          <div className="border-t border-border px-4 py-3 flex-shrink-0 bg-card">
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Balas {selectedConversation.contact_name}
                 </span>
-                <Button
-                  size="sm"
-                  onClick={handleSend}
-                  disabled={sending || !draft.trim()}
-                  className="h-7 text-xs gap-1.5"
-                >
-                  {sending ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Send className="w-3 h-3" />
-                  )}
-                  Kirim
-                </Button>
+              </div>
+              <Textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                placeholder="Ketik balasan atau muat draft AI..."
+                className="resize-none text-[13px] min-h-[72px] bg-background"
+                rows={3}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault()
+                    handleSend()
+                  }
+                }}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleGenerateDraft}
+                    disabled={loadingDraft}
+                    className="h-7 text-[11px] gap-1 text-primary hover:text-primary-foreground hover:bg-primary transition-colors"
+                  >
+                    {loadingDraft ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3" />
+                    )}
+                    Muat Draft AI
+                  </Button>
+                  <div className="w-px h-4 bg-border" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleUpdateStatus('dieskalasi')}
+                    className="h-7 text-[11px] gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    Eskalasi
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleUpdateStatus('diabaikan')}
+                    className="h-7 text-[11px] gap-1 text-muted-foreground"
+                  >
+                    <EyeOff className="w-3 h-3" />
+                    Abaikan
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground hidden sm:block">
+                    Ctrl+Enter
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleSend}
+                    disabled={sending || !draft.trim()}
+                    className="h-7 text-xs gap-1.5 transition-all duration-150 active:scale-95"
+                  >
+                    {sending ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3" />
+                    )}
+                    Kirim
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
