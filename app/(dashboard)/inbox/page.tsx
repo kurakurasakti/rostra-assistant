@@ -17,6 +17,7 @@ import {
   EyeOff,
   Loader2,
   RefreshCw,
+  ChevronLeft,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -117,6 +118,7 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
+  const [mobileView, setMobileView] = useState<'list' | 'thread'>('list')
   const threadEndRef = useRef<HTMLDivElement>(null)
 
   const loadMessages = useCallback(async () => {
@@ -262,7 +264,11 @@ export default function InboxPage() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* Conversation list */}
-      <div className="w-[300px] flex-shrink-0 border-r border-border flex flex-col">
+      <div className={cn(
+        'flex-shrink-0 border-r border-border flex flex-col',
+        'w-full md:w-[240px] lg:w-[300px]',
+        mobileView === 'thread' ? 'hidden md:flex' : 'flex',
+      )}>
         <div className="px-4 py-4 border-b border-border flex-shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="font-semibold text-sm">Kotak Masuk</h1>
@@ -300,6 +306,7 @@ export default function InboxPage() {
                 onClick={() => {
                   setSelectedNumber(conv.whatsapp_number)
                   setDraft('')
+                  setMobileView('thread')
                 }}
                 className={cn(
                   'w-full text-left px-4 py-3 border-b border-border/40',
@@ -352,12 +359,21 @@ export default function InboxPage() {
 
       {/* Thread + draft panel */}
       {selectedConversation ? (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className={cn(
+          'flex-1 flex flex-col min-h-0 overflow-hidden',
+          mobileView === 'list' ? 'hidden md:flex' : 'flex',
+        )}>
           {/* Thread header */}
-          <div className="px-5 py-3 border-b border-border flex-shrink-0 flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-sm">{selectedConversation.contact_name}</p>
-              <p className="text-xs text-muted-foreground">{selectedConversation.whatsapp_number}</p>
+          <div className="px-4 md:px-5 py-3 border-b border-border flex-shrink-0 flex items-center gap-3">
+            <button
+              onClick={() => setMobileView('list')}
+              className="md:hidden flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors p-1 -ml-1 rounded"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm truncate">{selectedConversation.contact_name}</p>
+              <p className="text-xs text-muted-foreground truncate">{selectedConversation.whatsapp_number}</p>
             </div>
             <ClassificationBadge value={selectedConversation.last_message.classification} />
           </div>
@@ -475,7 +491,10 @@ export default function InboxPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center">
+        <div className={cn(
+          'flex-1 items-center justify-center',
+          mobileView === 'list' ? 'hidden md:flex' : 'flex',
+        )}>
           <div className="text-center text-muted-foreground space-y-3">
             <MessageSquare className="w-12 h-12 mx-auto opacity-15" />
             <div>

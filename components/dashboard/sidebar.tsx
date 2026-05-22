@@ -44,14 +44,14 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-60 flex-shrink-0 border-r border-border bg-sidebar flex flex-col h-screen">
+    <aside className="hidden md:flex w-16 lg:w-60 flex-shrink-0 border-r border-border bg-sidebar flex-col h-screen transition-all duration-200">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-border">
+      <div className="px-3 lg:px-5 py-5 border-b border-border flex justify-center lg:justify-start">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
             <MessageSquare className="w-3.5 h-3.5 text-primary-foreground" />
           </div>
-          <div>
+          <div className="hidden lg:block">
             <p className="font-display font-semibold text-sm leading-none tracking-tight">Rostra</p>
             <p className="text-[11px] text-muted-foreground leading-none mt-1">Asisten WhatsApp</p>
           </div>
@@ -59,52 +59,56 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 px-2 lg:px-3 py-4 space-y-0.5">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || (href !== '/' && pathname.startsWith(href))
           return (
             <Link
               key={href}
               href={href}
+              title={label}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150',
+                'flex items-center gap-3 px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150',
+                'justify-center lg:justify-start',
                 isActive
-                  ? 'bg-primary/10 text-primary border-l-2 border-accent pl-[10px]'
+                  ? 'bg-primary/10 text-primary lg:border-l-2 lg:border-accent lg:pl-[10px]'
                   : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'
               )}
             >
               <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-accent' : '')} />
-              {label}
+              <span className="hidden lg:inline">{label}</span>
             </Link>
           )
         })}
       </nav>
 
       {/* Bottom actions */}
-      <div className="px-3 py-4 border-t border-border space-y-0.5">
+      <div className="px-2 lg:px-3 py-4 border-t border-border space-y-0.5">
         <button
           onClick={toggleTheme}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground w-full transition-colors"
+          title={mounted && resolvedTheme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}
+          className="flex items-center gap-3 px-2 lg:px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground w-full transition-colors justify-center lg:justify-start"
         >
           {mounted && resolvedTheme === 'dark' ? (
             <>
               <Sun className="w-4 h-4 flex-shrink-0" />
-              Mode Terang
+              <span className="hidden lg:inline">Mode Terang</span>
             </>
           ) : (
             <>
               <Moon className="w-4 h-4 flex-shrink-0" />
-              Mode Gelap
+              <span className="hidden lg:inline">Mode Gelap</span>
             </>
           )}
         </button>
 
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors"
+          title="Keluar"
+          className="flex items-center gap-3 px-2 lg:px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors justify-center lg:justify-start"
         >
           <LogOut className="w-4 h-4 flex-shrink-0" />
-          Keluar
+          <span className="hidden lg:inline">Keluar</span>
         </button>
       </div>
     </aside>
