@@ -50,6 +50,7 @@ export interface Profile {
   business_knowledge_structured?: BusinessKnowledgeStructured | null
   auto_reply_level?: number | null
   feedback_count?: number | null
+  notification_wa_number?: string | null
 }
 
 export interface Client {

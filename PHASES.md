@@ -431,6 +431,69 @@ create index idx_ai_feedback_user on ai_feedback(user_id, created_at desc);
 
 ---
 
+### 2D. Notification System
+
+> Pemilik bisnis tidak duduk di depan dashboard seharian.
+> Notifikasi proaktif memastikan eskalasi tidak terlewat.
+
+**DB** (sudah dijalankan):
+
+```sql
+alter table profiles
+  add column notification_wa_number text;
+-- Nomor WA pribadi owner untuk terima alert eskalasi
+```
+
+**Checklist:**
+
+- [x] `lib/notifications.ts` — `sendEscalationNotification(userId, contactName, preview, type)`
+      Kirim WA ke `profile.notification_wa_number` via `sendTextMessage`.
+      Silent fail jika nomor belum dikonfigurasi atau WA tidak terhubung.
+
+- [x] Wire ke `classifyAndDraft` di `lib/openrouter.ts`:
+      Setelah `status='dieskalasi'` → fire-and-forget `sendEscalationNotification(..., 'sensitif')`
+
+- [x] Wire ke webhook `injection_attempt` di `app/api/webhook/whatsapp/route.ts`:
+      Setelah insert injection attempt → `sendEscalationNotification(..., 'injection')`
+
+- [x] Settings page — Section WhatsApp: tambah field "Nomor WA Pribadi (untuk notifikasi)"
+      Simpan ke `profiles.notification_wa_number`.
+      Help text: "Kosongkan jika tidak ingin notifikasi. Beda dari nomor bisnis di atas."
+
+- [ ] **[FUTURE — Phase 5]** In-app notification center:
+      Bell icon di sidebar dengan badge unread count.
+      Dropdown panel: list notifikasi (eskalasi + injection + level unlock).
+      Tabel `notifications` di Supabase:
+      ```sql
+      create table notifications (
+        id         uuid primary key default gen_random_uuid(),
+        user_id    uuid not null references auth.users(id) on delete cascade,
+        type       text not null,  -- 'eskalasi' | 'injection' | 'level_unlock'
+        title      text not null,
+        body       text,
+        read       boolean not null default false,
+        link       text,           -- e.g. '/inbox?number=628xxx'
+        created_at timestamptz not null default now()
+      );
+      alter table notifications enable row level security;
+      create policy "Users view own notifications"
+        on notifications for all using (auth.uid() = user_id);
+      ```
+      Realtime subscription via Supabase channel `notifications:user_id=eq.{userId}`.
+      Mark as read on click atau "Tandai semua dibaca".
+
+- [ ] **[FUTURE — Phase 5]** Email notification fallback:
+      Jika `notification_wa_number` tidak diisi → kirim email via Resend/Sendgrid.
+      Hanya untuk eskalasi, bukan injection (terlalu noisy).
+
+**Done when:**
+
+- Pesan sensitif → owner terima WA alert di nomor pribadi dalam <30 detik
+- Injection attempt → WA alert dengan label "Percobaan Manipulasi AI"
+- Nomor notifikasi bisa dikonfigurasi/dikosongkan di Settings → WhatsApp
+
+---
+
 ## Phase 3 — Automation Scheduler
 
 **Goal:** Pesan reminder terkirim otomatis tanpa intervensi manual.

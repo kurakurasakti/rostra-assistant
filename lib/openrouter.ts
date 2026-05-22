@@ -368,6 +368,18 @@ export async function classifyAndDraft(
       })
       .eq('id', messageId)
 
+    // 5. Notify owner if escalated
+    if (finalClassification === 'sensitif') {
+      const { data: msgData } = await supabase
+        .from('inbox_messages')
+        .select('sender_name, whatsapp_number')
+        .eq('id', messageId)
+        .single()
+      const contactName = msgData?.sender_name || msgData?.whatsapp_number || 'Pelanggan'
+      const { sendEscalationNotification } = await import('@/lib/notifications')
+      sendEscalationNotification(userId, contactName, messageBody, 'sensitif').catch(() => {})
+    }
+
     // 5. Auto-reply if level >= 2 and message is routine with valid draft
     const autoReplyLevel = profile.auto_reply_level ?? 1
     if (aiDraft && finalClassification === 'rutin' && autoReplyLevel >= 2) {

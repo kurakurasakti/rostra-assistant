@@ -5,15 +5,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { CheckCircle2, Loader2, Link2, Link2Off, QrCode } from "lucide-react"
+import { CheckCircle2, Loader2, Link2, Link2Off, QrCode, Bell } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 type WaStep = "idle" | "generating" | "scanning" | "connected"
 
-export default function WhatsAppSection() {
+export default function WhatsAppSection({
+  initialNotificationNumber,
+}: {
+  initialNotificationNumber?: string | null
+}) {
   const [waStep, setWaStep] = useState<WaStep>("idle")
   const [waNumber, setWaNumber] = useState("")
   const [qrBase64, setQrBase64] = useState("")
   const [connectedNumber, setConnectedNumber] = useState("")
+  const [notificationNumber, setNotificationNumber] = useState(initialNotificationNumber ?? "")
+  const [savingNotif, setSavingNotif] = useState(false)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopPolling = useCallback(() => {
@@ -87,75 +94,132 @@ export default function WhatsAppSection() {
     }
   }
 
+  async function handleSaveNotification() {
+    setSavingNotif(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSavingNotif(false); return }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ notification_wa_number: notificationNumber.trim() || null })
+      .eq("id", user.id)
+
+    if (error) toast.error("Gagal menyimpan.")
+    else toast.success("Nomor notifikasi disimpan.")
+    setSavingNotif(false)
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-display font-semibold text-sm">Koneksi WhatsApp</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Hubungkan nomor WhatsApp bisnis via QR scan.</p>
+    <div className="space-y-6">
+      {/* QR Connect section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-display font-semibold text-sm">Koneksi WhatsApp</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Hubungkan nomor WhatsApp bisnis via QR scan.</p>
+          </div>
+          {waStep === "connected" ? (
+            <Link2 className="w-4 h-4 text-emerald-500" />
+          ) : (
+            <Link2Off className="w-4 h-4 text-muted-foreground" />
+          )}
         </div>
-        {waStep === "connected" ? (
-          <Link2 className="w-4 h-4 text-emerald-500" />
-        ) : (
-          <Link2Off className="w-4 h-4 text-muted-foreground" />
+
+        {waStep === "idle" && (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Nomor WhatsApp Bisnis</Label>
+              <Input placeholder="628123456789" value={waNumber} onChange={(e) => setWaNumber(e.target.value)} className="h-10" />
+              <p className="text-xs text-muted-foreground">Format internasional tanpa +, contoh: 628123456789</p>
+            </div>
+            <Button onClick={handleGenerateQR} disabled={!waNumber.trim()} className="gap-2">
+              <QrCode className="w-4 h-4" />
+              Generate QR
+            </Button>
+          </div>
+        )}
+
+        {waStep === "generating" && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Membuat QR code...
+          </div>
+        )}
+
+        {waStep === "scanning" && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Scan QR ini dengan WhatsApp di nomor <strong>{waNumber}</strong>. Menunggu scan...
+            </p>
+            <div className="flex items-start gap-4">
+              <div className="rounded-lg border border-border bg-white p-2 inline-block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrBase64?.startsWith("http") || qrBase64?.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`} alt="QR Code WhatsApp" className="w-48 h-48" />
+              </div>
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Menunggu scan...
+                </div>
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { stopPolling(); setWaStep("idle"); setQrBase64("") }}>
+                  Batal
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {waStep === "connected" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+              <CheckCircle2 className="w-4 h-4" />
+              WhatsApp terhubung{connectedNumber ? `: +${connectedNumber.slice(0, 2)} ${connectedNumber.slice(2, 6)} ${connectedNumber.slice(6, 9)} ${connectedNumber.slice(9)}` : ""}
+            </div>
+            <Button type="button" variant="outline" size="sm" className="h-8 text-xs text-destructive hover:text-destructive" onClick={handleDisconnect}>
+              Putuskan Koneksi
+            </Button>
+          </div>
         )}
       </div>
 
-      {waStep === "idle" && (
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Nomor WhatsApp Bisnis</Label>
-            <Input placeholder="628123456789" value={waNumber} onChange={(e) => setWaNumber(e.target.value)} className="h-10" />
-            <p className="text-xs text-muted-foreground">Format internasional tanpa +, contoh: 628123456789</p>
+      {/* Notification number section */}
+      <div className="pt-5 border-t border-border space-y-3">
+        <div className="flex items-center gap-2">
+          <Bell className="w-4 h-4 text-muted-foreground" />
+          <div>
+            <h2 className="font-display font-semibold text-sm">Notifikasi Eskalasi</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Rostra kirim WA ke nomor ini saat ada pesan sensitif atau percobaan manipulasi AI.
+            </p>
           </div>
-          <Button onClick={handleGenerateQR} disabled={!waNumber.trim()} className="gap-2">
-            <QrCode className="w-4 h-4" />
-            Generate QR
-          </Button>
         </div>
-      )}
 
-      {waStep === "generating" && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Membuat QR code...
-        </div>
-      )}
-
-      {waStep === "scanning" && (
-        <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium">Nomor WA Pribadi (untuk notifikasi)</Label>
+          <Input
+            placeholder="628123456789"
+            value={notificationNumber}
+            onChange={(e) => setNotificationNumber(e.target.value)}
+            className="h-10"
+          />
           <p className="text-xs text-muted-foreground">
-            Scan QR ini dengan WhatsApp di nomor <strong>{waNumber}</strong>. Menunggu scan...
+            Kosongkan jika tidak ingin menerima notifikasi. Beda dari nomor bisnis WA di atas.
           </p>
-          <div className="flex items-start gap-4">
-            <div className="rounded-lg border border-border bg-white p-2 inline-block">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrBase64?.startsWith("http") || qrBase64?.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`} alt="QR Code WhatsApp" className="w-48 h-48" />
-            </div>
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Menunggu scan...
-              </div>
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { stopPolling(); setWaStep("idle"); setQrBase64("") }}>
-                Batal
-              </Button>
-            </div>
-          </div>
         </div>
-      )}
 
-      {waStep === "connected" && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
-            <CheckCircle2 className="w-4 h-4" />
-            WhatsApp terhubung{connectedNumber ? `: +${connectedNumber.slice(0, 2)} ${connectedNumber.slice(2, 6)} ${connectedNumber.slice(6, 9)} ${connectedNumber.slice(9)}` : ""}
-          </div>
-          <Button type="button" variant="outline" size="sm" className="h-8 text-xs text-destructive hover:text-destructive" onClick={handleDisconnect}>
-            Putuskan Koneksi
-          </Button>
-        </div>
-      )}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={handleSaveNotification}
+          disabled={savingNotif}
+          className="h-8 text-xs gap-1.5"
+        >
+          {savingNotif ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3 h-3" />}
+          Simpan Nomor Notifikasi
+        </Button>
+      </div>
     </div>
   )
 }

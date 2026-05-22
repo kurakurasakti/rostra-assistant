@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { normalizeWANumber } from '@/lib/whatsapp'
 import { scanForInjection } from '@/lib/security'
 import { classifyAndDraft } from '@/lib/openrouter'
+import { sendEscalationNotification } from '@/lib/notifications'
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
@@ -72,6 +73,7 @@ async function processIncomingMessage(payload: any) {
       received_at: new Date().toISOString(),
     })
 
+    sendEscalationNotification(userId, name || normalizedSender, message, 'injection').catch(() => {})
     return
   }
 

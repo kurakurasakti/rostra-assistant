@@ -390,7 +390,7 @@ export default function SettingsPage() {
 
       {activeTab === "whatsapp" && (
         <div className="rounded-xl border border-border bg-card p-5">
-          <WhatsAppSection />
+          <WhatsAppSection initialNotificationNumber={profile?.notification_wa_number} />
         </div>
       )}
 
