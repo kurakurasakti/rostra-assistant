@@ -6,11 +6,11 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
-import { Plus, Search, Users, Upload, UserPlus } from 'lucide-react'
+import { Plus, Search, Users, Upload, UserPlus, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
@@ -136,58 +136,84 @@ export default function ClientsPage() {
               <Plus className="w-4 h-4" />
               Tambah Klien
             </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Tambah Klien Baru</SheetTitle>
+            <SheetContent className="w-full sm:max-w-md flex flex-col p-0">
+              <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+                <SheetTitle className="font-display font-semibold text-lg">Tambah Klien Baru</SheetTitle>
+                <SheetDescription>Isi data klien untuk ditambahkan ke daftar.</SheetDescription>
               </SheetHeader>
-              <form onSubmit={handleAddClient} className="mt-6 space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Nama Lengkap *</Label>
-                  <Input
-                    value={formName}
-                    onChange={e => setFormName(e.target.value)}
-                    placeholder="Contoh: Siti Rahayu"
-                    required
-                    className="h-10"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Nomor WhatsApp *</Label>
-                  <Input
-                    value={formWA}
-                    onChange={e => { setFormWA(e.target.value); setWaError('') }}
-                    onBlur={handleWABlur}
-                    placeholder="08123456789 atau 628123456789"
-                    required
-                    className={`h-10 ${waError ? 'border-destructive' : ''}`}
-                  />
-                  {waError && <p className="text-xs text-destructive">{waError}</p>}
-                  <p className="text-xs text-muted-foreground">Akan otomatis diformat ke 628xxx.</p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Email <span className="text-muted-foreground font-normal">(opsional)</span></Label>
-                  <Input
-                    type="email"
-                    value={formEmail}
-                    onChange={e => setFormEmail(e.target.value)}
-                    placeholder="siti@email.com"
-                    className="h-10"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Catatan <span className="text-muted-foreground font-normal">(opsional)</span></Label>
-                  <Textarea
-                    value={formNotes}
-                    onChange={e => setFormNotes(e.target.value)}
-                    placeholder="Preferensi, ukuran, dll."
-                    rows={2}
-                    className="resize-none text-sm"
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? 'Menyimpan...' : 'Tambah Klien'}
-                </Button>
-              </form>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                <form onSubmit={handleAddClient} className="space-y-5">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Nama Lengkap <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={formName}
+                      onChange={e => setFormName(e.target.value)}
+                      placeholder="Contoh: Siti Rahayu"
+                      required
+                      className="h-10"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Nomor WhatsApp <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={formWA}
+                      onChange={e => { setFormWA(e.target.value); setWaError('') }}
+                      onBlur={handleWABlur}
+                      placeholder="08123456789 atau 628123456789"
+                      required
+                      className={`h-10 ${waError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    />
+                    {waError
+                      ? <p className="text-xs text-destructive">{waError}</p>
+                      : <p className="text-xs text-muted-foreground">Otomatis diformat ke 628xxx.</p>
+                    }
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">
+                      Email <span className="text-muted-foreground font-normal text-xs">(opsional)</span>
+                    </Label>
+                    <Input
+                      type="email"
+                      value={formEmail}
+                      onChange={e => setFormEmail(e.target.value)}
+                      placeholder="siti@email.com"
+                      className="h-10"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">
+                      Catatan <span className="text-muted-foreground font-normal text-xs">(opsional)</span>
+                    </Label>
+                    <Textarea
+                      value={formNotes}
+                      onChange={e => setFormNotes(e.target.value)}
+                      placeholder="Preferensi, ukuran, catatan khusus, dll."
+                      rows={3}
+                      className="resize-none text-sm"
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <Button type="submit" className="w-full h-10" disabled={submitting}>
+                      {submitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Menyimpan...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Tambah Klien
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </div>
             </SheetContent>
           </Sheet>
         </div>
