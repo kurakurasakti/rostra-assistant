@@ -52,11 +52,11 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] `POST /api/settings/analyze-chat` — parse file, return daftar sender unik
 - [x] `POST /api/settings/analyze-voice` — AI analisa pesan bisnis, return brand_voice string
 - [x] Settings page Section A: upload .txt → pilih sender → loading → preview → simpan brand_voice
-- [ ] Settings page Section A: tambah **"Coba Draft AI"** di bawah textarea brand_voice - Input field: contoh pesan masuk (placeholder: "kak mau tanya harga dong") - Tombol "Coba Sekarang" - Call `POST /api/messages/draft` dengan brand_voice yang sedang aktif - Tampilkan hasil draft reply di bawah — user bisa lihat seperti apa AI akan balas - Ini membantu user yakin sebelum simpan brand voice
+- [x] Settings page Section A: tambah **"Coba Draft AI"** di bawah textarea brand_voice - Input field: contoh pesan masuk (placeholder: "kak mau tanya harga dong") - Tombol "Coba Sekarang" - Call `POST /api/messages/draft` dengan brand_voice yang sedang aktif - Tampilkan hasil draft reply di bawah — user bisa lihat seperti apa AI akan balas - Ini membantu user yakin sebelum simpan brand voice
 
 ---
 
-### 1C. AI Business Knowledge (BARU — belum ada di fase sebelumnya)
+### 1C. AI Business Knowledge ✅ SELESAI
 
 > Tanpa ini, AI hanya tahu "cara bicara" tapi tidak tahu "apa yang dijual".
 > Ini yang membuat AI bisa jawab pertanyaan harga/ketersediaan tanpa human edit.
@@ -78,7 +78,7 @@ alter table profiles
 
 **Checklist:**
 
-- [ ] Settings page — Section C baru: **"Pengetahuan Bisnis"**
+- [x] Settings page — Section C baru: **"Pengetahuan Bisnis"**
 
       **Sub-section: Produk & Layanan**
       ```
@@ -109,7 +109,7 @@ alter table profiles
       Tombol "Simpan Pengetahuan Bisnis"
       Toast: "Pengetahuan bisnis tersimpan ✓ AI sekarang bisa jawab pertanyaan spesifik"
 
-- [ ] Update `buildAIContext()` di `/lib/openrouter.ts`:
+- [x] Update `buildAIContext()` di `/lib/openrouter.ts`:
       `typescript
     // Inject product knowledge + operational info ke system prompt
     // Format sebagai teks natural, bukan JSON mentah
@@ -121,7 +121,7 @@ alter table profiles
 
 ---
 
-### 1D. AI Escalation Rules (BARU)
+### 1D. AI Escalation Rules ✅ SELESAI
 
 > Kontrol pesan mana yang AI boleh draft, mana yang langsung ke pemilik.
 
@@ -143,7 +143,7 @@ alter table profiles
 
 **Checklist:**
 
-- [ ] Settings page — Section D baru: **"Aturan AI & Eskalasi"**
+- [x] Settings page — Section D baru: **"Aturan AI & Eskalasi"**
 
       **Sub-section: Kata Pemicu Eskalasi**
       ```
@@ -176,14 +176,14 @@ alter table profiles
       Note: Level 2 dan 3 hanya bisa diaktifkan setelah threshold terpenuhi.
       Tombol aktifkan muncul jika threshold sudah tercapai.
 
-- [ ] Tambah ke `/types/index.ts`:
+- [x] Tambah ke `/types/index.ts`:
       `typescript
     export type AutoReplyLevel = 1 | 2 | 3
     `
 
 ---
 
-### 1E. Client AI Memory (BARU)
+### 1E. Client AI Memory ✅ SELESAI
 
 **[DB]** Jalankan SQL di Supabase:
 
@@ -197,7 +197,7 @@ alter table clients
 
 **Checklist:**
 
-- [ ] Client detail page `/clients/[id]` — Tab 1 (Profil):
+- [x] Client detail page `/clients/[id]` — Tab 1 (Profil):
       Tambah field "Catatan untuk AI" (textarea, optional)
       Placeholder: "Contoh: Pelanggan VIP, boleh diskon max 10%. Panggil dengan nama."
       Simpan ke `clients.ai_notes`
