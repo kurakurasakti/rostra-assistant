@@ -18,7 +18,11 @@
       "Bash(git reset *)",
       "Bash(git commit *)",
       "Bash(vercel link *)",
-      "Bash(vercel *)"
+      "Bash(vercel *)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__list_extensions"
     ]
   },
   "enableAllProjectMcpServers": true,
