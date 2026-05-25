@@ -16,6 +16,7 @@ app.use(express.json())
 const sessions = new Map()
 
 const NEXT_APP_URL = process.env.NEXT_APP_URL || 'http://localhost:3000'
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || ''
 const PORT = process.env.PORT || 3001
 
 async function createSession(userId) {
@@ -106,7 +107,7 @@ async function createSession(userId) {
 
       fetch(`${NEXT_APP_URL}/api/webhook/whatsapp`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-webhook-secret': WEBHOOK_SECRET },
         body: JSON.stringify({
           userId,
           sender,

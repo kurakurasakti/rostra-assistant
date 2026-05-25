@@ -1,11 +1,23 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { normalizeWANumber } from '@/lib/whatsapp'
 import { scanForInjection } from '@/lib/security'
 import { classifyAndDraft } from '@/lib/openrouter'
 import { sendEscalationNotification } from '@/lib/notifications'
 
 export async function POST(request: Request) {
+  const secret = process.env.WEBHOOK_SECRET ?? ''
+  const sig = request.headers.get('x-webhook-secret') ?? ''
+  const authorized =
+    secret.length > 0 &&
+    sig.length === secret.length &&
+    timingSafeEqual(Buffer.from(sig), Buffer.from(secret))
+
+  if (!authorized) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const body = await request.json().catch(() => ({}))
   console.log('[webhook] received payload:', JSON.stringify(body).slice(0, 200))
 
@@ -74,6 +86,14 @@ async function processIncomingMessage(payload: any) {
     })
 
     sendEscalationNotification(userId, name || normalizedSender, message, 'injection').catch(() => {})
+
+    supabase.from('security_logs').insert({
+      user_id: userId,
+      whatsapp_number: normalizedSender,
+      message_body: message,
+      threat_type: 'injection_attempt',
+    }).catch(() => {})
+
     return
   }
 
