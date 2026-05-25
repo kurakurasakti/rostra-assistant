@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { X } from "lucide-react"
+import { LEVEL2_THRESHOLD, LEVEL3_THRESHOLD, IS_BETA } from "@/lib/config"
 
 export default function AIRulesSection({
   initialKeywords,
@@ -79,7 +80,10 @@ export default function AIRulesSection({
 
       {/* Auto-reply level info */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium">Mode Balasan AI</Label>
+        <div className="flex items-center gap-2">
+          <Label className="text-sm font-medium">Mode Balasan AI</Label>
+          {IS_BETA && <span className="text-[10px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded font-medium">Beta</span>}
+        </div>
         <p className="text-xs text-muted-foreground mb-3">
           Mode saat ini: <span className="font-medium">Level {initialLevel} — Draft Mode</span>
         </p>
@@ -87,8 +91,8 @@ export default function AIRulesSection({
         <div className="space-y-3">
           {[
             { level: 1, label: "Draft Mode", desc: "AI draft semua pesan, kamu approve sebelum kirim. Cocok untuk memastikan kualitas AI dulu.", active: true },
-            { level: 2, label: "Semi-Auto", desc: "Pesan rutin auto-kirim dalam 5 menit (bisa dibatalkan). Pesan sensitif tetap perlu approve.", locked: feedbackCount < 50, progress: Math.min((feedbackCount / 50) * 100, 100), current: feedbackCount, target: 50 },
-            { level: 3, label: "Full Auto", desc: "AI balas otomatis semua pesan rutin. Hanya pesan sensitif yang masuk inbox untuk review.", locked: feedbackCount < 200, progress: Math.min((feedbackCount / 200) * 100, 100), current: feedbackCount, target: 200 },
+            { level: 2, label: "Semi-Auto", desc: "Pesan rutin auto-kirim dalam 5 menit (bisa dibatalkan). Pesan sensitif tetap perlu approve.", locked: feedbackCount < LEVEL2_THRESHOLD, progress: Math.min((feedbackCount / LEVEL2_THRESHOLD) * 100, 100), current: feedbackCount, target: LEVEL2_THRESHOLD },
+            { level: 3, label: "Full Auto", desc: "AI balas otomatis semua pesan rutin. Hanya pesan sensitif yang masuk inbox untuk review.", locked: feedbackCount < LEVEL3_THRESHOLD, progress: Math.min((feedbackCount / LEVEL3_THRESHOLD) * 100, 100), current: feedbackCount, target: LEVEL3_THRESHOLD },
           ].map((item) => (
             <div key={item.level} className={`rounded-lg border ${item.active ? "border-primary/30 bg-primary/5" : "border-border bg-muted/20"} p-3 space-y-2 ${item.locked ? "opacity-60" : ""}`}>
               <p className="text-xs font-medium">

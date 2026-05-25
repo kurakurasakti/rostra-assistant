@@ -17,6 +17,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
+  Upload,
+  FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 import type {
   BusinessKnowledgeStructured,
@@ -24,7 +27,15 @@ import type {
 } from "@/types";
 
 type Step = "input" | "result" | "wizard";
-type InputMode = "free" | "paste";
+type InputMode = "upload" | "free" | "paste";
+type FileProcessingState = "idle" | "reading" | "converting" | "ready";
+
+interface UploadedCatalog {
+  name: string;
+  mode: "text" | "vision";
+  rawText?: string;
+  images?: Array<{ base64: string; mimeType: string }>;
+}
 
 const WIZARD_QUESTIONS = [
   {
@@ -68,8 +79,10 @@ export default function BusinessKnowledgeSection({
   const [step, setStep] = useState<Step>(
     initialRaw ? "result" : "input",
   );
-  const [inputMode, setInputMode] = useState<InputMode>("free");
+  const [inputMode, setInputMode] = useState<InputMode>("upload");
   const [rawText, setRawText] = useState(initialRaw ?? "");
+  const [uploadedCatalog, setUploadedCatalog] = useState<UploadedCatalog | null>(null);
+  const [fileProcessing, setFileProcessing] = useState<FileProcessingState>("idle");
   const [structured, setStructured] = useState<BusinessKnowledgeStructured>(
     initialStructured ?? {
       services: [],
@@ -96,13 +109,102 @@ export default function BusinessKnowledgeSection({
   // Payment method tag input
   const [paymentInput, setPaymentInput] = useState("");
 
-  async function runExtraction(text: string) {
+  async function extractPdfText(file: File): Promise<string> {
+    const pdfjsLib = await import("pdfjs-dist");
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map((item: unknown) => ("str" in (item as object) ? (item as { str: string }).str : "")).join(" ") + "\n";
+    }
+    return text.trim();
+  }
+
+  async function pdfToImages(file: File, maxPages = 3): Promise<Array<{ base64: string; mimeType: string }>> {
+    const pdfjsLib = await import("pdfjs-dist");
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+    const count = Math.min(pdf.numPages, maxPages);
+    const images: Array<{ base64: string; mimeType: string }> = [];
+    for (let i = 1; i <= count; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext("2d")!, viewport, canvas }).promise;
+      const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+      images.push({ base64, mimeType: "image/jpeg" });
+    }
+    return images;
+  }
+
+  async function imageFileToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        resolve({ base64: dataUrl.split(",")[1], mimeType: file.type });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    const isPdf = file.type === "application/pdf";
+    const isImage = file.type.startsWith("image/");
+    if (!isPdf && !isImage) {
+      toast.error("Format tidak didukung. Upload PDF, JPG, PNG, atau WEBP.");
+      return;
+    }
+
+    setUploadedCatalog(null);
+    setFileProcessing("reading");
+
+    try {
+      if (isPdf) {
+        const text = await extractPdfText(file);
+        if (text.length > 100) {
+          setUploadedCatalog({ name: file.name, mode: "text", rawText: text });
+          setFileProcessing("ready");
+        } else {
+          setFileProcessing("converting");
+          const images = await pdfToImages(file);
+          setUploadedCatalog({ name: file.name, mode: "vision", images });
+          setFileProcessing("ready");
+        }
+      } else {
+        const img = await imageFileToBase64(file);
+        setUploadedCatalog({ name: file.name, mode: "vision", images: [img] });
+        setFileProcessing("ready");
+      }
+    } catch {
+      toast.error("Gagal membaca file. Coba lagi atau gunakan opsi Paste.");
+      setFileProcessing("idle");
+    }
+  }
+
+  async function runExtraction(text?: string, images?: Array<{ base64: string; mimeType: string }>) {
     setIsExtracting(true);
     try {
+      const body = images ? { images } : { raw_text: text };
       const res = await fetch("/api/settings/extract-business", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raw_text: text }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
 
@@ -129,6 +231,19 @@ export default function BusinessKnowledgeSection({
   }
 
   async function handleAnalyze() {
+    if (inputMode === "upload") {
+      if (!uploadedCatalog) {
+        toast.error("Upload file katalog dulu.");
+        return;
+      }
+      if (uploadedCatalog.mode === "text") {
+        setRawText(uploadedCatalog.rawText!);
+        await runExtraction(uploadedCatalog.rawText!);
+      } else {
+        await runExtraction(undefined, uploadedCatalog.images!);
+      }
+      return;
+    }
     if (!rawText.trim() || rawText.trim().length < 20) {
       toast.error("Ceritakan lebih detail tentang bisnismu.");
       return;
@@ -230,6 +345,17 @@ export default function BusinessKnowledgeSection({
         <div className="flex gap-1 p-1 rounded-lg bg-muted/50 w-fit">
           <button
             type="button"
+            onClick={() => setInputMode("upload")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              inputMode === "upload"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            📎 Upload File
+          </button>
+          <button
+            type="button"
             onClick={() => setInputMode("free")}
             className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
               inputMode === "free"
@@ -248,35 +374,94 @@ export default function BusinessKnowledgeSection({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            📋 Paste Katalog
+            📋 Paste
           </button>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">
-            {inputMode === "free"
-              ? "Ceritakan bisnis kamu"
-              : "Paste teks broadcast/pricelist WA kamu"}
-          </Label>
-          <Textarea
-            rows={6}
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            placeholder={
-              inputMode === "free"
-                ? "Contoh: Saya punya bisnis tailor gaun pengantin dan kebaya di Jakarta Selatan. Harga mulai 750rb sampai 5jt tergantung model dan bahan. Buka Senin-Sabtu jam 9 pagi sampai 5 sore. Minimal DP 50%, terima BCA dan GoPay."
-                : "Paste teks yang biasa kamu kirim ke pelanggan, atau isi dari katalog WA kamu"
-            }
-            className="resize-none text-sm"
-          />
-        </div>
+        {inputMode === "upload" && (
+          <div className="space-y-3">
+            {fileProcessing === "idle" && !uploadedCatalog && (
+              <label className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted/20 px-6 py-10 cursor-pointer hover:bg-muted/40 transition-colors">
+                <Upload className="w-8 h-8 text-muted-foreground" />
+                <div className="text-center">
+                  <p className="text-sm font-medium">Upload katalog atau price list</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">PDF, JPG, PNG, WEBP · Max 10MB</p>
+                </div>
+                <input
+                  type="file"
+                  accept=".pdf,image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+              </label>
+            )}
+
+            {(fileProcessing === "reading" || fileProcessing === "converting") && (
+              <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-4 py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
+                <p className="text-sm text-muted-foreground">
+                  {fileProcessing === "reading" ? "Membaca file..." : "Mengkonversi ke gambar (PDF tidak ada teks)..."}
+                </p>
+              </div>
+            )}
+
+            {fileProcessing === "ready" && uploadedCatalog && (
+              <div className="rounded-xl border border-border bg-muted/20 px-4 py-3 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  {uploadedCatalog.mode === "text"
+                    ? <FileText className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    : <ImageIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                  }
+                  <span className="text-sm font-medium flex-1 truncate">{uploadedCatalog.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setUploadedCatalog(null); setFileProcessing("idle"); }}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {uploadedCatalog.mode === "text"
+                    ? `✓ Teks terdeteksi (${uploadedCatalog.rawText?.length.toLocaleString()} karakter) — analisa teks`
+                    : `🖼️ PDF gambar / foto katalog — analisa dengan AI Vision`
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(inputMode === "free" || inputMode === "paste") && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">
+              {inputMode === "free"
+                ? "Ceritakan bisnis kamu"
+                : "Paste teks broadcast/pricelist WA kamu"}
+            </Label>
+            <Textarea
+              rows={6}
+              value={rawText}
+              onChange={(e) => setRawText(e.target.value)}
+              placeholder={
+                inputMode === "free"
+                  ? "Contoh: Saya punya bisnis tailor gaun pengantin dan kebaya di Jakarta Selatan. Harga mulai 750rb sampai 5jt tergantung model dan bahan. Buka Senin-Sabtu jam 9 pagi sampai 5 sore. Minimal DP 50%, terima BCA dan GoPay."
+                  : "Paste teks yang biasa kamu kirim ke pelanggan, atau isi dari katalog WA kamu"
+              }
+              className="resize-none text-sm"
+            />
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <Button
             type="button"
             size="sm"
             onClick={handleAnalyze}
-            disabled={isExtracting || !rawText.trim()}
+            disabled={
+              isExtracting ||
+              (inputMode === "upload" ? fileProcessing !== "ready" : !rawText.trim())
+            }
             className="gap-1.5"
           >
             {isExtracting ? (

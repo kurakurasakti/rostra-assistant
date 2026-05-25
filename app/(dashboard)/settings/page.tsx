@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,8 @@ import BusinessKnowledgeSection from "@/components/settings/BusinessKnowledgeSec
 import { SettingsNav, type SettingsTab } from "@/components/settings/SettingsNav";
 import WhatsAppSection from "@/components/settings/WhatsAppSection";
 import AIRulesSection from "@/components/settings/AIRulesSection";
+import ImportDataSection from "@/components/settings/ImportDataSection";
+import TemplatesSection from "@/components/settings/TemplatesSection";
 
 type AnalyzeStep = "idle" | "building" | "analyzing" | "preview";
 
@@ -73,7 +76,14 @@ export default function SettingsPage() {
   const [keywordInput, setKeywordInput] = useState("");
   const [autoReplyLevel, setAutoReplyLevel] = useState(1);
   const [feedbackCount, setFeedbackCount] = useState(0);
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const valid: SettingsTab[] = ["profile", "whatsapp", "business", "ai", "import"];
+    if (tab && (valid as string[]).includes(tab)) setActiveTab(tab as SettingsTab);
+  }, [searchParams]);
 
   useEffect(() => {
     async function load() {
@@ -408,13 +418,24 @@ export default function SettingsPage() {
       )}
 
       {activeTab === "ai" && (
+        <>
+          <div className="rounded-xl border border-border bg-card p-5">
+            <AIRulesSection
+              initialKeywords={escalationKeywords}
+              initialLevel={autoReplyLevel}
+              feedbackCount={feedbackCount}
+              onSave={(keywords) => setEscalationKeywords(keywords)}
+            />
+          </div>
+          <div className="rounded-xl border border-border bg-card p-5">
+            <TemplatesSection />
+          </div>
+        </>
+      )}
+
+      {activeTab === "import" && (
         <div className="rounded-xl border border-border bg-card p-5">
-          <AIRulesSection
-            initialKeywords={escalationKeywords}
-            initialLevel={autoReplyLevel}
-            feedbackCount={feedbackCount}
-            onSave={(keywords) => setEscalationKeywords(keywords)}
-          />
+          <ImportDataSection />
         </div>
       )}
     </div>

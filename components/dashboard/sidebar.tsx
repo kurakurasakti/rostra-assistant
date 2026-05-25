@@ -9,19 +9,18 @@ import {
   LayoutDashboard,
   Users,
   MessageSquare,
-  Upload,
   Settings,
   LogOut,
   Sun,
   Moon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { NotificationBell } from '@/components/dashboard/notification-bell'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/clients', label: 'Klien', icon: Users },
   { href: '/inbox', label: 'Kotak Masuk', icon: MessageSquare },
-  { href: '/import', label: 'Import', icon: Upload },
   { href: '/settings', label: 'Pengaturan', icon: Settings },
 ]
 
@@ -84,6 +83,7 @@ export function Sidebar() {
 
       {/* Bottom actions */}
       <div className="px-2 lg:px-3 py-4 border-t border-border space-y-0.5">
+        <NotificationBell />
         <button
           onClick={toggleTheme}
           title={mounted && resolvedTheme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}

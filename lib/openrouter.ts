@@ -113,22 +113,14 @@ export function buildBusinessContext(profile: Profile): string {
   return ctx.trim()
 }
 
-export async function extractBusinessKnowledge(
-  rawText: string,
-): Promise<BusinessKnowledgeStructured> {
-  const system = `
-Kamu mengekstrak informasi bisnis jasa Indonesia dari teks bebas.
-Fokus pada: layanan/produk, kisaran harga, jam operasional, lokasi,
-metode pembayaran, status PO/antrian, dan catatan khusus.
-
+const BUSINESS_EXTRACTION_SCHEMA = `
 ATURAN KETAT:
 - Harga SELALU simpan sebagai string: "750rb-2jt", "mulai 500rb", "5jt"
   JANGAN konversi ke angka
-- Jika informasi tidak disebutkan → isi null, JANGAN mengarang
+- Jika informasi tidak ada → null, JANGAN mengarang
 - payment_methods → array of string: ["BCA", "GoPay"]
 - po_status → true jika open PO, false jika tutup/tidak disebutkan
 - Jangan masukkan DP percentage, lama proses, atau requirement fitting
-  (itu per-order, bukan business-level)
 
 Output HANYA JSON valid sesuai schema. Tidak ada teks lain.
 
@@ -141,23 +133,79 @@ Schema:
   "po_status": boolean,
   "po_close_date": "YYYY-MM-DD|null",
   "special_notes": "string|null"
+}`
+
+const EMPTY_STRUCTURED: BusinessKnowledgeStructured = {
+  services: [],
+  operating_hours: null,
+  location: null,
+  payment_methods: [],
+  po_status: false,
+  po_close_date: null,
+  special_notes: null,
 }
-`
+
+export async function extractBusinessKnowledge(
+  rawText: string,
+): Promise<BusinessKnowledgeStructured> {
+  const system = `Kamu mengekstrak informasi bisnis jasa Indonesia dari teks bebas.
+Fokus pada: layanan/produk, kisaran harga, jam operasional, lokasi,
+metode pembayaran, status PO/antrian, dan catatan khusus.
+${BUSINESS_EXTRACTION_SCHEMA}`
 
   try {
     const result = await callAI(system, rawText, 800)
     const clean = result.replace(/```json|```/g, '').trim()
     return JSON.parse(clean) as BusinessKnowledgeStructured
   } catch {
-    return {
-      services: [],
-      operating_hours: null,
-      location: null,
-      payment_methods: [],
-      po_status: false,
-      po_close_date: null,
-      special_notes: null,
+    return { ...EMPTY_STRUCTURED }
+  }
+}
+
+export async function extractBusinessKnowledgeFromImages(
+  images: Array<{ base64: string; mimeType: string }>,
+): Promise<BusinessKnowledgeStructured> {
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY not set')
+
+  const prompt = `Kamu mengekstrak informasi bisnis dari gambar katalog/price list Indonesia.
+Baca semua teks, harga, layanan, dan informasi yang terlihat di gambar.
+${BUSINESS_EXTRACTION_SCHEMA}`
+
+  const content: Array<Record<string, unknown>> = [
+    ...images.map(img => ({
+      type: 'image_url',
+      image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+    })),
+    { type: 'text', text: prompt },
+  ]
+
+  try {
+    const res = await fetch(`${BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://rostra.app',
+      },
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
+        messages: [{ role: 'user', content }],
+        max_tokens: 800,
+      }),
+    })
+
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`OpenRouter vision ${res.status}: ${text}`)
     }
+
+    const data = await res.json()
+    const raw = data.choices?.[0]?.message?.content ?? ''
+    const clean = raw.replace(/```json|```/g, '').trim()
+    return JSON.parse(clean) as BusinessKnowledgeStructured
+  } catch {
+    return { ...EMPTY_STRUCTURED }
   }
 }
 

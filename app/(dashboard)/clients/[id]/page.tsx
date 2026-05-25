@@ -11,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { ArrowLeft, Plus, MessageSquare } from "lucide-react"
+import { ArrowLeft, Plus, MessageSquare, ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import Link from "next/link"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, formatDistanceToNow } from "date-fns"
+import { id as localeId } from "date-fns/locale"
 import { normalizeWANumber } from "@/lib/whatsapp"
-import type { Client, PaymentStage, ScheduledMessage, FullOrder } from "@/types"
+import type { Client, PaymentStage, ScheduledMessage, FullOrder, InboxMessage } from "@/types"
 import OrderCard from "@/components/clients/OrderCard"
 import OrderFormModal from "@/components/clients/OrderFormModal"
 
@@ -26,6 +27,7 @@ export default function ClientDetailPage() {
 
   const [client, setClient] = useState<Client | null>(null)
   const [orders, setOrders] = useState<FullOrder[]>([])
+  const [messages, setMessages] = useState<InboxMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
 
@@ -46,7 +48,7 @@ export default function ClientDetailPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [clientRes, ordersRes] = await Promise.all([
+    const [clientRes, ordersRes, messagesRes] = await Promise.all([
       supabase.from("clients").select("*").eq("id", clientId).eq("user_id", user.id).single(),
       supabase
         .from("orders")
@@ -54,6 +56,13 @@ export default function ClientDetailPage() {
         .eq("client_id", clientId)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("inbox_messages")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("client_id", clientId)
+        .order("received_at", { ascending: false })
+        .limit(50),
     ])
 
     if (!clientRes.data) { router.push("/clients"); return }
@@ -63,6 +72,7 @@ export default function ClientDetailPage() {
     setEditName(c.name); setEditWA(c.whatsapp_number)
     setEditEmail(c.email ?? ""); setEditNotes(c.notes ?? ""); setEditAINotes(c.ai_notes ?? "")
     setOrders(ordersRes.data ?? [])
+    setMessages(messagesRes.data ?? [])
     setLoading(false)
   }, [clientId, router])
 
@@ -239,7 +249,7 @@ export default function ClientDetailPage() {
         <TabsList className="mb-6">
           <TabsTrigger value="profile">Profil</TabsTrigger>
           <TabsTrigger value="orders">Pesanan ({orders.length})</TabsTrigger>
-          <TabsTrigger value="messages" disabled>Riwayat Pesan</TabsTrigger>
+          <TabsTrigger value="messages">Riwayat Pesan ({messages.length})</TabsTrigger>
         </TabsList>
 
         {/* Tab 1: Profile */}
@@ -307,10 +317,68 @@ export default function ClientDetailPage() {
 
         {/* Tab 3: Message History */}
         <TabsContent value="messages">
-          <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-border">
-            <MessageSquare className="w-10 h-10 text-muted-foreground/40 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">Riwayat pesan tersedia di Phase 2</p>
-          </div>
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-border">
+              <MessageSquare className="w-10 h-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">Belum ada riwayat pesan</p>
+              <p className="text-xs text-muted-foreground mt-1">Pesan masuk dan keluar dari klien ini akan muncul di sini</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {messages.map(msg => {
+                const isIncoming = msg.direction === "masuk"
+                const statusColors: Record<string, string> = {
+                  baru: "bg-blue-500/10 text-blue-600",
+                  dibalas: "bg-emerald-500/10 text-emerald-600",
+                  diabaikan: "bg-muted text-muted-foreground",
+                  dieskalasi: "bg-amber-500/10 text-amber-600",
+                }
+                const classificationColors: Record<string, string> = {
+                  sensitif: "bg-amber-500/10 text-amber-600",
+                  injection_attempt: "bg-red-500/10 text-red-600",
+                  rutin: "",
+                  tidak_diketahui: "",
+                }
+                return (
+                  <div key={msg.id} className={cn(
+                    "flex gap-3 p-3 rounded-lg border",
+                    isIncoming ? "border-border bg-muted/20" : "border-primary/20 bg-primary/5"
+                  )}>
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
+                      isIncoming ? "bg-muted" : "bg-primary/10"
+                    )}>
+                      {isIncoming
+                        ? <ArrowDownLeft className="w-3 h-3 text-muted-foreground" />
+                        : <ArrowUpRight className="w-3 h-3 text-primary" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm leading-snug text-foreground whitespace-pre-wrap break-words">{msg.message_body}</p>
+                      <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
+                        <span className="text-[10px] text-muted-foreground">
+                          {formatDistanceToNow(new Date(msg.received_at), { addSuffix: true, locale: localeId })}
+                        </span>
+                        {msg.status && statusColors[msg.status] && (
+                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", statusColors[msg.status])}>
+                            {msg.status}
+                          </span>
+                        )}
+                        {msg.classification && classificationColors[msg.classification] && (
+                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", classificationColors[msg.classification])}>
+                            {msg.classification === "injection_attempt" ? "⚠️ injection" : msg.classification}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {messages.length === 50 && (
+                <p className="text-xs text-center text-muted-foreground py-2">Menampilkan 50 pesan terbaru</p>
+              )}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

@@ -2,8 +2,9 @@
 
 import { useState, useEffect, type CSSProperties } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Users, ShoppingBag, CreditCard, MessageSquare, ArrowRight, Clock, TrendingUp, TrendingDown } from "lucide-react"
+import { Users, ShoppingBag, CreditCard, MessageSquare, ArrowRight, Clock, TrendingUp, TrendingDown, CheckCircle2 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
 interface DashboardStats {
   totalClients: number
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [onboarding, setOnboarding] = useState<{ wa: boolean; clients: boolean; orders: boolean } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -37,11 +39,12 @@ export default function DashboardPage() {
       const today = new Date()
       const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-      const [clientRes, orderRes, messagesRes, prevClientRes, prevOrderRes, prevMessageRes] = await Promise.all([
+      const [profileRes, clientRes, orderRes, messagesRes, allOrdersRes, prevClientRes, prevOrderRes, prevMessageRes] = await Promise.all([
+        supabase.from("profiles").select("wa_connected").eq("id", user.id).single(),
         supabase.from("clients").select("*", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("orders").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "aktif"),
         supabase.from("inbox_messages").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "baru").eq("direction", "masuk"),
-
+        supabase.from("orders").select("*", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("clients").select("*", { count: "exact", head: true }).eq("user_id", user.id).lt("created_at", thirtyDaysAgo.toISOString()),
         supabase.from("orders").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "aktif").lt("created_at", thirtyDaysAgo.toISOString()),
         supabase.from("inbox_messages").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "baru").eq("direction", "masuk").lt("received_at", thirtyDaysAgo.toISOString()),
@@ -98,6 +101,11 @@ export default function DashboardPage() {
         clientTrend: (clientRes.count ?? 0) - (prevClientRes.count ?? 0),
         orderTrend: (orderRes.count ?? 0) - (prevOrderRes.count ?? 0),
         messageTrend: (messagesRes.count ?? 0) - (prevMessageRes.count ?? 0),
+      })
+      setOnboarding({
+        wa: profileRes.data?.wa_connected ?? false,
+        clients: (clientRes.count ?? 0) > 0,
+        orders: (allOrdersRes.count ?? 0) > 0,
       })
       setLoading(false)
     }
@@ -208,32 +216,49 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Getting started */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-semibold text-sm">Mulai dengan Rostra</h2>
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">3 langkah</span>
+      <div className={cn("grid gap-6", onboarding?.wa && onboarding?.clients && onboarding?.orders ? "lg:grid-cols-1" : "lg:grid-cols-2")}>
+        {/* Getting started — hidden when all 3 done */}
+        {!(onboarding?.wa && onboarding?.clients && onboarding?.orders) && (
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display font-semibold text-sm">Mulai dengan Rostra</h2>
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                {onboarding
+                  ? `${[onboarding.wa, onboarding.clients, onboarding.orders].filter(Boolean).length}/3 selesai`
+                  : "3 langkah"}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {[
+                { step: "01", title: "Hubungkan WhatsApp", desc: "Scan QR untuk mulai terima dan balas pesan", href: "/settings?tab=whatsapp", done: onboarding?.wa ?? false },
+                { step: "02", title: "Tambah klien pertama", desc: "Mulai kelola daftar klien kamu", href: "/clients", done: onboarding?.clients ?? false },
+                { step: "03", title: "Buat pesanan pertama", desc: "Catat pesanan dan atur tahap pembayaran", href: "/clients", done: onboarding?.orders ?? false },
+              ].map(({ step, title, desc, href, done }) => (
+                <a key={step} href={href}
+                  className={cn(
+                    "flex items-start gap-4 p-3 rounded-lg transition-colors group",
+                    done ? "opacity-60" : "hover:bg-accent"
+                  )}
+                >
+                  <span className={cn(
+                    "font-display font-bold text-xs w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+                    done ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"
+                  )}>
+                    {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : step}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn("text-sm font-medium leading-none", done && "line-through text-muted-foreground")}>{title}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{desc}</p>
+                  </div>
+                  {done
+                    ? <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-1" />
+                    : <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-1" />
+                  }
+                </a>
+              ))}
+            </div>
           </div>
-          <div className="space-y-3">
-            {[
-              { step: "01", title: "Lengkapi profil bisnis", desc: "Tambahkan nama bisnis dan koneksi WhatsApp", href: "/settings" },
-              { step: "02", title: "Tambah klien pertama", desc: "Mulai kelola daftar klien kamu", href: "/clients" },
-              { step: "03", title: "Buat pesanan", desc: "Catat pesanan dan atur tahap pembayaran", href: "/clients" },
-            ].map(({ step, title, desc, href }) => (
-              <a key={step} href={href} className="flex items-start gap-4 p-3 rounded-lg hover:bg-accent transition-colors group">
-                <span className="font-display font-bold text-xs text-primary bg-primary/10 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                  {step}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-none">{title}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{desc}</p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-1" />
-              </a>
-            ))}
-          </div>
-        </div>
+        )}
 
         {/* Perlu Perhatian */}
         <div className="rounded-xl border border-border bg-card p-5">

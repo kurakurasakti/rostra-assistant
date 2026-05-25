@@ -2,13 +2,14 @@
 
 import { useRef, useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
-import { Building2, QrCode, BrainCircuit, Bot } from "lucide-react"
+import { Building2, QrCode, BrainCircuit, Bot, FileSpreadsheet } from "lucide-react"
 
 const tabs = [
   { id: "profile", label: "Profil Bisnis", icon: Building2 },
   { id: "whatsapp", label: "Koneksi WhatsApp", icon: QrCode },
   { id: "business", label: "Pengetahuan Bisnis", icon: BrainCircuit },
   { id: "ai", label: "AI & Eskalasi", icon: Bot },
+  { id: "import", label: "Impor Data", icon: FileSpreadsheet },
 ] as const
 
 export type SettingsTab = (typeof tabs)[number]["id"]

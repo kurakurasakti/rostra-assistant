@@ -18,7 +18,15 @@
       "Bash(git reset *)",
       "Bash(git commit *)",
       "Bash(vercel link *)",
-      "Bash(vercel *)"
+      "Bash(vercel *)",
+      "Read(//Users/roytjandra/.claude/skills/**)",
+      "Read(//Users/roytjandra/.claude/plugins/**)",
+      "Bash(python3 -m json.tool)",
+      "Bash(pnpm tsc *)",
+      "Bash(git *)",
+      "Bash(pnpm add *)",
+      "Bash(node *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(list\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)[:20]\\)\")"
     ]
   },
   "enableAllProjectMcpServers": true,

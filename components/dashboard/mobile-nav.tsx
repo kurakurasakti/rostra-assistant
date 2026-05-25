@@ -7,15 +7,14 @@ import {
   LayoutDashboard,
   Users,
   MessageSquare,
-  Upload,
   Settings,
 } from 'lucide-react'
+import { NotificationBell } from '@/components/dashboard/notification-bell'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/clients', label: 'Klien', icon: Users },
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
-  { href: '/import', label: 'Import', icon: Upload },
   { href: '/settings', label: 'Setelan', icon: Settings },
 ]
 
@@ -50,6 +49,7 @@ export function MobileNav() {
           </Link>
         )
       })}
+      <NotificationBell variant="mobile" />
     </nav>
   )
 }
