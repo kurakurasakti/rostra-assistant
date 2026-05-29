@@ -70,11 +70,13 @@ const WIZARD_QUESTIONS = [
 interface Props {
   initialRaw?: string | null;
   initialStructured?: BusinessKnowledgeStructured | null;
+  onSave?: (raw: string, structured: BusinessKnowledgeStructured) => void;
 }
 
 export default function BusinessKnowledgeSection({
   initialRaw,
   initialStructured,
+  onSave,
 }: Props) {
   const [step, setStep] = useState<Step>(
     initialRaw ? "result" : "input",
@@ -273,6 +275,7 @@ export default function BusinessKnowledgeSection({
         toast.error(data.error ?? "Gagal menyimpan.");
       } else {
         toast.success("Pengetahuan bisnis tersimpan ✓ AI siap menjawab");
+        onSave?.(rawText, structured);
       }
     } catch {
       toast.error("Gagal menghubungi server.");

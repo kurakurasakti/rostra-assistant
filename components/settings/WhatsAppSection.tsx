@@ -13,8 +13,10 @@ type WaStep = "checking" | "idle" | "generating" | "scanning" | "connected"
 
 export default function WhatsAppSection({
   initialNotificationNumber,
+  onNotificationSaved,
 }: {
   initialNotificationNumber?: string | null
+  onNotificationSaved?: (number: string | null) => void
 }) {
   const [waStep, setWaStep] = useState<WaStep>("checking")
   const [waNumber, setWaNumber] = useState("")
@@ -109,7 +111,10 @@ export default function WhatsAppSection({
       .eq("id", user.id)
 
     if (error) toast.error("Gagal menyimpan.")
-    else toast.success("Nomor notifikasi disimpan.")
+    else {
+      toast.success("Nomor notifikasi disimpan.")
+      onNotificationSaved?.(notificationNumber.trim() || null)
+    }
     setSavingNotif(false)
   }
 

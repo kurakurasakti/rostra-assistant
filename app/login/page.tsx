@@ -112,7 +112,7 @@ export default function LoginPage() {
             <p className="text-muted-foreground text-sm mt-1">Masuk untuk melanjutkan ke Rostra</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4" suppressHydrationWarning>
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <Input

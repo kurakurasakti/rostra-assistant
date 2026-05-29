@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { X } from "lucide-react"
+import { Loader2, X } from "lucide-react"
 import { LEVEL2_THRESHOLD, LEVEL3_THRESHOLD, IS_BETA } from "@/lib/config"
+import { createClient } from "@/lib/supabase/client"
 
 export default function AIRulesSection({
   initialKeywords,
@@ -21,10 +22,26 @@ export default function AIRulesSection({
 }) {
   const [escalationKeywords, setEscalationKeywords] = useState<string[]>(initialKeywords)
   const [keywordInput, setKeywordInput] = useState("")
+  const [saving, setSaving] = useState(false)
 
-  function handleSave() {
-    onSave(escalationKeywords)
-    toast.success("Aturan AI berhasil disimpan.")
+  async function handleSave() {
+    setSaving(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSaving(false); return }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ escalation_keywords: escalationKeywords, updated_at: new Date().toISOString() })
+      .eq("id", user.id)
+
+    if (error) {
+      toast.error("Gagal menyimpan aturan.")
+    } else {
+      onSave(escalationKeywords)
+      toast.success("Aturan AI berhasil disimpan.")
+    }
+    setSaving(false)
   }
 
   return (
@@ -115,8 +132,8 @@ export default function AIRulesSection({
       </div>
 
       <div className="flex justify-end pt-1 border-t border-border">
-        <Button onClick={handleSave} className="font-display font-medium">
-          Simpan Aturan
+        <Button onClick={handleSave} disabled={saving} className="font-display font-medium">
+          {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Menyimpan...</> : "Simpan Aturan"}
         </Button>
       </div>
     </div>

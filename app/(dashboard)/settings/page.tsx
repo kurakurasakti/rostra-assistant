@@ -214,15 +214,24 @@ export default function SettingsPage() {
     setAnalyzeLoading(false);
   }
 
-  function handleUseVoice() {
-    setBrandVoice(brandVoicePreview);
+  async function handleUseVoice() {
+    const voice = brandVoicePreview;
+    setBrandVoice(voice);
     setAnalyzeStep("idle");
     setBrandVoicePreview("");
     setUploadedFiles([]);
     setSelectedSender("");
-    toast.success(
-      'Gaya komunikasi diterapkan. Klik "Simpan Profil" untuk menyimpan.',
-    );
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ brand_voice: voice, updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+      if (error) toast.error("Gagal menyimpan gaya komunikasi.");
+      else toast.success("Gaya komunikasi berhasil disimpan.");
+    }
   }
 
   // --- Draft test ---
@@ -407,13 +416,23 @@ export default function SettingsPage() {
 
       {activeTab === "whatsapp" && (
         <div className="rounded-xl border border-border bg-card p-5">
-          <WhatsAppSection initialNotificationNumber={profile?.notification_wa_number} />
+          <WhatsAppSection
+            initialNotificationNumber={profile?.notification_wa_number}
+            onNotificationSaved={(number) => setProfile((prev) => prev ? { ...prev, notification_wa_number: number } : prev)}
+          />
         </div>
       )}
 
       {activeTab === "business" && (
         <div className="rounded-xl border border-border bg-card p-5">
-          <BusinessKnowledgeSection initialRaw={businessKnowledgeRaw} initialStructured={businessKnowledgeStructured} />
+          <BusinessKnowledgeSection
+            initialRaw={businessKnowledgeRaw}
+            initialStructured={businessKnowledgeStructured}
+            onSave={(raw, structured) => {
+              setBusinessKnowledgeRaw(raw);
+              setBusinessKnowledgeStructured(structured);
+            }}
+          />
         </div>
       )}
 
