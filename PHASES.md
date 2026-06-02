@@ -610,6 +610,13 @@ Beta users butuh ini untuk lihat konteks percakapan per klien.
 
 **Goal:** MVP complete. Dashboard informatif. Auto-reply Level 2 tersedia. Deployed.
 
+### 0. Prerequisites / Feedback Blocker
+
+*Solve these before Phase 5 release:*
+
+- [ ] **Notification click action** — Klik notifikasi di notification bell harus navigasi ke halaman relevan (inbox untuk pesan baru, client detail untuk eskalasi, dll)
+- [ ] **Onboarding session** — Tampilkan onboarding walkthrough/interaktif guide saat user pertama kali login setelah register, mencakup: koneksi WhatsApp, upload brand voice, tambah klien pertama, dan buat pesanan pertama
+
 ### 5A. Dashboard
 
 - [ ] Stats row — 4 kartu: - Klien aktif (distinct clients dengan pesanan status='aktif') - Pesanan aktif - Pesan belum dibalas (inbox status='baru') - Reminder terkirim hari ini
