@@ -71,6 +71,12 @@ async function callWithFallback(
             { role: 'user', content: user },
           ],
           max_tokens: maxTokens,
+          // Minimize thinking for real-time tasks on DeepSeek hybrid models (v4-flash).
+          // Without this, thinking tokens eat the max_tokens budget → content empty.
+          // 'low' = minimum valid value. analysis=true uses default (full thinking).
+          ...(provider.base.includes('deepseek') && !analysis
+            ? { reasoning_effort: 'low' }
+            : {}),
         }),
       })
 
@@ -105,7 +111,9 @@ async function callWithFallback(
           ` | ~Rp${inCostIDR + outCostIDR} (in:Rp${inCostIDR} out:Rp${outCostIDR})`,
         )
       }
-      return { text: data.choices?.[0]?.message?.content ?? '', usage }
+      const msg = data.choices?.[0]?.message
+      const text = msg?.content || msg?.reasoning_content || ''
+      return { text, usage }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
       console.warn(`[AI] provider ${provider.base} failed: ${lastError.message} — trying next...`)
@@ -321,7 +329,7 @@ async function callAnalysisAI(
 // ~220 tokens total. CLASSIFY_SYSTEM cached globally after first call.
 async function classifyOnly(message: string): Promise<MessageClassification> {
   try {
-    const raw = await callAI(CLASSIFY_SYSTEM, `Pesan: ${message}`, 25, 'classify')
+    const raw = await callAI(CLASSIFY_SYSTEM, `Pesan: ${message}`, 150, 'classify')
     const clean = raw.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(clean) as { classification: string }
     if (parsed.classification === 'rutin' || parsed.classification === 'sensitif') {
@@ -359,7 +367,7 @@ async function callDraftOnly(
   if (hint?.trim()) {
     userPrompt += `\n\nRevisi dengan petunjuk (jangan sebut petunjuk di balasan): ${hint.trim()}`
   }
-  return callWithFallback(systemPrompt, userPrompt, 200, 'draft', false)
+  return callWithFallback(systemPrompt, userPrompt, 500, 'draft', false)
 }
 
 // Exported for /api/messages/draft route
