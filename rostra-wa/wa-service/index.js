@@ -1,3 +1,19 @@
+// Load .env file manually — works on all Node versions
+const fs = require('fs')
+const path = require('path')
+const envPath = path.join(__dirname, '.env')
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) return
+    const eq = trimmed.indexOf('=')
+    if (eq === -1) return
+    const key = trimmed.slice(0, eq).trim()
+    const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '')
+    if (key && !(key in process.env)) process.env[key] = val
+  })
+}
+
 const express = require('express')
 const makeWASocket = require('@whiskeysockets/baileys').default
 const { 
@@ -7,8 +23,6 @@ const {
   makeInMemoryStore
 } = require('@whiskeysockets/baileys')
 const pino = require('pino')
-const path = require('path')
-const fs = require('fs')
 
 const app = express()
 app.use(express.json())
@@ -55,13 +69,13 @@ async function createSession(userId) {
       sessionData.status = 'connected'
       sessionData.qr = null
       const jid = sock.user?.id ?? ''
-      const number = jid ? jid.split(':')[0].split('@')[0] : undefined
+      const number = jid ? jid.split(':')[0].split('@')[0] : null
       console.log(`[${userId}] Connected as ${number ?? 'unknown'}`)
 
       fetch(`${NEXT_APP_URL}/api/whatsapp/connected`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, number })
+        body: JSON.stringify({ userId, number: number ?? '' }),
       })
         .then(r => console.log(`[${userId}] /connected callback: ${r.status}`))
         .catch(err => console.error(`[${userId}] /connected callback error:`, err))
@@ -70,10 +84,17 @@ async function createSession(userId) {
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut
-      
+
       sessionData.status = 'disconnected'
       console.log(`[${userId}] Disconnected. Reconnect: ${shouldReconnect}`)
-      
+
+      // Notify Next.js so wa_connected resets to false in DB
+      fetch(`${NEXT_APP_URL}/api/whatsapp/disconnected`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, willReconnect: shouldReconnect }),
+      }).catch(() => {})
+
       if (shouldReconnect) {
         setTimeout(() => createSession(userId), 3000)
       } else {
@@ -93,8 +114,19 @@ async function createSession(userId) {
       if (msg.key.fromMe) continue
       if (!msg.message) continue
 
-      const text = msg.message?.conversation 
-        || msg.message?.extendedTextMessage?.text 
+      const m = msg.message
+      const text = m?.conversation
+        || m?.extendedTextMessage?.text
+        || m?.imageMessage?.caption
+        || m?.videoMessage?.caption
+        || m?.documentMessage?.caption
+        || m?.ephemeralMessage?.message?.conversation
+        || m?.ephemeralMessage?.message?.extendedTextMessage?.text
+        || m?.viewOnceMessage?.message?.imageMessage?.caption
+        || m?.viewOnceMessage?.message?.videoMessage?.caption
+        || m?.buttonsResponseMessage?.selectedDisplayText
+        || m?.listResponseMessage?.title
+        || m?.templateButtonReplyMessage?.selectedDisplayText
         || ''
 
       if (!text) continue
@@ -144,19 +176,31 @@ app.post('/session/:userId/connect', async (req, res) => {
   const { userId } = req.params
   const QRCode = require('qrcode')
 
+  let sessionData
+  const authPath = path.join(__dirname, 'auth', userId)
+
   if (sessions.has(userId)) {
-    const existing = sessions.get(userId)
-    if (existing.status === 'connected') {
+    sessionData = sessions.get(userId)
+    if (sessionData.status === 'connected') {
       return res.json({ status: 'connected' })
     }
-    if (existing.qr) {
-      const qr = await QRCode.toDataURL(existing.qr)
+    if (sessionData.qr) {
+      const qr = await QRCode.toDataURL(sessionData.qr)
       return res.json({ status: 'waiting_scan', qr })
     }
+    // Session in memory but disconnected/stuck — remove it and start fresh
+    sessions.delete(userId)
   }
 
-  const sessionData = await createSession(userId)
+  // Delete stale auth so Baileys generates a new QR instead of trying to resume logged-out session
+  if (fs.existsSync(authPath)) {
+    fs.rmSync(authPath, { recursive: true, force: true })
+    console.log(`[${userId}] Cleared stale auth, starting fresh session`)
+  }
 
+  sessionData = await createSession(userId)
+
+  // Wait up to 30s for QR or connected (network can be slow on fetchLatestBaileysVersion)
   await new Promise((resolve) => {
     const check = setInterval(() => {
       if (sessionData.qr || sessionData.status === 'connected') {
@@ -164,7 +208,7 @@ app.post('/session/:userId/connect', async (req, res) => {
         resolve()
       }
     }, 500)
-    setTimeout(() => { clearInterval(check); resolve() }, 15000)
+    setTimeout(() => { clearInterval(check); resolve() }, 30000)
   })
 
   if (sessionData.status === 'connected') {

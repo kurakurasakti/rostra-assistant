@@ -7,6 +7,7 @@ export interface ParsedMessage {
 export interface ChatAnalysis {
   senders: string[]
   messagesBySender: Record<string, string[]>
+  messages: ParsedMessage[]
   totalMessages: number
 }
 
@@ -71,8 +72,24 @@ export function parseWhatsAppExport(text: string): ChatAnalysis {
   return {
     senders: Object.keys(messagesBySender),
     messagesBySender,
+    messages: filtered,
     totalMessages: filtered.length,
   }
+}
+
+// Returns last N messages as conversation pairs with role labels
+export function extractConversationContext(
+  analysis: ChatAnalysis,
+  selectedSender: string,
+  limit: number = 80,
+): string {
+  return analysis.messages
+    .slice(-limit)
+    .map(m => {
+      const role = m.sender === selectedSender ? 'Admin' : 'Pelanggan'
+      return `${role}: ${m.content}`
+    })
+    .join('\n')
 }
 
 export function extractBusinessMessages(
@@ -81,6 +98,6 @@ export function extractBusinessMessages(
 ): string[] {
   const messages = analysis.messagesBySender[selectedSender] ?? []
   return messages
-    .filter(m => m.trim().split(/\s+/).length >= 5)
+    .filter(m => m.trim().split(/\s+/).length >= 3)
     .slice(-150)
 }

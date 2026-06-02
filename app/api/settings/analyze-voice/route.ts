@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { parseWhatsAppExport, extractBusinessMessages } from '@/lib/chat-parser'
+import { parseWhatsAppExport, extractBusinessMessages, extractConversationContext } from '@/lib/chat-parser'
 import { analyzeBrandVoice } from '@/lib/openrouter'
 
 export async function POST(request: Request) {
@@ -20,7 +20,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No messages found for selected sender' }, { status: 400 })
   }
 
-  const brandVoice = await analyzeBrandVoice(messages)
+  const conversationContext = extractConversationContext(analysis, body.sender)
+  const brandVoice = await analyzeBrandVoice(messages, conversationContext)
 
   return NextResponse.json({ brand_voice: brandVoice, message_count: messages.length })
 }

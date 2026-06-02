@@ -9,6 +9,7 @@ import { sendEscalationNotification } from '@/lib/notifications'
 export async function POST(request: Request) {
   const secret = process.env.WEBHOOK_SECRET ?? ''
   const sig = request.headers.get('x-webhook-secret') ?? ''
+
   const authorized =
     secret.length > 0 &&
     sig.length === secret.length &&
@@ -37,7 +38,7 @@ async function processIncomingMessage(payload: any) {
   const name = String(payload.name ?? '').trim()
   const messageId = String(payload.messageId ?? '').trim()
 
-  console.log('[webhook] processing:', { userId: userId.slice(0, 8) + '...', sender, message: message.slice(0, 50) })
+  console.log('[webhook] processing:', { userId: userId.slice(0, 8) + '...', sender, msgLen: message.length, message })
 
   if (!userId || !sender || !message) {
     console.warn('[webhook] missing required fields', { userId: !!userId, sender: !!sender, message: !!message })

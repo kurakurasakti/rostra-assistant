@@ -18,7 +18,9 @@ import {
   Loader2,
   RefreshCw,
   ChevronLeft,
+  RotateCcw,
 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
@@ -115,8 +117,11 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([])
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [hint, setHint] = useState('')
+  const [originalAiDraft, setOriginalAiDraft] = useState<string | null>(null)
   const [loadingDraft, setLoadingDraft] = useState(false)
   const [sending, setSending] = useState(false)
+  const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set())
   const [loadingMessages, setLoadingMessages] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'thread'>('list')
@@ -157,7 +162,16 @@ export default function InboxPage() {
           filter: `user_id=eq.${userId}`,
         },
         payload => {
-          setMessages(prev => [...prev, payload.new as InboxMessage])
+          const newMsg = payload.new as InboxMessage
+          setMessages(prev => [...prev, newMsg])
+          setNewMessageIds(prev => new Set([...prev, newMsg.id]))
+          setTimeout(() => {
+            setNewMessageIds(prev => {
+              const next = new Set(prev)
+              next.delete(newMsg.id)
+              return next
+            })
+          }, 400)
         },
       )
       .on(
@@ -188,7 +202,7 @@ export default function InboxPage() {
   const thread = selectedConversation?.messages ?? []
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread_count, 0)
 
-  async function handleGenerateDraft() {
+  async function handleGenerateDraft(withHint?: string) {
     if (!selectedConversation) return
     const lastIncoming = [...thread].reverse().find(m => m.direction === 'masuk')
     if (!lastIncoming) {
@@ -203,11 +217,15 @@ export default function InboxPage() {
         body: JSON.stringify({
           message: lastIncoming.message_body,
           history: thread.map(m => ({ direction: m.direction, message_body: m.message_body })),
+          hint: withHint ?? undefined,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setDraft(data.draft ?? '')
+      const newDraft = data.draft ?? ''
+      setDraft(newDraft)
+      if (!withHint) setOriginalAiDraft(newDraft)
+      setHint('')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal membuat draft AI')
     } finally {
@@ -234,8 +252,15 @@ export default function InboxPage() {
         toast.error(err.error ?? 'Gagal mengirim pesan')
         return
       }
+      const wasCorrected = originalAiDraft && originalAiDraft.trim() !== draft.trim()
       setDraft('')
-      toast.success('Pesan terkirim')
+      setOriginalAiDraft(null)
+      setHint('')
+      if (wasCorrected) {
+        toast.success('Pesan terkirim · Koreksi dicatat untuk tingkatkan AI ✓')
+      } else {
+        toast.success('Pesan terkirim')
+      }
     } catch {
       toast.error('Gagal mengirim pesan')
     } finally {
@@ -318,6 +343,8 @@ export default function InboxPage() {
                 onClick={() => {
                   setSelectedNumber(conv.whatsapp_number)
                   setDraft('')
+                  setHint('')
+                  setOriginalAiDraft(null)
                   setMobileView('thread')
                 }}
                 className={cn(
@@ -398,6 +425,7 @@ export default function InboxPage() {
                 className={cn(
                   'flex',
                   msg.direction === 'keluar' ? 'justify-end' : 'justify-start',
+                  newMessageIds.has(msg.id) && 'animate-enter',
                 )}
               >
                   <div
@@ -425,18 +453,25 @@ export default function InboxPage() {
 
           {/* Draft panel */}
           <div className="border-t border-border px-4 py-3 flex-shrink-0 bg-card">
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                   Balas {selectedConversation.contact_name}
+                </span>
+                <span className={cn(
+                  'text-[10px] text-amber-600 font-medium transition-opacity duration-200',
+                  originalAiDraft && draft !== originalAiDraft ? 'opacity-100' : 'opacity-0',
+                )}>
+                  Mengedit draft AI
                 </span>
               </div>
               <Textarea
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 placeholder="Ketik balasan atau muat draft AI..."
-                className="resize-none text-[13px] min-h-[72px] bg-background"
+                className="resize-none text-[13px] min-h-[72px] bg-background disabled:opacity-60 disabled:cursor-wait"
                 rows={3}
+                disabled={loadingDraft}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault()
@@ -444,14 +479,48 @@ export default function InboxPage() {
                   }
                 }}
               />
+              {/* Hint input — fades in only after first draft is loaded */}
+              <div className={cn(
+                'overflow-hidden transition-all duration-200 ease-out',
+                originalAiDraft !== null ? 'max-h-12 opacity-100' : 'max-h-0 opacity-0 pointer-events-none',
+              )}>
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <Input
+                    value={hint}
+                    onChange={e => setHint(e.target.value)}
+                    placeholder="Petunjuk: lebih singkat, tambah harga..."
+                    className="h-7 text-[11px] bg-background flex-1"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && hint.trim()) {
+                        e.preventDefault()
+                        handleGenerateDraft(hint.trim())
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleGenerateDraft(hint.trim())}
+                    disabled={loadingDraft || !hint.trim()}
+                    className="h-7 text-[11px] gap-1 flex-shrink-0 transition-transform duration-100 active:scale-95"
+                  >
+                    {loadingDraft ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <RotateCcw className="w-3 h-3" />
+                    )}
+                    Regenerasi
+                  </Button>
+                </div>
+              </div>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={handleGenerateDraft}
+                    onClick={() => handleGenerateDraft()}
                     disabled={loadingDraft}
-                    className="h-7 text-[11px] gap-1 text-primary hover:text-primary-foreground hover:bg-primary transition-colors"
+                    className="h-7 text-[11px] gap-1 text-primary hover:text-primary-foreground hover:bg-primary transition-colors active:scale-95"
                   >
                     {loadingDraft ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -465,7 +534,7 @@ export default function InboxPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleUpdateStatus('dieskalasi')}
-                    className="h-7 text-[11px] gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                    className="h-7 text-[11px] gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 transition-transform duration-100 active:scale-95"
                   >
                     <AlertTriangle className="w-3 h-3" />
                     Eskalasi
@@ -474,7 +543,7 @@ export default function InboxPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleUpdateStatus('diabaikan')}
-                    className="h-7 text-[11px] gap-1 text-muted-foreground"
+                    className="h-7 text-[11px] gap-1 text-muted-foreground transition-transform duration-100 active:scale-95"
                   >
                     <EyeOff className="w-3 h-3" />
                     Abaikan
@@ -488,7 +557,7 @@ export default function InboxPage() {
                     size="sm"
                     onClick={handleSend}
                     disabled={sending || !draft.trim()}
-                    className="h-7 text-xs gap-1.5 transition-all duration-150 active:scale-95"
+                    className="h-7 text-xs gap-1.5 transition-transform duration-150 ease-out active:scale-95"
                   >
                     {sending ? (
                       <Loader2 className="w-3 h-3 animate-spin" />

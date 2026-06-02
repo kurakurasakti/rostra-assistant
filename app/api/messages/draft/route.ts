@@ -12,6 +12,7 @@ export async function POST(request: Request) {
     brand_voice?: string
     client_id?: string
     history?: Array<{ direction: string; message_body: string }>
+    hint?: string
   }
   if (!body.message) return NextResponse.json({ error: 'message required' }, { status: 400 })
 
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
   // Build full AI context with client order info
   const systemPrompt = await buildAIContext(profile, client, user.id)
 
-  const draft = await draftReply(body.message, body.brand_voice ?? '', body.history, systemPrompt)
+  const draft = await draftReply(body.message, body.brand_voice ?? '', body.history, systemPrompt, body.hint)
 
   return NextResponse.json({ draft })
 }

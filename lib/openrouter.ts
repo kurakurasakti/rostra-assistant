@@ -4,8 +4,96 @@ import { validateAIOutput } from '@/lib/security'
 import { formatBusinessContextForAI } from '@/lib/business-knowledge'
 import { sendTextMessage } from '@/lib/whatsapp'
 
-const BASE = 'https://openrouter.ai/api/v1'
-const DEFAULT_MODEL = 'google/gemini-flash-1.5'
+interface AIProvider {
+  base: string
+  apiKey: string
+  model: string
+}
+
+function getProviders(analysis = false): AIProvider[] {
+  const providers: AIProvider[] = []
+
+  if (process.env.DEEPSEEK_API_KEY) {
+    providers.push({
+      base: (process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com') + '/v1',
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      model: process.env.DEEPSEEK_MODEL ?? 'deepseek-chat',
+    })
+  }
+
+  if (process.env.OPENROUTER_API_KEY) {
+    providers.push({
+      base: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      model: analysis
+        ? (process.env.OPENROUTER_ANALYSIS_MODEL ?? process.env.OPENROUTER_MODEL ?? 'google/gemini-flash-1.5')
+        : (process.env.OPENROUTER_MODEL ?? 'google/gemini-flash-1.5'),
+    })
+  }
+
+  return providers
+}
+
+async function callWithFallback(
+  system: string,
+  user: string,
+  maxTokens: number,
+  analysis = false,
+): Promise<string> {
+  const providers = getProviders(analysis)
+  if (providers.length === 0) throw new Error('No AI API key set (DEEPSEEK_API_KEY or OPENROUTER_API_KEY)')
+
+  let lastError: Error = new Error('No providers available')
+
+  for (const provider of providers) {
+    try {
+      const res = await fetch(`${provider.base}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${provider.apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://rostra.app',
+        },
+        body: JSON.stringify({
+          model: provider.model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          max_tokens: maxTokens,
+        }),
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`${res.status}: ${text}`)
+      }
+
+      const data = await res.json()
+      const usage = data.usage
+      if (usage) {
+        const providerName = provider.base.includes('deepseek') ? 'deepseek' : 'openrouter'
+        // DeepSeek uses prompt_cache_hit_tokens, OpenAI/OpenRouter uses prompt_tokens_details.cached_tokens
+        const cached = usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0
+        const inputCost = (usage.prompt_tokens * 0.14 / 1_000_000) * 16300
+        const outputCost = (usage.completion_tokens * 0.28 / 1_000_000) * 16300
+        console.log('[AI usage]', {
+          provider: providerName,
+          prompt_tokens: usage.prompt_tokens,
+          completion_tokens: usage.completion_tokens,
+          cached_tokens: cached,
+          estimated_cost_idr: Math.round(inputCost + outputCost),
+        })
+      }
+      return data.choices?.[0]?.message?.content ?? ''
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+      console.warn(`[AI] provider ${provider.base} failed: ${lastError.message} — trying next...`)
+    }
+  }
+
+  throw lastError
+}
 
 interface Product {
   name: string
@@ -25,51 +113,33 @@ export async function getClientOrderSummary(userId: string, clientId: string): P
     .eq('status', 'aktif')
     .order('created_at', { ascending: false })
 
-  if (!orders || orders.length === 0) {
-    return ''
+  if (!orders || orders.length === 0) return ''
+
+  // Slim summary — only 3 fields to minimise token usage
+  const parts: string[] = []
+
+  for (const order of orders as any[]) {
+    parts.push(`Pesanan: ${order.description}`)
+
+    // Next unpaid stage only (not all stages)
+    const nextUnpaid = (order.payment_stages || [])
+      .filter((s: any) => !s.paid)
+      .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0]
+    if (nextUnpaid) {
+      parts.push(`Tagihan berikutnya: ${nextUnpaid.name} Rp ${nextUnpaid.amount?.toLocaleString('id-ID')} (tempo ${new Date(nextUnpaid.due_date + 'T00:00:00').toLocaleDateString('id-ID')})`)
+    }
+
+    // Nearest upcoming appointment only
+    const nextAppt = (order.appointments || [])
+      .filter((a: any) => new Date(a.scheduled_at) > new Date())
+      .sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]
+    if (nextAppt) {
+      const dt = new Date(nextAppt.scheduled_at).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      parts.push(`Janji temu: ${nextAppt.title} ${dt}`)
+    }
   }
 
-  let summary = 'Pesanan aktif klien ini:\n'
-
-  orders.forEach((order: any) => {
-    summary += `- ${order.description} (Rp ${order.total_price?.toLocaleString('id-ID') || '0'})\n`
-
-    // Unpaid payment stages
-    const unpaidStages = (order.payment_stages || [])
-      .filter((stage: any) => !stage.paid)
-      .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
-
-    if (unpaidStages.length > 0) {
-      summary += '  Belum dibayar:\n'
-      unpaidStages.forEach((stage: any) => {
-        summary += `    - ${stage.name}: Rp ${stage.amount?.toLocaleString('id-ID') || '0'} (jatuh tempo ${new Date(stage.due_date).toLocaleDateString('id-ID')})\n`
-      })
-    }
-
-    // Upcoming appointments
-    const appointments = (order.appointments || [])
-      .sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-
-    if (appointments.length > 0) {
-      summary += '  Janji temu:\n'
-      appointments.forEach((appt: any) => {
-        const date = new Date(appt.scheduled_at).toLocaleDateString('id-ID', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        })
-        const time = new Date(appt.scheduled_at).toLocaleTimeString('id-ID', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-        summary += `    - ${appt.title}, ${date} ${time}\n`
-      })
-    }
-  })
-
-  return summary.trim()
+  return parts.join(' | ')
 }
 
 export function buildBusinessContext(profile: Profile): string {
@@ -154,7 +224,7 @@ metode pembayaran, status PO/antrian, dan catatan khusus.
 ${BUSINESS_EXTRACTION_SCHEMA}`
 
   try {
-    const result = await callAI(system, rawText, 800)
+    const result = await callAnalysisAI(system, rawText, 800)
     const clean = result.replace(/```json|```/g, '').trim()
     return JSON.parse(clean) as BusinessKnowledgeStructured
   } catch {
@@ -165,8 +235,18 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
 export async function extractBusinessKnowledgeFromImages(
   images: Array<{ base64: string; mimeType: string }>,
 ): Promise<BusinessKnowledgeStructured> {
-  const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY not set')
+  // Vision calls need a multimodal model — use OpenRouter with vision model
+  // DeepSeek vision support is limited; fall back to OpenRouter for image analysis
+  const apiKey = process.env.OPENROUTER_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? ''
+  if (!apiKey) throw new Error('No AI API key set')
+
+  const base = process.env.OPENROUTER_API_KEY
+    ? 'https://openrouter.ai/api/v1'
+    : (process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com') + '/v1'
+
+  const model = process.env.OPENROUTER_API_KEY
+    ? (process.env.OPENROUTER_MODEL ?? 'google/gemini-flash-1.5')
+    : (process.env.DEEPSEEK_MODEL ?? 'deepseek-chat')
 
   const prompt = `Kamu mengekstrak informasi bisnis dari gambar katalog/price list Indonesia.
 Baca semua teks, harga, layanan, dan informasi yang terlihat di gambar.
@@ -181,7 +261,7 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
   ]
 
   try {
-    const res = await fetch(`${BASE}/chat/completions`, {
+    const res = await fetch(`${base}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -189,7 +269,7 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
         'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://rostra.app',
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
+        model,
         messages: [{ role: 'user', content }],
         max_tokens: 800,
       }),
@@ -197,7 +277,7 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
 
     if (!res.ok) {
       const text = await res.text()
-      throw new Error(`OpenRouter vision ${res.status}: ${text}`)
+      throw new Error(`Vision API ${res.status}: ${text}`)
     }
 
     const data = await res.json()
@@ -244,6 +324,13 @@ ${client.ai_notes}` : ''}
 ${orderSummary ? `=== PESANAN KLIEN INI ===
 ${orderSummary}` : ''}
 
+=== ATURAN KETAT ===
+- PENTING: Balas maksimal 3 kalimat, maksimal 80 kata. Ini pesan WhatsApp — singkat, padat, natural.
+- JANGAN proaktif menyarankan jadwal appointment, kunjungan, atau fitting kecuali pelanggan sendiri yang bertanya tentang waktu/jadwal.
+- JANGAN tambahkan kalimat seperti "Kita bisa atur jadwal dulu", "Mau buat appointment?", "Boleh mampir ke showroom" jika pelanggan belum memintanya.
+- Jawab HANYA apa yang ditanyakan. Jika pelanggan tanya harga → balas harga saja.
+- Selalu selesaikan kalimat terakhir sampai tuntas.
+
 === RESPONS JIKA TIDAK TAHU ===
 Selalu balas: "Boleh saya tanyakan ke tim dulu ya Kak 🙏"
 Jangan mengarang jawaban.
@@ -267,65 +354,49 @@ export async function callAI(
   user: string,
   maxTokens: number = 500,
 ): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY not set')
-
-  const res = await fetch(`${BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://rostra.app',
-    },
-    body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      max_tokens: maxTokens,
-    }),
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`OpenRouter ${res.status}: ${text}`)
-  }
-
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content ?? ''
+  return callWithFallback(system, user, maxTokens, false)
 }
 
-export async function analyzeBrandVoice(messages: string[]): Promise<string> {
-  const sample = messages.slice(-100).join('\n')
+// For heavy analysis tasks (brand voice, business extraction)
+async function callAnalysisAI(
+  system: string,
+  user: string,
+  maxTokens: number = 600,
+): Promise<string> {
+  return callWithFallback(system, user, maxTokens, true)
+}
 
-  const system = `
-Kamu adalah analis gaya komunikasi bisnis Indonesia.
-Tugasmu: analisa pesan WhatsApp dari admin sebuah bisnis kecil,
-lalu buat deskripsi gaya komunikasi yang SPESIFIK dan ACTIONABLE.
+export async function analyzeBrandVoice(
+  messages: string[],
+  conversationContext?: string,
+): Promise<string> {
+  const adminSample = messages.slice(-100).join('\n')
 
-Output harus berupa paragraf singkat (3-5 kalimat) yang mendeskripsikan:
-1. Sapaan yang biasa digunakan (Kak, Kak [nama], dll)
-2. Emoji yang sering dipakai
-3. Panjang pesan (singkat/panjang)
-4. Frasa atau kata khas yang sering muncul
-5. Cara merespons pertanyaan harga / ketersediaan
-6. Tingkat formalitas
+  const inputSection = conversationContext
+    ? `Berikut adalah contoh percakapan WhatsApp bisnis ini (Admin = pemilik, Pelanggan = customer):\n\n${conversationContext}`
+    : `Berikut adalah pesan-pesan dari Admin bisnis ini:\n\n${adminSample}`
 
-JANGAN gunakan bullet points. Tulis dalam bentuk paragraf natural.
-Output langsung digunakan sebagai system prompt untuk AI reply —
-jadi tulis seolah kamu menginstruksikan AI untuk meniru gaya ini.
-`
+  const system = `Kamu adalah analis gaya komunikasi untuk bisnis fashion/jasa jahit Indonesia.
+Tugasmu: analisa percakapan WhatsApp, lalu tulis INSTRUKSI gaya komunikasi untuk AI.
 
-  const user = `
-Berikut contoh pesan WhatsApp dari admin bisnis ini:
+Fokus HANYA pada cara Admin membalas — bukan Pelanggan.
+Perhatikan:
+1. Sapaan yang dipakai (Kak, Mbak, nama, dll)
+2. Emoji apa dan di posisi mana (awal/tengah/akhir pesan)
+3. Panjang pesan — singkat langsung to-the-point atau panjang dengan penjelasan?
+4. Frasa khas yang sering muncul
+5. Cara menyebut harga / ketersediaan / estimasi waktu
+6. Cara menutup pesan (ajakan, tawaran follow-up, dll)
+7. Tingkat formalitas — santai/semi-formal/formal?
 
-${sample}
+Output: paragraf 3-5 kalimat yang MENGINSTRUKSIKAN AI untuk meniru gaya ini persis.
+Tulis seperti sedang memberi instruksi: "Sapa pelanggan dengan 'Kak'. Gunakan emoji 😊..."
+JANGAN pakai bullet points. JANGAN tulis analisa — langsung tulis instruksi.
+JANGAN mengarang — hanya tulis apa yang benar-benar terlihat di percakapan.`
 
-Analisa dan deskripsikan gaya komunikasi mereka.
-`
+  const user = `${inputSection}\n\nTulis instruksi gaya komunikasi berdasarkan cara Admin membalas di atas.`
 
-  return callAI(system, user, 300)
+  return callAnalysisAI(system, user, 600)
 }
 
 const GREETING_PATTERNS = [
@@ -411,21 +482,82 @@ export async function draftReply(
   brandVoice: string,
   history?: Array<{ direction: string; message_body: string }>,
   systemPrompt?: string,
+  hint?: string,
 ): Promise<string> {
-  const system = systemPrompt ?? (brandVoice?.trim()
+  const baseInstruction = `PENTING: Output HANYA teks balasan yang akan dikirim ke pelanggan.
+JANGAN tulis "Baik kak", "Ini revisinya", "Berikut balasannya", atau komentar apapun.
+JANGAN pakai separator (---) atau label apapun.
+Langsung tulis teks balasan saja.
+Maksimal 3-4 kalimat — selalu selesaikan kalimat terakhir sampai tuntas.`
+
+  const base = systemPrompt ?? (brandVoice?.trim()
     ? brandVoice
     : 'Kamu adalah asisten admin toko online Indonesia. Balas pesan pelanggan dengan sopan, ramah, dan singkat.')
+
+  const system = `${base}\n\n${baseInstruction}`
 
   let userPrompt = message
   if (history && history.length > 1) {
     const historyText = history
-      .slice(-8)
+      .slice(-5)
       .map(m => `${m.direction === 'masuk' ? 'Pelanggan' : 'Admin'}: ${m.message_body}`)
       .join('\n')
     userPrompt = `Riwayat percakapan:\n${historyText}\n\nDraft balasan untuk pesan terakhir pelanggan:`
   }
 
-  return callAI(system, userPrompt, 300)
+  if (hint?.trim()) {
+    userPrompt += `\n\nRevisi draft dengan petunjuk berikut (jangan sebut petunjuk ini di balasan): ${hint.trim()}`
+  }
+
+  return callAI(system, userPrompt, 200)
+}
+
+// Re-analyze brand_voice from accumulated ai_feedback corrections
+export async function reanalyzeBrandVoice(userId: string): Promise<void> {
+  const supabase = await createSupabaseClient()
+
+  const { data: feedback } = await supabase
+    .from('ai_feedback')
+    .select('original, corrected')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (!feedback || feedback.length < 3) return
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('brand_voice')
+    .eq('id', userId)
+    .single()
+
+  const corrections = feedback
+    .map(f => `AI draft: "${f.original}"\nAdmin koreksi: "${f.corrected}"`)
+    .join('\n---\n')
+
+  const system = `Kamu adalah analis gaya komunikasi bisnis Indonesia.
+Berdasarkan pola koreksi admin terhadap draft AI, perbarui deskripsi gaya komunikasi
+agar AI lebih sesuai di masa depan.
+
+Gaya komunikasi saat ini:
+${profile?.brand_voice || '(belum ada)'}
+
+Output: paragraf deskriptif (3-5 kalimat) yang menginstruksikan AI untuk menggunakan gaya ini.
+Fokus pada pola yang BERULANG dikoreksi admin. JANGAN gunakan bullet points.`
+
+  const user = `Berikut ${feedback.length} koreksi admin terbaru:\n\n${corrections}\n\nPerbarui deskripsi gaya komunikasi.`
+
+  try {
+    const updated = await callAI(system, user, 300)
+    if (updated.trim()) {
+      await supabase
+        .from('profiles')
+        .update({ brand_voice: updated.trim() })
+        .eq('id', userId)
+    }
+  } catch (err) {
+    console.error('[reanalyzeBrandVoice] error:', err)
+  }
 }
 
 export async function classifyAndDraft(
@@ -446,7 +578,44 @@ export async function classifyAndDraft(
 
     // --- Rule-based gate (zero AI cost) ---
 
-    // Gate 1: escalation keywords → immediate sensitif, skip AI
+    // Gate 1a: system-level appointment keywords — always escalate, non-configurable
+    // AI has no real-time slot availability → must escalate scheduling queries
+    const APPOINTMENT_KEYWORDS = [
+      // Explicit booking intent
+      'booking', 'reservasi', 'janji temu', 'buat janji', 'bikin janji',
+      // Availability check
+      'kapan kosong', 'kapan bisa', 'ada slot', 'ada waktu luang', 'masih ada slot',
+      // Visit intent
+      'mau datang', 'bisa datang', 'mau ke sini', 'mau kesana', 'mau ke tempat',
+      'boleh datang', 'rencana datang', 'datang ke',
+      // Schedule change
+      'reschedule', 'pindah jadwal', 'ganti jadwal', 'geser jadwal', 'ubah jadwal',
+      'batalkan jadwal',
+      // Session (photo, spa, nail, etc.)
+      'sesi', 'session', 'kunjungan', 'visit',
+      // Service-agnostic appointment terms
+      'fitting', 'treatment', 'sesi foto', 'pemotretan',
+    ]
+    const hasAppointmentKeyword = APPOINTMENT_KEYWORDS.some(
+      kw => messageBody.toLowerCase().includes(kw.toLowerCase()),
+    )
+    if (hasAppointmentKeyword) {
+      await supabase
+        .from('inbox_messages')
+        .update({ classification: 'sensitif', ai_draft_reply: null, status: 'dieskalasi' })
+        .eq('id', messageId)
+      const { data: msgData } = await supabase
+        .from('inbox_messages')
+        .select('sender_name, whatsapp_number')
+        .eq('id', messageId)
+        .single()
+      const contactName = msgData?.sender_name || msgData?.whatsapp_number || 'Pelanggan'
+      const { sendEscalationNotification } = await import('@/lib/notifications')
+      sendEscalationNotification(userId, contactName, messageBody, 'sensitif').catch(() => {})
+      return
+    }
+
+    // Gate 1b: user-configured escalation keywords
     const hasEscalationKeyword = (profile.escalation_keywords || []).some(
       (kw: string) => messageBody.toLowerCase().includes(kw.toLowerCase()),
     )

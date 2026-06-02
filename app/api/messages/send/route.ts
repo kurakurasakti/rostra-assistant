@@ -73,6 +73,19 @@ export async function POST(request: Request) {
         }),
         supabase.rpc('increment_feedback_count', { uid: user.id }),
       ])
+
+      // Every 10 corrections → re-analyze brand voice from feedback patterns (fire-and-forget)
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('feedback_count')
+        .eq('id', user.id)
+        .single()
+
+      if (updatedProfile && updatedProfile.feedback_count > 0 && updatedProfile.feedback_count % 10 === 0) {
+        import('@/lib/openrouter').then(({ reanalyzeBrandVoice }) => {
+          reanalyzeBrandVoice(user.id).catch(() => {})
+        }).catch(() => {})
+      }
     }
   }
 
