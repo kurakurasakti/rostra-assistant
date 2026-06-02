@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   // Build full AI context with client order info
   const systemPrompt = await buildAIContext(profile, client, user.id)
 
-  const draft = await draftReply(body.message, body.brand_voice ?? '', body.history, systemPrompt, body.hint)
+  const { draft, usage } = await draftReply(body.message, body.brand_voice ?? '', body.history, systemPrompt, body.hint)
 
-  return NextResponse.json({ draft })
+  return NextResponse.json({ draft, usage })
 }
