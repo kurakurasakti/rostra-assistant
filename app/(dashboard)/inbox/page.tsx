@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, type CSSProperties } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { InboxMessage } from '@/types'
 import { format, isToday, isYesterday } from 'date-fns'
@@ -19,10 +19,15 @@ import {
   RefreshCw,
   ChevronLeft,
   RotateCcw,
+  ChevronsUp,
+  FileText,
+  X,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+
+const PAGE_SIZE = 10
 
 interface Conversation {
   whatsapp_number: string
@@ -114,7 +119,19 @@ function buildConversations(messages: InboxMessage[]): Conversation[] {
 
 export default function InboxPage() {
   const supabase = createClient()
+
+  // Sidebar state — drives conversation list
   const [messages, setMessages] = useState<InboxMessage[]>([])
+  const [loadingMessages, setLoadingMessages] = useState(true)
+
+  // Thread pagination state
+  const [threadMessages, setThreadMessages] = useState<InboxMessage[]>([])
+  const [threadCursor, setThreadCursor] = useState<string | null>(null)
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadingThread, setLoadingThread] = useState(false)
+
+  // Other state
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [hint, setHint] = useState('')
@@ -122,10 +139,42 @@ export default function InboxPage() {
   const [loadingDraft, setLoadingDraft] = useState(false)
   const [sending, setSending] = useState(false)
   const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set())
-  const [loadingMessages, setLoadingMessages] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'thread'>('list')
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+
+  // Refs
   const threadEndRef = useRef<HTMLDivElement>(null)
+  const threadScrollRef = useRef<HTMLDivElement>(null)
+  // Stable ref so realtime handler never captures stale selectedNumber
+  const selectedNumberRef = useRef<string | null>(null)
+  // Snapshot taken before prepending older messages — restored in useLayoutEffect
+  const scrollRestoreRef = useRef<{ prevHeight: number; prevTop: number } | null>(null)
+  // Signals useLayoutEffect to scroll to bottom after the next threadMessages update
+  const pendingScrollBottomRef = useRef(false)
+
+  useEffect(() => {
+    selectedNumberRef.current = selectedNumber
+  }, [selectedNumber])
+
+  // Runs synchronously after DOM mutations — handles both scroll-restore (load more)
+  // and scroll-to-bottom (initial load / new message)
+  useLayoutEffect(() => {
+    if (scrollRestoreRef.current && threadScrollRef.current) {
+      const { prevHeight, prevTop } = scrollRestoreRef.current
+      const diff = threadScrollRef.current.scrollHeight - prevHeight
+      threadScrollRef.current.scrollTop = prevTop + diff
+      scrollRestoreRef.current = null
+      pendingScrollBottomRef.current = false
+      return
+    }
+    if (pendingScrollBottomRef.current && threadScrollRef.current && !loadingThread) {
+      pendingScrollBottomRef.current = false
+      if (threadMessages.length > 0) {
+        threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight
+      }
+    }
+  }, [threadMessages, loadingThread])
 
   const loadMessages = useCallback(async () => {
     const { data, error } = await supabase
@@ -136,6 +185,63 @@ export default function InboxPage() {
     setLoadingMessages(false)
   }, [])
 
+  const loadThread = useCallback(async (waNumber: string) => {
+    setLoadingThread(true)
+    setThreadMessages([])
+    setThreadCursor(null)
+    setHasMoreMessages(false)
+    pendingScrollBottomRef.current = true
+
+    const { data, error } = await supabase
+      .from('inbox_messages')
+      .select('*')
+      .eq('whatsapp_number', waNumber)
+      .order('received_at', { ascending: false })
+      .limit(PAGE_SIZE)
+
+    if (!error && data) {
+      const msgs = [...data].reverse()
+      setThreadMessages(msgs)
+      if (msgs.length > 0) setThreadCursor(msgs[0].received_at)
+      setHasMoreMessages(data.length === PAGE_SIZE)
+    }
+    setLoadingThread(false)
+  }, [])
+
+  const loadMoreMessages = useCallback(async () => {
+    if (!selectedNumberRef.current || !threadCursor || loadingMore || !hasMoreMessages) return
+
+    const container = threadScrollRef.current
+    if (container) {
+      scrollRestoreRef.current = {
+        prevHeight: container.scrollHeight,
+        prevTop: container.scrollTop,
+      }
+    }
+
+    setLoadingMore(true)
+
+    const { data, error } = await supabase
+      .from('inbox_messages')
+      .select('*')
+      .eq('whatsapp_number', selectedNumberRef.current)
+      .lt('received_at', threadCursor)
+      .order('received_at', { ascending: false })
+      .limit(PAGE_SIZE)
+
+    if (!error && data && data.length > 0) {
+      const olderMsgs = [...data].reverse()
+      setHasMoreMessages(data.length === PAGE_SIZE)
+      setThreadCursor(olderMsgs[0].received_at)
+      setThreadMessages(prev => [...olderMsgs, ...prev])
+    } else {
+      setHasMoreMessages(false)
+      scrollRestoreRef.current = null
+    }
+
+    setLoadingMore(false)
+  }, [threadCursor, loadingMore, hasMoreMessages])
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setUserId(data.user.id)
@@ -143,9 +249,18 @@ export default function InboxPage() {
     loadMessages()
   }, [loadMessages])
 
+  // Trigger load more when user scrolls to within 80px of the top
   useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [selectedNumber, messages.length])
+    const container = threadScrollRef.current
+    if (!container) return
+    const handleScroll = () => {
+      if (container.scrollTop < 80 && hasMoreMessages && !loadingMore) {
+        loadMoreMessages()
+      }
+    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [hasMoreMessages, loadingMore, loadMoreMessages])
 
   // Realtime subscription
   useEffect(() => {
@@ -164,6 +279,10 @@ export default function InboxPage() {
         payload => {
           const newMsg = payload.new as InboxMessage
           setMessages(prev => [...prev, newMsg])
+          if (selectedNumberRef.current === newMsg.whatsapp_number) {
+            pendingScrollBottomRef.current = true
+            setThreadMessages(prev => [...prev, newMsg])
+          }
           setNewMessageIds(prev => new Set([...prev, newMsg.id]))
           setTimeout(() => {
             setNewMessageIds(prev => {
@@ -186,6 +305,9 @@ export default function InboxPage() {
           setMessages(prev =>
             prev.map(m => (m.id === payload.new.id ? (payload.new as InboxMessage) : m)),
           )
+          setThreadMessages(prev =>
+            prev.map(m => (m.id === payload.new.id ? (payload.new as InboxMessage) : m)),
+          )
         },
       )
       .subscribe()
@@ -199,8 +321,17 @@ export default function InboxPage() {
   const selectedConversation = selectedNumber
     ? conversations.find(c => c.whatsapp_number === selectedNumber)
     : null
-  const thread = selectedConversation?.messages ?? []
+  const thread = threadMessages
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread_count, 0)
+
+  function selectConversation(waNumber: string) {
+    setSelectedNumber(waNumber)
+    setDraft('')
+    setHint('')
+    setOriginalAiDraft(null)
+    setMobileView('thread')
+    loadThread(waNumber)
+  }
 
   async function handleGenerateDraft(withHint?: string) {
     if (!selectedConversation) return
@@ -340,13 +471,7 @@ export default function InboxPage() {
               <button
                 key={conv.whatsapp_number}
                 style={{ '--stagger-i': i } as CSSProperties}
-                onClick={() => {
-                  setSelectedNumber(conv.whatsapp_number)
-                  setDraft('')
-                  setHint('')
-                  setOriginalAiDraft(null)
-                  setMobileView('thread')
-                }}
+                onClick={() => selectConversation(conv.whatsapp_number)}
                 className={cn(
                   'animate-stagger-item w-full text-left px-4 py-3 border-b border-border/40',
                   'transition-colors duration-150 ease-out',
@@ -418,7 +543,52 @@ export default function InboxPage() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <div ref={threadScrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+
+            {/* Top area: loading spinner, load-more button, or end-of-history label */}
+            {loadingThread ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                {hasMoreMessages ? (
+                  <div className="flex justify-center pb-1">
+                    {loadingMore ? (
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground py-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Memuat pesan sebelumnya...
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={loadMoreMessages}
+                        disabled={loadingMore}
+                        className="h-7 text-[11px] gap-1.5 text-muted-foreground hover:text-foreground"
+                      >
+                        <ChevronsUp className="w-3 h-3" />
+                        Muat pesan sebelumnya
+                      </Button>
+                    )}
+                  </div>
+                ) : thread.length > 0 ? (
+                  <p className="text-center text-[10px] text-muted-foreground/50 py-1 select-none">
+                    Semua riwayat percakapan sudah ditampilkan
+                  </p>
+                ) : null}
+
+                {/* Empty conversation */}
+                {thread.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+                    <MessageSquare className="w-8 h-8 opacity-20" />
+                    <p className="text-xs">Belum ada pesan dalam percakapan ini</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Message bubbles */}
             {thread.map(msg => (
               <div
                 key={msg.id}
@@ -428,24 +598,65 @@ export default function InboxPage() {
                   newMessageIds.has(msg.id) && 'animate-enter',
                 )}
               >
-                  <div
-                    className={cn(
-                      'max-w-[72%] px-3.5 py-2.5 text-sm leading-relaxed',
-                      msg.direction === 'keluar'
-                        ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm shadow-sm'
-                        : 'bg-muted/80 text-foreground rounded-2xl rounded-tl-sm border border-border/50',
-                    )}
-                  >
+                <div
+                  className={cn(
+                    'max-w-[72%] px-3.5 py-2.5 text-sm leading-relaxed',
+                    msg.direction === 'keluar'
+                      ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm shadow-sm'
+                      : 'bg-muted/80 text-foreground rounded-2xl rounded-tl-sm border border-border/50',
+                  )}
+                >
+                  {/* Image media */}
+                  {msg.media_type === 'image' && msg.media_url && (
+                    <div className="mb-1.5">
+                      <img
+                        src={msg.media_url}
+                        alt="Foto"
+                        className="rounded-xl cursor-pointer object-cover max-w-[200px] max-h-[200px] w-full block"
+                        onClick={() => setLightboxUrl(msg.media_url!)}
+                        onError={e => {
+                          const el = e.target as HTMLImageElement
+                          el.style.display = 'none'
+                          el.nextElementSibling?.classList.remove('hidden')
+                        }}
+                      />
+                      <p className="hidden text-[11px] text-muted-foreground italic py-1">Gambar tidak dapat dimuat</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">📷 Foto</p>
+                    </div>
+                  )}
+
+                  {/* Document media */}
+                  {msg.media_type === 'document' && msg.media_url && (
+                    <a
+                      href={msg.media_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 mb-1.5 text-[12px] underline underline-offset-2"
+                    >
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                      {decodeURIComponent(msg.media_url.split('/').pop() ?? 'Dokumen')}
+                    </a>
+                  )}
+
+                  {/* Audio indicator */}
+                  {msg.media_type === 'audio' && (
+                    <p className="text-[12px] italic mb-1">🎵 Pesan suara</p>
+                  )}
+
+                  {/* Text / caption — hide placeholder if media already shown */}
+                  {(!msg.media_type || msg.message_body !== '[Foto]' && msg.message_body !== '[Dokumen]' && msg.message_body !== '[Audio]') && (
                     <p className="whitespace-pre-wrap text-[13px]">{msg.message_body}</p>
-                    <p className={cn(
-                      'text-[10px] mt-1.5',
-                      msg.direction === 'keluar'
-                        ? 'text-primary-foreground/60 text-right'
-                        : 'text-muted-foreground',
-                    )}>
-                      {format(new Date(msg.received_at), 'HH:mm')}
-                    </p>
-                  </div>
+                  )}
+
+                  <p className={cn(
+                    'text-[10px] mt-1.5',
+                    msg.direction === 'keluar'
+                      ? 'text-primary-foreground/60 text-right'
+                      : 'text-muted-foreground',
+                  )}>
+                    {format(new Date(msg.received_at), 'HH:mm')}
+                  </p>
+                </div>
               </div>
             ))}
             <div ref={threadEndRef} />
@@ -581,6 +792,42 @@ export default function InboxPage() {
             <div>
               <p className="text-sm font-medium">Pilih percakapan</p>
               <p className="text-xs mt-1 opacity-70">Pesan masuk via WhatsApp muncul di sini</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox modal */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <div
+            className="relative flex flex-col gap-3 max-w-3xl w-full"
+            onClick={e => e.stopPropagation()}
+          >
+            <img
+              src={lightboxUrl}
+              alt="Foto"
+              className="max-h-[80vh] w-full object-contain rounded-xl"
+            />
+            <div className="flex items-center justify-between">
+              <a
+                href={lightboxUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-white/70 hover:text-white underline"
+              >
+                Buka di tab baru ↗
+              </a>
+              <button
+                onClick={() => setLightboxUrl(null)}
+                className="flex items-center gap-1 text-xs text-white/70 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+                Tutup
+              </button>
             </div>
           </div>
         </div>

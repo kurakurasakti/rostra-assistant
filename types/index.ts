@@ -153,6 +153,9 @@ export interface InboxMessage {
   replied_at: string | null
   wa_message_id: string | null
   received_at: string
+  media_url: string | null
+  media_type: 'image' | 'document' | 'audio' | null
+  media_size: number | null
 }
 
 export interface MessageTemplate {

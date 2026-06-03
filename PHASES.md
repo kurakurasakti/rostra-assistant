@@ -635,6 +635,88 @@ Beta users butuh ini untuk lihat konteks percakapan per klien.
 
 ---
 
+## Phase 4D — Inbox Cursor-Based Pagination ✅ SELESAI
+
+**Goal:** Load 10 pesan terbaru per conversation. Scroll ke atas untuk load 10 pesan sebelumnya.
+Beta tester feedback: butuh lihat history pesan untuk tetap pakai platform lebih lama.
+
+**Checklist:**
+
+- [x] Thread fetch berubah dari "load all" → cursor-based pagination (`received_at` sebagai cursor)
+- [x] Initial load: 10 pesan terbaru per conversation (`.order desc .limit 10` → reverse)
+- [x] Load more: fetch 10 pesan sebelum cursor (`.lt('received_at', cursor)`)
+- [x] State: `threadMessages`, `threadCursor`, `hasMoreMessages`, `loadingMore`, `loadingThread`
+- [x] `selectedNumberRef` — stable ref agar realtime handler tidak capture stale `selectedNumber`
+- [x] Ganti conversation → reset semua pagination state + `loadThread()` dari awal
+- [x] Realtime INSERT → append ke `threadMessages` jika conversation sedang dipilih (tidak reset)
+- [x] Realtime UPDATE → update message di `threadMessages` dan `messages` (sidebar)
+- [x] Scroll position preservation via `useLayoutEffect` + `scrollRestoreRef` (setelah prepend)
+- [x] Scroll to bottom via `pendingScrollBottomRef` (initial load + new message arriving)
+- [x] Tombol "Muat pesan sebelumnya" di atas thread (manual trigger)
+- [x] Auto-trigger load more saat scroll ke dalam 80px dari atas (scroll event listener passive)
+- [x] Loading spinner saat `loadingMore` (tombol diganti spinner + teks)
+- [x] End-of-history label: "Semua riwayat percakapan sudah ditampilkan"
+- [x] Empty state: conversation belum ada pesan
+- [x] Sidebar conversation list tidak berubah (masih dari `messages` state + `buildConversations`)
+
+**Done when:** 10 pesan terbaru muncul pertama kali. Scroll ke atas load 10 lebih lama. Scroll tidak loncat setelah load more. Pesan baru via realtime append ke bawah tanpa reset history.
+
+---
+
+## Phase 4E — Inbox Image Handling ✅ SELESAI
+
+**Goal:** Klien kirim foto → wa-service download + upload ke Storage → inbox tampilkan thumbnail → owner dieskalasi otomatis.
+
+**DB (jalankan manual di Supabase):**
+```sql
+ALTER TABLE inbox_messages
+  ADD COLUMN IF NOT EXISTS media_url  text,
+  ADD COLUMN IF NOT EXISTS media_type text CHECK (media_type IN ('image', 'document', 'audio')),
+  ADD COLUMN IF NOT EXISTS media_size integer;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('chat-media', 'chat-media', true)
+ON CONFLICT (id) DO NOTHING;
+```
+
+**Checklist:**
+
+- [x] `types/index.ts` — tambah `media_url`, `media_type`, `media_size` ke `InboxMessage`
+- [x] `wa-service/index.js` — detect `imageMessage` / `documentMessage` / `audioMessage`
+- [x] `wa-service/index.js` — `downloadMediaMessage()` dari Baileys → buffer
+- [x] `wa-service/index.js` — upload buffer ke Supabase Storage via REST (`POST /storage/v1/object/chat-media/{userId/timestamp-rand.ext}`)
+- [x] `wa-service/index.js` — auto-reply konfirmasi ke pengirim setelah upload sukses
+- [x] `wa-service/index.js` — forward `media_url`, `media_type`, `media_size` ke webhook
+- [x] `wa-service/index.js` — tambah `x-webhook-secret` header di semua fetch ke Next.js
+- [x] `wa-service` env vars baru: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `WEBHOOK_SECRET`
+- [x] `webhook/whatsapp/route.ts` — terima dan parse `media_url`, `media_type`, `media_size` dari payload
+- [x] `webhook/whatsapp/route.ts` — insert media fields ke `inbox_messages`
+- [x] `webhook/whatsapp/route.ts` — jika `media_url` ada: `status='dieskalasi'`, skip `classifyAndDraft`, kirim notifikasi eskalasi
+- [x] `inbox/page.tsx` — thumbnail gambar (200×200, click to lightbox) untuk `media_type='image'`
+- [x] `inbox/page.tsx` — document link dengan icon FileText untuk `media_type='document'`
+- [x] `inbox/page.tsx` — audio indicator untuk `media_type='audio'`
+- [x] `inbox/page.tsx` — lightbox modal fullscreen, close on click-outside, buka di tab baru
+- [x] `inbox/page.tsx` — `onError` fallback jika gambar gagal load
+- [x] `supabase/functions/cleanup-media/index.ts` — Edge Function hapus file >90 hari dari Storage + null media_url
+
+**pg_cron cleanup (jalankan setelah deploy Edge Function):**
+```sql
+SELECT cron.schedule('cleanup-media-weekly', '0 2 * * 0',
+  $$SELECT net.http_post(url := 'https://dpeyfucyrhyuhliitcfd.supabase.co/functions/v1/cleanup-media',
+    headers := '{"Content-Type":"application/json"}'::jsonb, body := '{}'::jsonb)$$);
+```
+
+**Deployment:**
+1. Set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + `WEBHOOK_SECRET` di Railway (wa-service)
+2. Set `WEBHOOK_SECRET` di Vercel (sama persis)
+3. Redeploy kedua service
+4. Buat bucket `chat-media` di Supabase Storage (public)
+5. Jalankan SQL ALTER TABLE di atas
+
+**Done when:** Kirim foto dari WA → thumbnail muncul di inbox → status dieskalasi → owner terima notifikasi → klik thumbnail → lightbox buka.
+
+---
+
 ## Phase 5 — Dashboard, Polish & Auto-Reply Settings
 
 **Goal:** MVP complete. Dashboard informatif. Auto-reply Level 2 tersedia. Deployed.
