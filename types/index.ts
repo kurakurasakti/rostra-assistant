@@ -5,6 +5,17 @@ export type InboxStatus = 'baru' | 'dibalas' | 'diabaikan' | 'dieskalasi'
 export type MessageClassification = 'rutin' | 'sensitif' | 'tidak_diketahui' | 'injection_attempt'
 export type TemplateType = 'konfirmasi_pesanan' | 'pengingat_pembayaran' | 'pengingat_janji_temu' | 'custom'
 
+export type QACategory = 'harga' | 'ketersediaan' | 'jadwal' | 'status' | 'pembayaran' | 'umum'
+
+export interface ConversationExample {
+  category: QACategory
+  customer: string
+  admin: string
+  source: 'upload' | 'correction'
+  used_count: number
+  created_at: string
+}
+
 export interface BusinessKnowledgeStructured {
   services: {
     name: string
@@ -51,6 +62,7 @@ export interface Profile {
   auto_reply_level?: number | null
   feedback_count?: number | null
   notification_wa_number?: string | null
+  conversation_examples?: ConversationExample[] | null
 }
 
 export interface Client {

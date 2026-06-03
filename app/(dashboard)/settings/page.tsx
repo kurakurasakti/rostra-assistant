@@ -17,7 +17,10 @@ import {
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  BookOpen,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   RefreshCcw,
   Sparkles,
@@ -25,7 +28,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import type { Profile, BusinessKnowledgeStructured } from "@/types";
+import type { Profile, BusinessKnowledgeStructured, ConversationExample } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import BusinessKnowledgeSection from "@/components/settings/BusinessKnowledgeSection";
 import { SettingsNav, type SettingsTab } from "@/components/settings/SettingsNav";
@@ -58,6 +61,12 @@ export default function SettingsPage() {
   const [brandVoicePreview, setBrandVoicePreview] = useState("");
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const addFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Few-shot examples state
+  const [examplesCount, setExamplesCount] = useState(0);
+  const [examplesByCategory, setExamplesByCategory] = useState<Record<string, number>>({});
+  const [conversationExamples, setConversationExamples] = useState<ConversationExample[]>([]);
+  const [showExamples, setShowExamples] = useState(false);
 
   const allSenders = [...new Set(uploadedFiles.flatMap((f) => f.senders))];
   const combinedText = uploadedFiles.map((f) => f.text).join("\n");
@@ -113,6 +122,10 @@ export default function SettingsPage() {
         setAutoReplyLevel(data.auto_reply_level ?? 1);
         setFeedbackCount(data.feedback_count ?? 0);
 
+        // Conversation examples
+        if (Array.isArray(data.conversation_examples) && data.conversation_examples.length > 0) {
+          setConversationExamples(data.conversation_examples as ConversationExample[]);
+        }
       }
       setLoading(false);
     }
@@ -210,6 +223,8 @@ export default function SettingsPage() {
     }
 
     setBrandVoicePreview(data.brand_voice);
+    setExamplesCount(data.examples_count ?? 0);
+    setExamplesByCategory(data.examples_by_category ?? {});
     setAnalyzeStep("preview");
     setAnalyzeLoading(false);
   }
@@ -222,16 +237,25 @@ export default function SettingsPage() {
     setUploadedFiles([]);
     setSelectedSender("");
 
+    // Reload conversation_examples from DB (already saved by analyze-voice route)
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
-        .update({ brand_voice: voice, updated_at: new Date().toISOString() })
-        .eq("id", user.id);
+        .select("conversation_examples")
+        .eq("id", user.id)
+        .single();
       if (error) toast.error("Gagal menyimpan gaya komunikasi.");
-      else toast.success("Gaya komunikasi berhasil disimpan.");
+      else {
+        toast.success("Gaya komunikasi berhasil disimpan.");
+        if (Array.isArray(data?.conversation_examples)) {
+          setConversationExamples(data.conversation_examples as ConversationExample[]);
+        }
+      }
     }
+    setExamplesCount(0);
+    setExamplesByCategory({});
   }
 
   // --- Draft test ---
@@ -383,6 +407,40 @@ export default function SettingsPage() {
               <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/30">
                 <p className="text-xs font-medium">Hasil analisa:</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">{brandVoicePreview}</p>
+
+                {examplesCount > 0 && (
+                  <div className="rounded-lg border border-border bg-background p-3 space-y-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                      <p className="text-xs font-medium">AI berhasil mempelajari {examplesCount} contoh percakapan nyata</p>
+                    </div>
+                    <div className="space-y-1">
+                      {Object.entries(examplesByCategory).map(([cat, count]) => {
+                        const labels: Record<string, string> = {
+                          harga: "Pertanyaan harga",
+                          jadwal: "Jadwal & fitting",
+                          status: "Status pesanan",
+                          pembayaran: "Pembayaran",
+                          ketersediaan: "Ketersediaan",
+                          umum: "Umum",
+                        };
+                        const maxCount = Math.max(...Object.values(examplesByCategory));
+                        const barWidth = Math.round((count / maxCount) * 100);
+                        return (
+                          <div key={cat} className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground w-36 shrink-0">{labels[cat] ?? cat}</span>
+                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-primary/60 rounded-full" style={{ width: `${barWidth}%` }} />
+                            </div>
+                            <span className="text-xs text-muted-foreground w-14 text-right">{count} contoh</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground italic">AI akan lebih akurat menjawab pertanyaan spesifik bisnis kamu</p>
+                  </div>
+                )}
+
                 <div className="flex gap-2 flex-wrap">
                   <Button type="button" size="sm" className="h-8 text-xs" onClick={handleUseVoice}>Gunakan Gaya Ini</Button>
                   <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAnalyzeStep("building")}><RefreshCcw className="w-3 h-3 mr-1" /> Analisa Ulang</Button>
@@ -392,17 +450,58 @@ export default function SettingsPage() {
             )}
 
             {brandVoice && analyzeStep === "idle" && (
-              <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
-                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> Coba Draft AI</p>
-                <div className="flex gap-2">
-                  <Input placeholder="kak mau tanya harga baju seragam 50 pcs" value={testMessage} onChange={(e) => setTestMessage(e.target.value)} className="h-8 text-xs flex-1"
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleTestDraft(); } }} />
-                  <Button type="button" variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={handleTestDraft} disabled={draftLoading || !testMessage.trim()}>
-                    {draftLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Coba"}
-                  </Button>
+              <>
+                <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> Coba Draft AI</p>
+                  <div className="flex gap-2">
+                    <Input placeholder="kak mau tanya harga baju seragam 50 pcs" value={testMessage} onChange={(e) => setTestMessage(e.target.value)} className="h-8 text-xs flex-1"
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleTestDraft(); } }} />
+                    <Button type="button" variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={handleTestDraft} disabled={draftLoading || !testMessage.trim()}>
+                      {draftLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Coba"}
+                    </Button>
+                  </div>
+                  {draftResult && <div className="text-xs p-2 rounded bg-background border border-border text-foreground leading-relaxed">{draftResult}</div>}
                 </div>
-                {draftResult && <div className="text-xs p-2 rounded bg-background border border-border text-foreground leading-relaxed">{draftResult}</div>}
-              </div>
+
+                {conversationExamples.length > 0 && (
+                  <div className="rounded-lg border border-border bg-muted/10">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setShowExamples((v) => !v)}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <BookOpen className="w-3 h-3" />
+                        Lihat contoh percakapan yang dipelajari AI ({conversationExamples.length} contoh)
+                      </span>
+                      {showExamples ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                    {showExamples && (
+                      <div className="px-3 pb-3 space-y-2 border-t border-border pt-2">
+                        {conversationExamples.map((ex, i) => {
+                          const categoryLabels: Record<string, string> = {
+                            harga: "harga", jadwal: "jadwal", status: "status",
+                            pembayaran: "bayar", ketersediaan: "stok", umum: "umum",
+                          };
+                          return (
+                            <div key={i} className="text-xs space-y-0.5">
+                              <span className="inline-block rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-medium">
+                                {categoryLabels[ex.category] ?? ex.category}
+                              </span>
+                              <p className="text-muted-foreground line-clamp-1">
+                                <span className="font-medium">Pelanggan:</span> {ex.customer}
+                              </p>
+                              <p className="line-clamp-1">
+                                <span className="font-medium">Admin:</span> {ex.admin}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 

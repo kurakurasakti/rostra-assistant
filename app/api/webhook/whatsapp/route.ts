@@ -88,12 +88,12 @@ async function processIncomingMessage(payload: any) {
 
     sendEscalationNotification(userId, name || normalizedSender, message, 'injection').catch(() => {})
 
-    supabase.from('security_logs').insert({
+    void supabase.from('security_logs').insert({
       user_id: userId,
       whatsapp_number: normalizedSender,
       message_body: message,
       threat_type: 'injection_attempt',
-    }).catch(() => {})
+    })
 
     return
   }

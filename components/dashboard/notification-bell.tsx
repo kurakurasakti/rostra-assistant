@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, AlertTriangle, MessageSquare } from 'lucide-react'
 import { Popover } from '@base-ui/react/popover'
@@ -28,35 +28,58 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
   const [unreadCount, setUnreadCount] = useState(0)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(false)
+  const isOpenRef = useRef(false)
   const router = useRouter()
 
-  const fetchUnread = useCallback(async (uid: string) => {
-    const supabase = createClient()
-    const { count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', uid)
-      .eq('read', false)
-    setUnreadCount(count ?? 0)
-  }, [])
-
+  // Initial load: fetch unread count once
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      fetchUnread(user.id)
-    })
-  }, [fetchUnread])
 
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false)
+      setUnreadCount(count ?? 0)
+    })
+  }, [])
+
+  // Realtime: subscribe to new notifications — no polling needed
   useEffect(() => {
     if (!userId) return
-    const onFocus = () => fetchUnread(userId)
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [userId, fetchUnread])
+    const supabase = createClient()
+
+    const channel = supabase
+      .channel(`notifications-realtime-${variant}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        payload => {
+          const notif = payload.new as Notification
+          setUnreadCount(prev => prev + 1)
+          // If popover is open, prepend new notification immediately
+          if (isOpenRef.current) {
+            setNotifications(prev => [notif, ...prev])
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [userId])
 
   async function handleOpenChange(isOpen: boolean) {
+    isOpenRef.current = isOpen
     if (!isOpen || !userId) return
 
     setLoading(true)

@@ -1,4 +1,4 @@
-import type { MessageClassification, Profile, Client, BusinessKnowledgeStructured } from '@/types'
+import type { MessageClassification, Profile, Client, BusinessKnowledgeStructured, ConversationExample, QACategory } from '@/types'
 import { createServiceClient as createSupabaseClient } from '@/lib/supabase/server'
 import { validateAIOutput } from '@/lib/security'
 import { sendTextMessage } from '@/lib/whatsapp'
@@ -26,7 +26,12 @@ function getProviders(analysis = false): AIProvider[] {
     providers.push({
       base: (process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com') + '/v1',
       apiKey: process.env.DEEPSEEK_API_KEY,
-      model: process.env.DEEPSEEK_MODEL ?? 'deepseek-chat',
+      // Real-time tasks use deepseek-chat (non-thinking alias of v4-flash).
+      // deepseek-v4-flash fills ALL max_tokens with reasoning_content → content empty.
+      // deepseek-chat forces non-thinking mode. Valid until 2026-07-24.
+      model: analysis
+        ? (process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash')
+        : (process.env.DEEPSEEK_CHAT_MODEL ?? 'deepseek-chat'),
     })
   }
 
@@ -71,12 +76,6 @@ async function callWithFallback(
             { role: 'user', content: user },
           ],
           max_tokens: maxTokens,
-          // Minimize thinking for real-time tasks on DeepSeek hybrid models (v4-flash).
-          // Without this, thinking tokens eat the max_tokens budget → content empty.
-          // 'low' = minimum valid value. analysis=true uses default (full thinking).
-          ...(provider.base.includes('deepseek') && !analysis
-            ? { reasoning_effort: 'low' }
-            : {}),
         }),
       })
 
@@ -111,8 +110,7 @@ async function callWithFallback(
           ` | ~Rp${inCostIDR + outCostIDR} (in:Rp${inCostIDR} out:Rp${outCostIDR})`,
         )
       }
-      const msg = data.choices?.[0]?.message
-      const text = msg?.content || msg?.reasoning_content || ''
+      const text = data.choices?.[0]?.message?.content ?? ''
       return { text, usage }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
@@ -217,6 +215,55 @@ export function buildBusinessContext(profile: Profile): string {
   return ctx.trim()
 }
 
+// ── FEW-SHOT EXAMPLES ────────────────────────────────────────────────────────
+
+const CATEGORY_ORDER: QACategory[] = ['harga', 'jadwal', 'ketersediaan', 'status', 'pembayaran', 'umum']
+
+const EXAMPLE_KEYWORDS: Record<QACategory, string[]> = {
+  harga:        ['harga', 'berapa', 'budget', 'biaya', 'cost', 'mahal', 'murah', 'tarif'],
+  ketersediaan: ['bisa', 'masih ada', 'tersedia', 'ready', 'stok', 'ada'],
+  jadwal:       ['kapan', 'jadwal', 'fitting', 'ambil', 'tanggal', 'waktu', 'jam'],
+  status:       ['sudah', 'progress', 'gimana', 'selesai', 'jadi', 'sampai mana', 'update'],
+  pembayaran:   ['bayar', 'transfer', 'dp', 'lunas', 'kwitansi', 'bukti', 'tagihan'],
+  umum:         [],
+}
+
+function classifyMessageCategory(message: string): QACategory {
+  const lower = message.toLowerCase()
+  for (const [cat, keywords] of Object.entries(EXAMPLE_KEYWORDS) as [QACategory, string[]][]) {
+    if (cat === 'umum') continue
+    if (keywords.some(kw => lower.includes(kw))) return cat
+  }
+  return 'umum'
+}
+
+export function getPrioritizedExamples(
+  examples: ConversationExample[],
+  incomingMessage: string,
+): ConversationExample[] {
+  const relevantCat = classifyMessageCategory(incomingMessage)
+  return [
+    ...examples.filter(e => e.category === relevantCat),
+    ...examples.filter(e => e.category !== relevantCat),
+  ]
+}
+
+function buildExamplesSection(examples: ConversationExample[] | null | undefined): string {
+  if (!examples?.length) return ''
+
+  const sorted = [...examples].sort(
+    (a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category),
+  )
+
+  const body = sorted.map(e => `Pelanggan: "${e.customer}"\nKamu: "${e.admin}"`).join('\n\n')
+
+  return `=== CONTOH BALASAN NYATA BISNIS INI ===
+Gunakan contoh berikut sebagai referensi gaya dan isi balasan.
+Jangan copy persis — sesuaikan dengan konteks pesan yang masuk.
+
+${body}`
+}
+
 // Level 2 — changes only when user saves Settings.
 // Stable across all messages from the same user until settings are updated.
 function buildLevel2(profile: Profile): string {
@@ -224,11 +271,15 @@ function buildLevel2(profile: Profile): string {
     ? `\nEskalasi langsung jika pesan mengandung: ${(profile.escalation_keywords as string[]).join(', ')}`
     : ''
 
-  return `=== BISNIS: ${profile.business_name} ===
+  const businessSection = `=== BISNIS: ${profile.business_name} ===
 ${profile.brand_voice || 'Balas dengan sopan, ramah, dan singkat dalam Bahasa Indonesia.'}${escalationNote}
 
 === PENGETAHUAN BISNIS ===
-${buildBusinessContext(profile)}`.trim()
+${buildBusinessContext(profile)}`
+
+  const examplesSection = buildExamplesSection(profile.conversation_examples)
+
+  return [businessSection, examplesSection].filter(Boolean).join('\n\n').trim()
 }
 
 // Level 3 — changes per client. Cache hits within one conversation thread.
@@ -367,7 +418,7 @@ async function callDraftOnly(
   if (hint?.trim()) {
     userPrompt += `\n\nRevisi dengan petunjuk (jangan sebut petunjuk di balasan): ${hint.trim()}`
   }
-  return callWithFallback(systemPrompt, userPrompt, 500, 'draft', false)
+  return callWithFallback(systemPrompt, userPrompt, 300, 'draft', false)
 }
 
 // Exported for /api/messages/draft route

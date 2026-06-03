@@ -1,6 +1,61 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendTextMessage } from '@/lib/whatsapp'
+import { categorizeQAPair } from '@/lib/chat-parser'
+import type { ConversationExample, QACategory } from '@/types'
+
+const CATEGORY_QUOTA: Record<QACategory, number> = {
+  harga: 3, jadwal: 3, ketersediaan: 2, status: 2, pembayaran: 2, umum: 2,
+}
+
+async function updateConversationExamples(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  customerMessage: string,
+  correctedReply: string,
+): Promise<void> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('conversation_examples')
+    .eq('id', userId)
+    .single()
+
+  const examples: ConversationExample[] = Array.isArray(profile?.conversation_examples)
+    ? profile.conversation_examples
+    : []
+
+  const category = categorizeQAPair(customerMessage, correctedReply)
+  const newExample: ConversationExample = {
+    category,
+    customer: customerMessage,
+    admin: correctedReply,
+    source: 'correction',
+    used_count: 0,
+    created_at: new Date().toISOString(),
+  }
+
+  const categoryExamples = examples.filter(e => e.category === category)
+  const quota = CATEGORY_QUOTA[category]
+
+  let updated: ConversationExample[]
+  if (categoryExamples.length < quota) {
+    updated = [...examples, newExample]
+  } else {
+    // Replace example with lowest used_count in this category
+    const minUsed = Math.min(...categoryExamples.map(e => e.used_count))
+    const replaceIdx = examples.findIndex(
+      e => e.category === category && e.used_count === minUsed,
+    )
+    updated = [...examples]
+    updated[replaceIdx] = newExample
+  }
+
+  await supabase
+    .from('profiles')
+    .update({ conversation_examples: updated })
+    .eq('id', userId)
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -55,12 +110,13 @@ export async function POST(request: Request) {
     // Feedback loop: if sent text differs from ai_draft_reply → record correction
     const { data: original } = await supabase
       .from('inbox_messages')
-      .select('ai_draft_reply')
+      .select('ai_draft_reply, message_body')
       .eq('id', body.reply_to_id)
       .eq('user_id', user.id)
       .single()
 
     const originalDraft = original?.ai_draft_reply
+    const originalIncoming = original?.message_body ?? ''
     const sentMessage = body.message.trim()
 
     if (originalDraft && originalDraft.trim() !== sentMessage) {
@@ -73,6 +129,11 @@ export async function POST(request: Request) {
         }),
         supabase.rpc('increment_feedback_count', { uid: user.id }),
       ])
+
+      // Update conversation_examples with this correction (fire-and-forget)
+      if (originalIncoming.trim()) {
+        updateConversationExamples(supabase, user.id, originalIncoming, sentMessage).catch(() => {})
+      }
 
       // Every 10 corrections → re-analyze brand voice from feedback patterns (fire-and-forget)
       const { data: updatedProfile } = await supabase

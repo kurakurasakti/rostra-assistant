@@ -489,6 +489,35 @@ alter table profiles
 
 ---
 
+## Phase 4C — Few-Shot Learning dari Chat Export ✅ SELESAI
+
+**Goal:** AI draft lebih akurat dan sesuai gaya bisnis dengan contoh percakapan nyata.
+
+**[DB]** Jalankan SQL di Supabase:
+```sql
+alter table profiles
+  add column if not exists conversation_examples jsonb not null default '[]';
+-- Format: [{ category, customer, admin, source, used_count, created_at }]
+```
+
+**Checklist:**
+
+- [x] `lib/chat-parser.ts` — `extractQAPairs(messages, adminSender)`: extract CLIENT→ADMIN pairs dengan 30-min window
+- [x] `lib/chat-parser.ts` — `categorizeQAPair(customer, admin)`: keyword matching → harga/jadwal/status/pembayaran/ketersediaan/umum
+- [x] `lib/chat-parser.ts` — `selectBestExamples(pairs)`: select 10-14 best per kuota kategori, prefer emoji + length 30-200
+- [x] `lib/openrouter.ts` — `getPrioritizedExamples(examples, message)`: sort by kategori relevan
+- [x] `lib/openrouter.ts` — `buildExamplesSection()` + inject ke `buildLevel2()` (semi-static layer → cache hit)
+- [x] `POST /api/settings/analyze-voice` — extract + save `conversation_examples` ke DB, return `examples_count` + `examples_by_category`
+- [x] `POST /api/messages/send` — setiap koreksi admin → update `conversation_examples` (respect kuota per kategori)
+- [x] `lib/config.ts` — turunkan threshold: `LEVEL3_THRESHOLD` prod: 200→80
+- [x] Settings page — tampilkan breakdown examples per kategori di step `preview` setelah analisa
+- [x] Settings page — collapsible "Lihat contoh percakapan yang dipelajari AI (X contoh)" di tab profil
+- [x] `types/index.ts` — tambah `ConversationExample` interface + `QACategory` type + update `Profile`
+
+**Done when:** Upload chat → AI mempelajari 10-14 contoh Q&A → inject ke system prompt → draft lebih spesifik.
+
+---
+
 ## Phase 4B — Beta Readiness ✅ SELESAI
 
 **Goal:** Sebelum user testing — pastikan onboarding smooth, activation rate tinggi, dan threshold AI realistis untuk beta.
@@ -865,6 +894,10 @@ Jalankan SQL ini di Supabase SQL Editor **secara berurutan**:
       (code sudah pakai nilai ini — perlu konfirmasi apakah sdh dijalankan manual)
 - [ ] Buat tabel `security_logs` + RLS — **masih perlu dibuat**
 - [x] Buat tabel `ai_feedback` + RLS + index — ✅ sudah live
+
+### Tambahan dari Phase 4C (few-shot learning):
+
+- [x] Alter `profiles`: tambah `conversation_examples` jsonb — sudah dijalankan via migration
 
 ### Tambahan dari Phase 5 (jalankan sebelum auto-reply):
 
