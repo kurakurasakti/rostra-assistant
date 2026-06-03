@@ -835,6 +835,46 @@ LAYER 3 — DYNAMIC    : client notes, conversation history, pesan baru
 | 100 users | Rp 1.400.000/bln | Rp 230.000/bln |
 | **Hemat** | | **~84% atau Rp 1.170.000/bln** |
 
+
+---
+
+### 5F. Payment Gateway Integration (Xendit/Midtrans)
+
+**Goal:** Integrasi payment gateway pihak ketiga (Xendit / Midtrans) untuk generate invoice link otomatis per payment stage dan update payment status via webhook.
+
+**[DB]** Jalankan SQL di Supabase:
+```sql
+-- Tambah status pembayaran & metadata invoice ke payment_stages
+alter table payment_stages
+  add column if not exists invoice_id       text,
+  add column if not exists payment_link     text,
+  add column if not exists payment_method   text,
+  add column if not exists paid_at          timestamptz;
+```
+
+**Checklist:**
+
+- [ ] **Setup API keys:**
+      Tambah `XENDIT_SECRET_KEY` dan `XENDIT_WEBHOOK_VERIFICATION_TOKEN` (atau Midtrans equivalents) ke `.env.local` dan `.env.local.example`.
+- [ ] **Buat `/lib/payment.ts`:**
+      Fungsi helper `createInvoice(stageId, amount, description, customerInfo)` untuk memanggil API Xendit/Midtrans.
+- [ ] **`POST /api/payment/create-invoice`:**
+      Route handler untuk generate invoice link untuk suatu `payment_stage_id`, save `payment_link` dan `invoice_id` ke DB.
+- [ ] **`POST /api/webhook/payment`:**
+      Endpoint untuk menerima callback/IPN dari Xendit/Midtrans.
+      - Verifikasi token/signature dari header.
+      - Update status `payment_stages.paid = true` dan isi `paid_at` + `payment_method`.
+      - Check jika semua stages lunas → set `orders.status = 'lunas'`.
+      - Buat entri otomatis ke `inbox_messages` / kirim pesan WhatsApp konfirmasi pembayaran lunas ke klien.
+- [ ] **Order detail UI updates:**
+      - Tampilkan tombol "Buat Link Pembayaran" (atau "Generate Invoice Link") di setiap stage pembayaran yang belum lunas.
+      - Tampilkan copyable link / share button jika link pembayaran sudah digenerate.
+      - Tampilkan badge status real-time pembayaran (Menunggu Pembayaran vs Lunas).
+- [ ] **AI Integration Support:**
+      - Update `buildSecurePrompt()` / `buildBusinessContext()` untuk menyertakan `payment_link` jika klien menanyakan link pembayaran untuk tagihan/order tertentu.
+
+**Done when:** Generate invoice link → bayar via Xendit/Midtrans sandbox → status update otomatis menjadi lunas di dashboard → pesan konfirmasi terkirim otomatis ke klien.
+
 ---
 
 ### 5D. Deploy
@@ -984,6 +1024,7 @@ Jalankan SQL ini di Supabase SQL Editor **secara berurutan**:
 ### Tambahan dari Phase 5 (jalankan sebelum auto-reply):
 
 - [ ] Buat tabel `send_queue` + RLS
+- [ ] Alter `payment_stages`: tambah `invoice_id`, `payment_link`, `payment_method`, `paid_at`
 
 ---
 
@@ -1000,5 +1041,5 @@ Lalu:
 → Phase 2C: Feedback loop (ai_feedback table → update send route)
 → Phase 3: Scheduler Edge Function
 → Phase 4: Excel Importer
-→ Phase 5: Dashboard → Template editor → Auto-reply L2 → Deploy
+→ Phase 5: Dashboard → Template editor → Auto-reply L2 → Payment Integration → Deploy
 ```
