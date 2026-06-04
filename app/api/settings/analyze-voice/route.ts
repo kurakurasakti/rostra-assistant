@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { parseWhatsAppExport, extractBusinessMessages } from '@/lib/chat-parser'
+import { parseWhatsAppExport, extractBusinessMessages, extractConversationContext, extractQAPairs, selectBestExamples } from '@/lib/chat-parser'
 import { analyzeBrandVoice } from '@/lib/openrouter'
+import type { QACategory } from '@/types'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -20,7 +21,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No messages found for selected sender' }, { status: 400 })
   }
 
-  const brandVoice = await analyzeBrandVoice(messages)
+  const conversationContext = extractConversationContext(analysis, body.sender)
+  const brandVoice = await analyzeBrandVoice(messages, conversationContext)
 
-  return NextResponse.json({ brand_voice: brandVoice, message_count: messages.length })
+  // Extract few-shot examples from full parsed conversation (both sides)
+  const rawPairs = extractQAPairs(analysis.messages, body.sender)
+  const examples = selectBestExamples(rawPairs)
+
+  // Save brand_voice + conversation_examples
+  await supabase
+    .from('profiles')
+    .update({
+      brand_voice: brandVoice,
+      conversation_examples: examples,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id)
+
+  const examplesByCategory = examples.reduce<Record<string, number>>((acc, ex) => {
+    acc[ex.category] = (acc[ex.category] ?? 0) + 1
+    return acc
+  }, {} as Record<QACategory, number>)
+
+  return NextResponse.json({
+    brand_voice: brandVoice,
+    message_count: messages.length,
+    examples_count: examples.length,
+    examples_by_category: examplesByCategory,
+  })
 }

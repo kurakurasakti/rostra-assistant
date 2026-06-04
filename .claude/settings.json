@@ -1,6 +1,9 @@
 {
   "enabledPlugins": {
     "supabase@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true
+    "vercel@claude-plugins-official": true,
+    "ecc@ecc": true,
+    "railway@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
   }
 }

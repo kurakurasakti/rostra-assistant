@@ -45,7 +45,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left panel — brand */}
-      <div className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 bg-primary relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #4a2560 0%, #703c8b 40%, #8b5aa3 100%)'
+        }}>
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -bottom-32 -left-32 w-[500px] h-[500px] rounded-full bg-white/5" />
           <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5" />
@@ -54,8 +57,8 @@ export default function LoginPage() {
 
         <div className="relative">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-accent" />
             </div>
             <span className="text-white font-display font-semibold text-lg tracking-tight">Rostra</span>
           </div>
@@ -80,8 +83,8 @@ export default function LoginPage() {
               'Inbox terpusat dengan balasan AI',
             ].map((feat) => (
               <li key={feat} className="flex items-start gap-3 text-sm text-white/80">
-                <div className="mt-0.5 w-4 h-4 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                <div className="mt-0.5 w-4 h-4 rounded-full bg-accent/30 flex items-center justify-center flex-shrink-0">
+                  <div className="w-1.5 h-1.5 rounded-full bg-accent" />
                 </div>
                 {feat}
               </li>
@@ -109,7 +112,7 @@ export default function LoginPage() {
             <p className="text-muted-foreground text-sm mt-1">Masuk untuk melanjutkan ke Rostra</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4" suppressHydrationWarning>
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <Input

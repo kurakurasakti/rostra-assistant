@@ -17,11 +17,18 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [needsConfirmation, setNeedsConfirmation] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    if (!termsAccepted) {
+      setError('Kamu harus menyetujui Syarat & Ketentuan untuk mendaftar.')
+      setLoading(false)
+      return
+    }
 
     console.log('[register] step 1 — checking invite code')
     const checkRes = await fetch('/api/auth/check-invite', {
@@ -69,7 +76,19 @@ export default function RegisterPage() {
       return
     }
 
-    console.log('[register] step 3 — session active, redirecting to /settings')
+    console.log('[register] step 3 — session active, saving terms consent')
+    const userId = signUpData.user?.id
+    if (userId) {
+      await supabase
+        .from('profiles')
+        .update({
+          terms_agreed_at: new Date().toISOString(),
+          terms_version: process.env.NEXT_PUBLIC_TERMS_VERSION || '1.0',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+    }
+
     router.push('/settings')
     router.refresh()
   }
@@ -77,7 +96,10 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 bg-primary relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #4a2560 0%, #703c8b 40%, #8b5aa3 100%)'
+        }}>
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -bottom-32 -left-32 w-[500px] h-[500px] rounded-full bg-white/5" />
           <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5" />
@@ -85,8 +107,8 @@ export default function RegisterPage() {
 
         <div className="relative">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-accent" />
             </div>
             <span className="text-white font-display font-semibold text-lg tracking-tight">Rostra</span>
           </div>
@@ -206,6 +228,26 @@ export default function RegisterPage() {
               />
             </div>
 
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={e => setTermsAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/30"
+              />
+              <span className="text-xs text-gray-500 leading-relaxed">
+                Saya menyetujui{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline">
+                  Syarat & Ketentuan
+                </a>{' '}
+                dan{' '}
+                <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline">
+                  Kebijakan Privasi
+                </a>{' '}
+                Rostra
+              </span>
+            </label>
+
             {error && (
               <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2.5 text-sm text-destructive">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -216,7 +258,7 @@ export default function RegisterPage() {
             <Button
               type="submit"
               className="w-full h-10 font-medium font-display"
-              disabled={loading}
+              disabled={loading || !termsAccepted}
             >
               {loading ? 'Mendaftar...' : 'Buat Akun'}
             </Button>
