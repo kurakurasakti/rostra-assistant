@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useEffect, type CSSProperties } from "react"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Users, ShoppingBag, CreditCard, MessageSquare, ArrowRight, Clock, TrendingUp, TrendingDown, CheckCircle2 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 interface DashboardStats {
@@ -24,9 +26,28 @@ interface PendingItem {
   severity: "danger" | "warning"
 }
 
+interface RecentMessage {
+  id: string
+  whatsapp_number: string
+  message_body: string
+  received_at: string
+  classification: string
+}
+
+interface RecentClient {
+  id: string
+  name: string
+  whatsapp_number: string
+  created_at: string
+  latest_order_status: string | null
+}
+
 export default function DashboardPage() {
+  const router = useRouter()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
+  const [recentMessages, setRecentMessages] = useState<RecentMessage[]>([])
+  const [recentClients, setRecentClients] = useState<RecentClient[]>([])
   const [loading, setLoading] = useState(true)
   const [onboarding, setOnboarding] = useState<{ wa: boolean; clients: boolean; orders: boolean } | null>(null)
 
@@ -107,6 +128,48 @@ export default function DashboardPage() {
         clients: (clientRes.count ?? 0) > 0,
         orders: (allOrdersRes.count ?? 0) > 0,
       })
+
+      // Recent unread messages
+      const { data: recentMsgs } = await supabase
+        .from("inbox_messages")
+        .select("id, whatsapp_number, message_body, received_at, classification")
+        .eq("user_id", user.id)
+        .eq("status", "baru")
+        .eq("direction", "masuk")
+        .order("received_at", { ascending: false })
+        .limit(5)
+      setRecentMessages(recentMsgs ?? [])
+
+      // Recent clients with latest order status
+      const { data: recentCl } = await supabase
+        .from("clients")
+        .select("id, name, whatsapp_number, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      if (recentCl && recentCl.length > 0) {
+        const clientIds = recentCl.map(c => c.id)
+        const { data: latestOrders } = await supabase
+          .from("orders")
+          .select("client_id, status")
+          .in("client_id", clientIds)
+          .order("created_at", { ascending: false })
+
+        const latestStatusMap: Record<string, string> = {}
+        for (const order of latestOrders ?? []) {
+          if (!latestStatusMap[order.client_id]) {
+            latestStatusMap[order.client_id] = order.status
+          }
+        }
+        setRecentClients(recentCl.map(c => ({
+          ...c,
+          latest_order_status: latestStatusMap[c.id] ?? null,
+        })))
+      } else {
+        setRecentClients([])
+      }
+
       setLoading(false)
     }
     load()
@@ -291,6 +354,107 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Pesan Masuk Terbaru + Klien Terbaru */}
+      <div className="grid lg:grid-cols-2 gap-6 mt-6">
+        {/* Pesan Masuk Terbaru */}
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display font-semibold text-sm">Pesan Masuk Terbaru</h2>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground px-2" onClick={() => router.push("/inbox")}>
+              Lihat semua <ArrowRight className="w-3 h-3 ml-1" />
+            </Button>
+          </div>
+          {recentMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 text-center">
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
+                <MessageSquare className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-foreground">Tidak ada pesan baru</p>
+              <p className="text-xs text-muted-foreground mt-1">Pesan yang belum dibalas akan muncul di sini</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {recentMessages.map((msg, i) => {
+                const display = msg.whatsapp_number.replace(/^62/, "0").replace(/@s\.whatsapp\.net$/, "")
+                const preview = msg.message_body.length > 60 ? msg.message_body.slice(0, 60) + "…" : msg.message_body
+                const time = new Date(msg.received_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+                return (
+                  <div key={msg.id} style={{ '--stagger-i': i } as CSSProperties} className="animate-stagger-item flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent transition-colors group">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-primary">{display.slice(-2)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{display}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{preview}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <p className="text-[10px] text-muted-foreground">{time}</p>
+                      <Button size="sm" variant="outline" className="h-5 text-[10px] px-2 py-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => router.push("/inbox")}>
+                        Balas
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Klien Terbaru */}
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display font-semibold text-sm">Klien Terbaru</h2>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground px-2" onClick={() => router.push("/clients")}>
+              Lihat semua <ArrowRight className="w-3 h-3 ml-1" />
+            </Button>
+          </div>
+          {recentClients.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 text-center">
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
+                <Users className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-foreground">Belum ada klien</p>
+              <p className="text-xs text-muted-foreground mt-1">Tambah klien pertama untuk mulai</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {recentClients.map((client, i) => {
+                const statusColor: Record<string, string> = {
+                  aktif: "bg-blue-500/10 text-blue-600",
+                  selesai: "bg-emerald-500/10 text-emerald-600",
+                  lunas: "bg-emerald-500/10 text-emerald-600",
+                  dibatalkan: "bg-red-500/10 text-red-600",
+                }
+                const statusLabel: Record<string, string> = {
+                  aktif: "Aktif",
+                  selesai: "Selesai",
+                  lunas: "Lunas",
+                  dibatalkan: "Batal",
+                }
+                return (
+                  <div key={client.id} style={{ '--stagger-i': i } as CSSProperties} className="animate-stagger-item flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent transition-colors cursor-pointer" onClick={() => router.push(`/clients/${client.id}`)}>
+                    <div className="w-8 h-8 rounded-full bg-violet-500/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-violet-600">{client.name.slice(0, 1).toUpperCase()}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{client.name}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{client.whatsapp_number}</p>
+                    </div>
+                    {client.latest_order_status ? (
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0", statusColor[client.latest_order_status] ?? "bg-muted text-muted-foreground")}>
+                        {statusLabel[client.latest_order_status] ?? client.latest_order_status}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground flex-shrink-0">Belum ada pesanan</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

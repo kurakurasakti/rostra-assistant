@@ -418,7 +418,7 @@ async function callDraftOnly(
   if (hint?.trim()) {
     userPrompt += `\n\nRevisi dengan petunjuk (jangan sebut petunjuk di balasan): ${hint.trim()}`
   }
-  return callWithFallback(systemPrompt, userPrompt, 300, 'draft', false)
+  return callWithFallback(systemPrompt, userPrompt, 200, 'draft', false)
 }
 
 // Exported for /api/messages/draft route

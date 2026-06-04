@@ -66,6 +66,13 @@ function ClassificationBadge({ value }: { value: string }) {
         Sensitif
       </Badge>
     )
+  if (value === 'injection_attempt')
+    return (
+      <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-0.5">
+        <AlertTriangle className="w-2.5 h-2.5" />
+        Percobaan Manipulasi
+      </Badge>
+    )
   return null
 }
 
@@ -142,6 +149,10 @@ export default function InboxPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'thread'>('list')
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  // Level 2 queue state
+  const [queuedEntry, setQueuedEntry] = useState<{ queue_id: string; message_id: string; send_at: string } | null>(null)
+  const [queueCountdown, setQueueCountdown] = useState<number>(0)
+  const queueTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Refs
   const threadEndRef = useRef<HTMLDivElement>(null)
@@ -353,6 +364,12 @@ export default function InboxPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
+      if (data.flagged) {
+        toast.error('AI tidak bisa membuat draft untuk pesan ini. Silakan balas manual.')
+        setDraft('')
+        setOriginalAiDraft(null)
+        return
+      }
       const newDraft = data.draft ?? ''
       setDraft(newDraft)
       if (!withHint) setOriginalAiDraft(newDraft)
@@ -364,7 +381,7 @@ export default function InboxPage() {
     }
   }
 
-  async function handleSend() {
+  async function handleSend(forceSend = false) {
     if (!selectedNumber || !draft.trim()) return
     setSending(true)
     try {
@@ -376,6 +393,7 @@ export default function InboxPage() {
           whatsapp_number: selectedNumber,
           message: draft.trim(),
           reply_to_id: lastIncoming?.id,
+          force_send: forceSend || undefined,
         }),
       })
       if (!res.ok) {
@@ -383,15 +401,98 @@ export default function InboxPage() {
         toast.error(err.error ?? 'Gagal mengirim pesan')
         return
       }
+      const data = await res.json()
+      if (data.queued) {
+        // Level 2 semi-auto: start countdown
+        const messageId = lastIncoming?.id ?? ''
+        setQueuedEntry({ queue_id: data.queue_id, message_id: messageId, send_at: data.send_at })
+        const secondsLeft = Math.round((new Date(data.send_at).getTime() - Date.now()) / 1000)
+        setQueueCountdown(secondsLeft)
+        if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+        queueTimerRef.current = setInterval(() => {
+          setQueueCountdown(prev => {
+            if (prev <= 1) {
+              if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+              setQueuedEntry(null)
+              return 0
+            }
+            return prev - 1
+          })
+        }, 1000)
+        setDraft('')
+        setOriginalAiDraft(null)
+        setHint('')
+        toast.info('AI akan membalas otomatis dalam 5 menit')
+        return
+      }
       const wasCorrected = originalAiDraft && originalAiDraft.trim() !== draft.trim()
       setDraft('')
       setOriginalAiDraft(null)
       setHint('')
+      if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+      setQueuedEntry(null)
       if (wasCorrected) {
         toast.success('Pesan terkirim · Koreksi dicatat untuk tingkatkan AI ✓')
       } else {
         toast.success('Pesan terkirim')
       }
+    } catch {
+      toast.error('Gagal mengirim pesan')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function handleCancelQueue() {
+    if (!queuedEntry) return
+    try {
+      await fetch('/api/queue/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queue_id: queuedEntry.queue_id, message_id: queuedEntry.message_id }),
+      })
+      if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+      setQueuedEntry(null)
+      setQueueCountdown(0)
+      toast.success('Pengiriman otomatis dibatalkan')
+    } catch {
+      toast.error('Gagal membatalkan')
+    }
+  }
+
+  async function handleSendNow() {
+    if (!queuedEntry || !selectedNumber) return
+    // Cancel queue entry then send immediately
+    await fetch('/api/queue/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queue_id: queuedEntry.queue_id }),
+    })
+    if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+    setQueuedEntry(null)
+    setQueueCountdown(0)
+    // Re-fetch the queued message from thread to send immediately
+    const queueMsg = thread.find(m => m.id === queuedEntry.message_id)
+    const msgBody = queueMsg?.ai_draft_reply ?? draft
+    if (!msgBody) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          whatsapp_number: selectedNumber,
+          message: msgBody,
+          reply_to_id: queuedEntry.message_id,
+          force_send: true,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error ?? 'Gagal mengirim pesan')
+        return
+      }
+      toast.success('Pesan terkirim sekarang')
     } catch {
       toast.error('Gagal mengirim pesan')
     } finally {
@@ -766,7 +867,7 @@ export default function InboxPage() {
                   </span>
                   <Button
                     size="sm"
-                    onClick={handleSend}
+                    onClick={() => handleSend()}
                     disabled={sending || !draft.trim()}
                     className="h-7 text-xs gap-1.5 transition-transform duration-150 ease-out active:scale-95"
                   >
@@ -779,6 +880,23 @@ export default function InboxPage() {
                   </Button>
                 </div>
               </div>
+
+              {/* Level 2 queue countdown banner */}
+              {queuedEntry && (
+                <div className="flex items-center justify-between gap-3 px-3 py-2 bg-amber-500/10 border-t border-amber-500/20 rounded-b-xl">
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    AI membalas otomatis dalam <span className="font-semibold tabular-nums">{Math.floor(queueCountdown / 60)}:{String(queueCountdown % 60).padStart(2, '0')}</span>
+                  </p>
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 border-amber-300" onClick={handleCancelQueue}>
+                      Batalkan
+                    </Button>
+                    <Button size="sm" className="h-6 text-[10px] px-2 bg-amber-500 hover:bg-amber-600 text-white" onClick={handleSendNow}>
+                      Kirim Sekarang
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

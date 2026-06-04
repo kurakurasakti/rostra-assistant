@@ -28,6 +28,7 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
   const [unreadCount, setUnreadCount] = useState(0)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
   const isOpenRef = useRef(false)
   const router = useRouter()
 
@@ -79,6 +80,7 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
   }, [userId])
 
   async function handleOpenChange(isOpen: boolean) {
+    setOpen(isOpen)
     isOpenRef.current = isOpen
     if (!isOpen || !userId) return
 
@@ -107,13 +109,16 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
   }
 
   function handleNotificationClick(notif: Notification) {
-    if (notif.link) router.push(notif.link)
+    setOpen(false)
+    isOpenRef.current = false
+    const dest = notif.link ?? '/inbox'
+    router.push(dest)
   }
 
   const isMobile = variant === 'mobile'
 
   return (
-    <Popover.Root onOpenChange={handleOpenChange}>
+    <Popover.Root open={open} onOpenChange={handleOpenChange}>
       <Popover.Trigger
         className={cn(
           'relative transition-colors active:scale-[0.97]',

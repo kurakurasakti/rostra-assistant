@@ -23,6 +23,8 @@ export default function AIRulesSection({
   const [escalationKeywords, setEscalationKeywords] = useState<string[]>(initialKeywords)
   const [keywordInput, setKeywordInput] = useState("")
   const [saving, setSaving] = useState(false)
+  const [activatingLevel, setActivatingLevel] = useState<number | null>(null)
+  const [currentLevel, setCurrentLevel] = useState(initialLevel)
 
   async function handleSave() {
     setSaving(true)
@@ -42,6 +44,26 @@ export default function AIRulesSection({
       toast.success("Aturan AI berhasil disimpan.")
     }
     setSaving(false)
+  }
+
+  async function handleActivateLevel(level: number) {
+    setActivatingLevel(level)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setActivatingLevel(null); return }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ auto_reply_level: level, updated_at: new Date().toISOString() })
+      .eq("id", user.id)
+
+    if (error) {
+      toast.error("Gagal mengaktifkan level.")
+    } else {
+      setCurrentLevel(level)
+      toast.success(`Level ${level} berhasil diaktifkan.`)
+    }
+    setActivatingLevel(null)
   }
 
   return (
@@ -102,32 +124,52 @@ export default function AIRulesSection({
           {IS_BETA && <span className="text-[10px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded font-medium">Beta</span>}
         </div>
         <p className="text-xs text-muted-foreground mb-3">
-          Mode saat ini: <span className="font-medium">Level {initialLevel} — Draft Mode</span>
+          Mode saat ini: <span className="font-medium">Level {currentLevel}</span>
         </p>
 
         <div className="space-y-3">
           {[
-            { level: 1, label: "Draft Mode", desc: "AI draft semua pesan, kamu approve sebelum kirim. Cocok untuk memastikan kualitas AI dulu.", active: true },
-            { level: 2, label: "Semi-Auto", desc: "Pesan rutin auto-kirim dalam 5 menit (bisa dibatalkan). Pesan sensitif tetap perlu approve.", locked: feedbackCount < LEVEL2_THRESHOLD, progress: Math.min((feedbackCount / LEVEL2_THRESHOLD) * 100, 100), current: feedbackCount, target: LEVEL2_THRESHOLD },
-            { level: 3, label: "Full Auto", desc: "AI balas otomatis semua pesan rutin. Hanya pesan sensitif yang masuk inbox untuk review.", locked: feedbackCount < LEVEL3_THRESHOLD, progress: Math.min((feedbackCount / LEVEL3_THRESHOLD) * 100, 100), current: feedbackCount, target: LEVEL3_THRESHOLD },
-          ].map((item) => (
-            <div key={item.level} className={`rounded-lg border ${item.active ? "border-primary/30 bg-primary/5" : "border-border bg-muted/20"} p-3 space-y-2 ${item.locked ? "opacity-60" : ""}`}>
-              <p className="text-xs font-medium">
-                ● Level {item.level} — {item.label}
-                {item.active && <span className="text-emerald-600 ml-2">✓ AKTIF SEKARANG</span>}
-                {item.locked && <span className="text-amber-600 ml-2">🔒 Butuh {item.target} koreksi</span>}
-              </p>
-              <p className="text-xs text-muted-foreground">{item.desc}</p>
-              {item.progress !== undefined && (
-                <>
-                  <div className="w-full bg-muted rounded-full h-1.5">
-                    <div className="bg-accent h-1.5 rounded-full" style={{ width: `${item.progress}%` }} />
-                  </div>
-                  <p className="text-xs text-muted-foreground">Kamu sudah melakukan {item.current}/{item.target} koreksi.</p>
-                </>
-              )}
-            </div>
-          ))}
+            { level: 1, label: "Draft Mode", desc: "AI draft semua pesan, kamu approve sebelum kirim. Cocok untuk memastikan kualitas AI dulu.", threshold: 0 },
+            { level: 2, label: "Semi-Auto", desc: "Pesan rutin auto-kirim dalam 5 menit (bisa dibatalkan). Pesan sensitif tetap perlu approve.", threshold: LEVEL2_THRESHOLD },
+            { level: 3, label: "Full Auto", desc: "AI balas otomatis semua pesan rutin. Hanya pesan sensitif yang masuk inbox untuk review.", threshold: LEVEL3_THRESHOLD },
+          ].map((item) => {
+            const isActive = currentLevel === item.level
+            const unlocked = feedbackCount >= item.threshold
+            const locked = !unlocked
+            const canActivate = unlocked && !isActive
+            const progress = item.threshold > 0 ? Math.min((feedbackCount / item.threshold) * 100, 100) : 100
+            return (
+              <div key={item.level} className={`rounded-lg border ${isActive ? "border-primary/30 bg-primary/5" : "border-border bg-muted/20"} p-3 space-y-2 ${locked ? "opacity-60" : ""}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium">
+                    ● Level {item.level} — {item.label}
+                    {isActive && <span className="text-emerald-600 ml-2">✓ AKTIF SEKARANG</span>}
+                    {locked && <span className="text-amber-600 ml-2">🔒 Butuh {item.threshold} koreksi</span>}
+                  </p>
+                  {canActivate && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2 border-primary/40 text-primary hover:bg-primary/10"
+                      disabled={activatingLevel === item.level}
+                      onClick={() => handleActivateLevel(item.level)}
+                    >
+                      {activatingLevel === item.level ? <Loader2 className="w-3 h-3 animate-spin" /> : "Aktifkan"}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">{item.desc}</p>
+                {item.threshold > 0 && (
+                  <>
+                    <div className="w-full bg-muted rounded-full h-1.5">
+                      <div className="bg-accent h-1.5 rounded-full" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Kamu sudah melakukan {feedbackCount}/{item.threshold} koreksi.</p>
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 

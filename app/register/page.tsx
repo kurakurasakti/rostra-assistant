@@ -17,11 +17,18 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [needsConfirmation, setNeedsConfirmation] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    if (!termsAccepted) {
+      setError('Kamu harus menyetujui Syarat & Ketentuan untuk mendaftar.')
+      setLoading(false)
+      return
+    }
 
     console.log('[register] step 1 — checking invite code')
     const checkRes = await fetch('/api/auth/check-invite', {
@@ -69,7 +76,19 @@ export default function RegisterPage() {
       return
     }
 
-    console.log('[register] step 3 — session active, redirecting to /settings')
+    console.log('[register] step 3 — session active, saving terms consent')
+    const userId = signUpData.user?.id
+    if (userId) {
+      await supabase
+        .from('profiles')
+        .update({
+          terms_agreed_at: new Date().toISOString(),
+          terms_version: process.env.NEXT_PUBLIC_TERMS_VERSION || '1.0',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+    }
+
     router.push('/settings')
     router.refresh()
   }
@@ -209,6 +228,26 @@ export default function RegisterPage() {
               />
             </div>
 
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={e => setTermsAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/30"
+              />
+              <span className="text-xs text-gray-500 leading-relaxed">
+                Saya menyetujui{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline">
+                  Syarat & Ketentuan
+                </a>{' '}
+                dan{' '}
+                <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline">
+                  Kebijakan Privasi
+                </a>{' '}
+                Rostra
+              </span>
+            </label>
+
             {error && (
               <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2.5 text-sm text-destructive">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -219,7 +258,7 @@ export default function RegisterPage() {
             <Button
               type="submit"
               className="w-full h-10 font-medium font-display"
-              disabled={loading}
+              disabled={loading || !termsAccepted}
             >
               {loading ? 'Mendaftar...' : 'Buat Akun'}
             </Button>

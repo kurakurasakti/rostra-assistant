@@ -63,6 +63,8 @@ export interface Profile {
   feedback_count?: number | null
   notification_wa_number?: string | null
   conversation_examples?: ConversationExample[] | null
+  terms_agreed_at?: string | null
+  terms_version?: string | null
 }
 
 export interface Client {

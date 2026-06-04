@@ -721,6 +721,42 @@ SELECT cron.schedule('cleanup-media-weekly', '0 2 * * 0',
 
 **Goal:** MVP complete. Dashboard informatif. Auto-reply Level 2 tersedia. Deployed.
 
+### Security & Production Blocking Fixes Applied
+
+- [x] **Profiles RLS enabled** ✅ (migration enable_profiles_rls)
+  - `ALTER TABLE profiles ENABLE ROW LEVEL SECURITY`
+  - Added INSERT policy (SELECT + UPDATE were already defined but not enforced)
+  - Signup trigger (SECURITY DEFINER) unaffected
+  - Service role (Edge Functions/webhooks) unaffected
+
+- [x] **Fix 1: validateAIOutput in draft route** ✅
+  - `app/api/messages/draft/route.ts` calls `validateAIOutput()` on AI response
+  - Returns `{draft:null, flagged:true, reason}` if unsafe
+  - Inbox handles flagged → toast error + clear draft textarea
+
+- [x] **Fix 2: injection_attempt badge in inbox** ✅
+  - `ClassificationBadge` renders destructive red badge "⚠ Percobaan Manipulasi"
+  - Appears in conversation list + thread message header
+  - Alerts user to blocked manipulation attempt
+
+- [x] **Fix 3: LEVEL2_THRESHOLD from config** ✅
+  - Already imported in `app/api/messages/send/route.ts` (not hardcoded 50)
+  - Beta mode works: threshold 5 (prod 20)
+
+- [x] **5E-3: max_tokens 200** ✅
+  - `callDraftOnly` reduced from 300 → 200 tokens max output
+  - Saves ~30% tokens per draft call without losing context
+
+- [x] **5E-4: Token usage logging** ✅
+  - `callWithFallback` logs `[AI:draft/classify]` with miss/hit/out tokens + Rp cost
+  - Format: `[AI:draft] deepseek/deepseek-chat | prompt:1234 (miss:567 hit:89) | out:42 | ~Rp234`
+
+- [x] **Notification click navigation** ✅
+  - `NotificationBell` now controlled (`open` state)
+  - Closes popover after navigate
+  - Fallback to `/inbox` if link is null
+  - Safe for all notification types (eskalasi/injection)
+
 ### 0. Prerequisites / Feedback Blocker
 
 *Solve these before Phase 5 release:*
@@ -728,53 +764,28 @@ SELECT cron.schedule('cleanup-media-weekly', '0 2 * * 0',
 - [ ] **Notification click action** — Klik notifikasi di notification bell harus navigasi ke halaman relevan (inbox untuk pesan baru, client detail untuk eskalasi, dll)
 - [ ] **Onboarding session** — Tampilkan onboarding walkthrough/interaktif guide saat user pertama kali login setelah register, mencakup: koneksi WhatsApp, upload brand voice, tambah klien pertama, dan buat pesanan pertama
 
-### 5A. Dashboard
+### 5A. Dashboard ✅ SELESAI
 
-- [ ] Stats row — 4 kartu: - Klien aktif (distinct clients dengan pesanan status='aktif') - Pesanan aktif - Pesan belum dibalas (inbox status='baru') - Reminder terkirim hari ini
-- [ ] "Perlu Perhatian Hari Ini": - Scheduled messages yang due hari ini (status='menunggu') - Appointments hari ini - Payment stages overdue (due_date < today, paid=false) — merah jika > 3 hari - Setiap item clickable → /clients/[id]
-- [ ] "Pesan Masuk Terbaru" — 5 terakhir status='baru' + quick "Balas" button
-- [ ] "Klien Terbaru" — 5 klien terakhir + status pesanan
+- [x] Stats row — 4 kartu (Total Klien, Pesanan Aktif, Menunggu Bayar, Pesan Masuk)
+- [x] "Perlu Perhatian Hari Ini" (overdue payments + today appointments)
+- [x] "Pesan Masuk Terbaru" — 5 terakhir status='baru' + quick "Balas" button
+- [x] "Klien Terbaru" — 5 klien terakhir + status pesanan
 
 ### 5B. Settings Polish
 
 - [ ] Settings Section C: Template editor + live preview - Edit body tiap template (konfirmasi_pesanan, pengingat_pembayaran, pengingat_janji_temu) - Tampilkan variabel yang tersedia: `{{nama_klien}}` `{{jumlah}}` dll - Live preview dengan data sample di sebelah kanan - Tombol simpan per template - User bisa tambah template custom
 - [ ] Client detail — Tab 3: Riwayat Pesan - Semua inbox_messages untuk klien ini (kedua arah) - Kronologis terbaru di atas - Tampilkan: arah, isi pesan, waktu, status
 
-### 5C. Auto-Reply Level 2 (Semi-Auto)
+### 5C. Auto-Reply Level 2 (Semi-Auto) ✅ SELESAI
 
 > Hanya tampil dan bisa diaktifkan jika feedback_count >= 20 (prod) / 5 (beta)
 
-- [ ] Update `POST /api/messages/send` untuk handle Level 2:
-      `typescript
-    // Jika auto_reply_level = 2 DAN classification = 'rutin':
-    // Jangan langsung kirim — insert ke queue dengan delay 5 menit
-    // Return: { queued: true, send_at: timestamp, queue_id: uuid }
-    `
-- [ ] Buat tabel `send_queue`:
-      `sql
-    create table send_queue (
-      id          uuid primary key default gen_random_uuid(),
-      user_id     uuid not null references auth.users(id) on delete cascade,
-      message_id  uuid references inbox_messages(id),
-      to_number   text not null,
-      message     text not null,
-      send_at     timestamptz not null,
-      cancelled   boolean not null default false,
-      created_at  timestamptz not null default now()
-    );
-    alter table send_queue enable row level security;
-    create policy "Users manage own queue"
-      on send_queue for all using (auth.uid() = user_id);
-    `
-- [ ] Inbox page — tampilkan countdown jika pesan sedang di-queue:
-      `     "AI akan membalas dalam 4:32..."
-    [Batalkan] [Kirim Sekarang]
-    `
-      Realtime update countdown via Supabase subscription
-- [ ] Update Edge Function `send-scheduled-messages` atau buat Edge Function baru
-      `process-send-queue` untuk kirim pesan dari send_queue yang sudah waktunya
-      dan belum di-cancel
-- [ ] Settings Section D: tombol aktivasi Level 2 muncul jika feedback_count >= LEVEL2_THRESHOLD
+- [x] Update `POST /api/messages/send` — Level 2 queues rutin messages with 5-min delay, returns `{ queued, send_at, queue_id }`
+- [x] Buat tabel `send_queue` + RLS + index — live via migration 002_send_queue.sql
+- [x] `POST /api/queue/cancel` — cancel queued entry, restore inbox status='baru'
+- [x] Inbox page — countdown banner "AI membalas dalam M:SS" + Batalkan + Kirim Sekarang buttons
+- [x] Edge Function `process-send-queue` — deployed (ID: c9fb82d4), pg_cron job ID 2 every 5 min
+- [x] Settings Section D: tombol "Aktifkan" muncul per level jika threshold terpenuhi + belum aktif
 
 ### 5E. AI Cost Optimization — DeepSeek Prompt Caching
 
@@ -891,6 +902,38 @@ alter table payment_stages
 
 ---
 
+## Phase 5B — Legal Pages & User Consent ✅ SELESAI
+
+**Goal:** UU PDP compliance — privacy policy, terms, consent flow, account deletion.
+
+### DB Migration (manual — sudah dijalankan)
+
+```sql
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS terms_agreed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS terms_version text;
+```
+
+### Checklist
+
+- [x] SQL migration: `profiles.terms_agreed_at`, `profiles.terms_version`
+- [x] `app/(public)/layout.tsx` — simple white layout, back button, footer
+- [x] `app/(public)/privacy-policy/page.tsx` — 8 sections (Indonesian)
+- [x] `app/(public)/terms/page.tsx` — 10 sections (Indonesian)
+- [x] `app/(public)/about/page.tsx` — 3 paragraphs + contact
+- [x] `proxy.ts` — whitelisted `/privacy-policy`, `/terms`, `/about`
+- [x] `components/footer.tsx` — © links to terms/privacy/about
+- [x] Register page: consent checkbox + validation, button disabled until checked
+- [x] Register handler: simpan `terms_agreed_at` + `terms_version` ke DB saat signup
+- [x] Settings: Danger Zone section — modal confirm ketik "HAPUS" untuk hapus akun
+- [x] Account deletion: hapus data user dari semua tabel + auth user + redirect ke /login
+- [x] Types: `terms_agreed_at`, `terms_version` di `Profile`
+- [x] Env: `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_TERMS_VERSION`
+
+**Done when:** Public legal pages accessible without login. Register requires consent checkbox. User can delete account from Settings.
+
+---
+
 ## Phase 6 — Landing Page & Public Presence
 
 **Goal:** Convert visitors → signups. Marketing site live.
@@ -991,7 +1034,7 @@ Jalankan SQL ini di Supabase SQL Editor **secara berurutan**:
 ### Dari README v3 (belum dijalankan):
 
 - [ ] 5.1 Enum types (order_status, template_type, message_status, dll)
-- [ ] 5.2 `profiles` table + RLS
+- [x] 5.2 `profiles` table + RLS ✅ (enabled via migration enable_profiles_rls)
 - [ ] 5.3 Trigger auto-create profile on signup
 - [ ] 5.4 `message_templates` table + RLS
 - [ ] 5.5 Trigger auto-seed default templates
@@ -1023,7 +1066,7 @@ Jalankan SQL ini di Supabase SQL Editor **secara berurutan**:
 
 ### Tambahan dari Phase 5 (jalankan sebelum auto-reply):
 
-- [ ] Buat tabel `send_queue` + RLS
+- [x] Buat tabel `send_queue` + RLS ✅ (migration 002_send_queue.sql)
 - [ ] Alter `payment_stages`: tambah `invoice_id`, `payment_link`, `payment_method`, `paid_at`
 
 ---

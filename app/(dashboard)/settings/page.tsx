@@ -27,9 +27,11 @@ import {
   MessageSquare,
   Plus,
   X,
+  Trash2,
 } from "lucide-react";
 import type { Profile, BusinessKnowledgeStructured, ConversationExample } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import BusinessKnowledgeSection from "@/components/settings/BusinessKnowledgeSection";
 import { SettingsNav, type SettingsTab } from "@/components/settings/SettingsNav";
 import WhatsAppSection from "@/components/settings/WhatsAppSection";
@@ -87,6 +89,11 @@ export default function SettingsPage() {
   const [feedbackCount, setFeedbackCount] = useState(0);
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
+
+  // Danger Zone
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -556,6 +563,70 @@ export default function SettingsPage() {
           <ImportDataSection />
         </div>
       )}
+
+      {/* Danger Zone */}
+      <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-card p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-display font-semibold text-sm text-red-600 dark:text-red-400">Zona Berbahaya</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Tindakan destruktif — harap hati-hati.</p>
+          </div>
+          <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+            <DialogTrigger render={<Button variant="outline" size="sm" className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950"><Trash2 className="w-3 h-3 mr-1.5" />Hapus Akun</Button>} />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Hapus Akun</DialogTitle>
+                <DialogDescription>
+                  Apakah kamu yakin ingin menghapus akun? Semua data bisnis, klien, pesanan, dan percakapan akan dihapus permanen dan tidak bisa dipulihkan.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="deleteConfirm" className="text-sm font-medium">
+                  Ketik <span className="font-bold text-red-600">HAPUS</span> untuk konfirmasi
+                </Label>
+                <Input
+                  id="deleteConfirm"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="HAPUS"
+                  className="h-9 text-sm"
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => { setDeleteModalOpen(false); setDeleteConfirmText(""); }}
+                >
+                  Batal
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs bg-red-600 text-white border-red-600 hover:bg-red-700 hover:text-white"
+                  disabled={deleteConfirmText !== "HAPUS" || deleteLoading}
+                  onClick={async () => {
+                    setDeleteLoading(true)
+                    // TODO: implement deletion logic via API route
+                    // const supabase = createClient()
+                    // const { data: { user } } = await supabase.auth.getUser()
+                    // await fetch('/api/settings/delete-account', { method: 'POST' })
+                    // router.push('/login?deleted=1')
+                    toast.error('Fungsi hapus akun belum terhubung ke database. Lihat phase.md.')
+                    setDeleteLoading(false)
+                    setDeleteModalOpen(false)
+                    setDeleteConfirmText('')
+                  }}
+                >
+                  {deleteLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                  Ya, Hapus Akun Saya
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
     </div>
   );
 }

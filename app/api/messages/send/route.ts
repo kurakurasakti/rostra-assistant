@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendTextMessage } from '@/lib/whatsapp'
 import { categorizeQAPair } from '@/lib/chat-parser'
+import { LEVEL2_THRESHOLD } from '@/lib/config'
 import type { ConversationExample, QACategory } from '@/types'
 
 const CATEGORY_QUOTA: Record<QACategory, number> = {
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
     whatsapp_number: string
     message: string
     reply_to_id?: string
+    force_send?: boolean  // bypass queue when user clicks "Kirim Sekarang"
   }
 
   if (!body.whatsapp_number || !body.message) {
@@ -74,12 +76,45 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('wa_connected')
+    .select('wa_connected, auto_reply_level, feedback_count')
     .eq('id', user.id)
     .single()
 
   if (!profile?.wa_connected) {
     return NextResponse.json({ error: 'WhatsApp belum terhubung' }, { status: 400 })
+  }
+
+  // Level 2 semi-auto: queue rutin messages with 5-min delay unless force_send=true
+  const isLevel2 = (profile.auto_reply_level ?? 1) >= 2 && (profile.feedback_count ?? 0) >= LEVEL2_THRESHOLD
+  if (isLevel2 && !body.force_send && body.reply_to_id) {
+    const { data: incoming } = await supabase
+      .from('inbox_messages')
+      .select('classification')
+      .eq('id', body.reply_to_id)
+      .single()
+
+    if (incoming?.classification === 'rutin') {
+      const sendAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+      const { data: queued } = await supabase
+        .from('send_queue')
+        .insert({
+          user_id: user.id,
+          message_id: body.reply_to_id,
+          to_number: body.whatsapp_number,
+          message: body.message,
+          send_at: sendAt,
+        })
+        .select('id')
+        .single()
+
+      await supabase
+        .from('inbox_messages')
+        .update({ status: 'antri', ai_draft_reply: body.message })
+        .eq('id', body.reply_to_id)
+        .eq('user_id', user.id)
+
+      return NextResponse.json({ queued: true, send_at: sendAt, queue_id: queued?.id })
+    }
   }
 
   try {
