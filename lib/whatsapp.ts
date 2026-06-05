@@ -27,7 +27,6 @@ export function normalizeWANumber(input: string): string | null {
 
   // WhatsApp JID formats from Baileys
   if (cleaned.endsWith('@lid')) {
-    // Linked Device ID — not a phone number, store numeric part as-is
     const id = cleaned.slice(0, -4)
     return id.length > 0 ? id + '@lid' : null
   }
@@ -35,28 +34,50 @@ export function normalizeWANumber(input: string): string | null {
     cleaned = cleaned.slice(0, -15)
   }
 
-  // Handle scientific notation from Excel (e.g. 6.28E+11)
+  // Handle scientific notation from Excel (e.g., 6.28E+11, 8.12E+09)
   if (/^\d+\.?\d*[eE][+]?\d+$/.test(cleaned)) {
     try {
-      cleaned = String(Math.round(Number(cleaned)))
+      const num = Number(cleaned)
+      const rounded = Math.round(num)
+      const roundedStr = String(rounded)
+      // Detect likely truncation: if result ends in 4+ zeros, Excel dropped trailing digits
+      if (/0{4,}$/.test(roundedStr)) {
+        console.warn(
+          `[normalizeWANumber] Scientific notation "${input}" converted to ` +
+          `"${roundedStr}" but appears truncated (Excel precision loss). Returning null.`,
+        )
+        return null
+      }
+      cleaned = roundedStr
     } catch {
       return null
     }
   }
 
+  // Strip all non-digit characters
   cleaned = cleaned.replace(/[^\d]/g, '')
   if (!cleaned) return null
 
+  // Handle international dialing prefixes (00 from many countries, 011 from US/Canada)
+  if (cleaned.startsWith('0062')) {
+    cleaned = cleaned.slice(2) // → 62...
+  } else if (cleaned.startsWith('01162')) {
+    cleaned = cleaned.slice(3) // → 62...
+  } else if (cleaned.startsWith('00') || cleaned.startsWith('011')) {
+    // Non-62 international prefix → reject (only handle Indonesian numbers)
+    return null
+  }
+
   if (cleaned.startsWith('62')) {
-    return cleaned.length >= 10 ? cleaned : null
+    return cleaned.length >= 10 && cleaned.length <= 15 ? cleaned : null
   }
   if (cleaned.startsWith('0')) {
     const result = '62' + cleaned.slice(1)
-    return result.length >= 10 ? result : null
+    return result.length >= 10 && result.length <= 15 ? result : null
   }
   if (cleaned.startsWith('8')) {
     const result = '62' + cleaned
-    return result.length >= 10 ? result : null
+    return result.length >= 10 && result.length <= 15 ? result : null
   }
 
   return null
