@@ -52,6 +52,7 @@ export default function RegisterPage() {
       password,
       options: {
         data: { business_name: businessName },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
     console.log('[register] signUp result:', {
