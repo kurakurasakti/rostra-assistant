@@ -126,7 +126,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="relative">
-          <p className="text-white/40 text-xs">© 2025 Rostra. Dibuat dengan ♥ untuk bisnis Indonesia.</p>
+          <p className="text-white/40 text-xs">© 2026 Rostra (PREVIEW). Dibuat dengan ♥ untuk bisnis Indonesia.</p>
         </div>
       </div>
 
