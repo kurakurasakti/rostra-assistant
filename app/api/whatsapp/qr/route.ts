@@ -1,18 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getQRCode } from '@/lib/whatsapp'
 
-export async function POST() {
+export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  await supabase
-    .from('profiles')
-    .update({
-      wa_connected: false,
-      onboarding_complete: false,
-    })
-    .eq('id', user.id)
-
-  return NextResponse.json({ ok: true })
+  const data = await getQRCode(user.id)
+  return NextResponse.json(data)
 }

@@ -28,10 +28,11 @@ export async function createClient() {
 
 export async function createServiceClient() {
   const cookieStore = await cookies()
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SECREAT_KEY
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serviceKey!,
     {
       cookies: {
         getAll() {

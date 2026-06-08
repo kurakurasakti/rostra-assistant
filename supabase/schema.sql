@@ -339,7 +339,8 @@ CREATE TABLE inbox_messages (
   status           inbox_status           NOT NULL DEFAULT 'baru',
   replied_at       TIMESTAMPTZ,
   wa_message_id    TEXT,
-  received_at      TIMESTAMPTZ            NOT NULL DEFAULT NOW()
+  received_at      TIMESTAMPTZ            NOT NULL DEFAULT NOW(),
+  CONSTRAINT inbox_messages_user_wa_message_id_key UNIQUE (user_id, wa_message_id)
 );
 
 ALTER TABLE inbox_messages ENABLE ROW LEVEL SECURITY;

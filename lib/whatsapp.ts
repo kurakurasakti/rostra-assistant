@@ -1,93 +1,72 @@
-const FONNTE_BASE = 'https://api.fonnte.com'
-
 export interface FonnteWebhookPayload {
   device: string
   sender: string
   message: string
-  name: string
-  timestamp: number
-  inboxid: string
+  name?: string
+  inboxid?: string
   url?: string
-  filename?: string
-  extension?: string
-}
-
-export async function sendTextMessage(
-  to: string,
-  message: string,
-  deviceToken: string,
-  inboxid?: string,
-): Promise<void> {
-  const body: any = { target: to, message }
-  if (inboxid) {
-    body.inboxid = inboxid
-  }
-
-  const res = await fetch(`${FONNTE_BASE}/send`, {
-    method: 'POST',
-    headers: {
-      Authorization: deviceToken,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Fonnte send failed ${res.status}: ${text}`)
-  }
 }
 
 export function normalizeWANumber(input: string): string | null {
   if (!input) return null
+  let num = String(input).replace(/[\s\-\+\(\)\.]/g, '')
+  if (num.startsWith('0')) num = '62' + num.slice(1)
+  else if (num.startsWith('8')) num = '62' + num
+  else if (num.startsWith('+62')) num = num.slice(1)
+  
+  if (!/^62[0-9]{8,13}$/.test(num)) return null
+  return num
+}
 
-  let cleaned = input.trim()
+const BAILEYS_BASE = (process.env.NEXT_PUBLIC_WA_SERVICE_URL ||
+  process.env.WA_SERVICE_URL ||
+  'http://localhost:3001').replace(/\/$/, '')
 
-  // Handle scientific notation from Excel (e.g. 6.28E+11)
-  if (/^\d+\.?\d*[eE][+]?\d+$/.test(cleaned)) {
-    try {
-      cleaned = String(Math.round(Number(cleaned)))
-    } catch {
-      return null
-    }
-  }
+export interface BaileysWebhookPayload {
+  userId: string
+  sender: string
+  message: string
+  name: string
+  timestamp?: number
+  messageId?: string
+}
 
-  cleaned = cleaned.replace(/[^\d]/g, '')
-  if (!cleaned) return null
-
-  if (cleaned.startsWith('62')) {
-    return cleaned.length >= 10 ? cleaned : null
-  }
-  if (cleaned.startsWith('0')) {
-    const result = '62' + cleaned.slice(1)
-    return result.length >= 10 ? result : null
-  }
-  if (cleaned.startsWith('8')) {
-    const result = '62' + cleaned
-    return result.length >= 10 ? result : null
-  }
-
-  return null
+export async function getQRCode(
+  userId: string,
+): Promise<{ status: string; qr?: string }> {
+  const res = await fetch(`${BAILEYS_BASE}/session/${encodeURIComponent(userId)}/qr`, {
+    cache: 'no-store',
+    next: { revalidate: 0 },
+  })
+  if (!res.ok) throw new Error(`WA service QR failed: ${res.status}`)
+  return res.json()
 }
 
 export async function getDeviceStatus(
-  deviceToken: string,
+  userId: string,
 ): Promise<{ connected: boolean; number?: string }> {
-  const res = await fetch(`${FONNTE_BASE}/device`, {
-    method: 'POST',
-    headers: { Authorization: deviceToken },
-  })
-  if (!res.ok) return { connected: false }
+  const res = await fetch(`${BAILEYS_BASE}/session/${encodeURIComponent(userId)}/status`)
+  if (!res.ok) throw new Error(`WA service status failed: ${res.status}`)
   const data = await res.json()
-
-  // Device token response: { status: true, device: "628xxx", name: "...", ... }
-  // Master token response: { status: true, device: [{ device: "628xxx", status: "connect", ... }] }
-  if (Array.isArray(data.device)) {
-    const device = data.device[0]
-    const connected = !!device?.status && device.status !== 'disconnect'
-    return { connected, number: device?.device ?? undefined }
+  return {
+    connected: data.status === 'connected' || data.connected === true,
+    number: data.number ?? data.device,
   }
-
-  const connected = data.status === true
-  const number = typeof data.device === 'string' ? data.device : undefined
-  return { connected, number }
 }
+
+export async function sendTextMessage(
+  userId: string,
+  to: string,
+  message: string,
+): Promise<void> {
+  const res = await fetch(`${BAILEYS_BASE}/session/${encodeURIComponent(userId)}/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, message }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'WA send failed')
+    throw new Error(`WA send failed ${res.status}: ${text}`)
+  }
+}
+
