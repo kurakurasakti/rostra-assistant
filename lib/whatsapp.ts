@@ -20,6 +20,25 @@ export async function sendTextMessage(
   }
 }
 
+export async function fetchChatHistory(
+  userId: string,
+  chatJid: string,
+  oldestMsgKey: { remoteJid: string; fromMe: boolean; id: string },
+  oldestMsgTimestampMs: number,
+  count = 5,
+): Promise<{ success: boolean; count?: number }> {
+  const res = await fetch(`${WA_BASE()}/session/${userId}/fetch-history`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatJid, oldestMsgKey, oldestMsgTimestamp: oldestMsgTimestampMs, count }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`WA service fetch-history failed ${res.status}: ${text}`)
+  }
+  return res.json()
+}
+
 export function normalizeWANumber(input: string): string | null {
   if (!input) return null
 

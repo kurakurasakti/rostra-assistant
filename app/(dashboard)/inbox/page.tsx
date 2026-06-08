@@ -137,6 +137,9 @@ export default function InboxPage() {
   const [hasMoreMessages, setHasMoreMessages] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadingThread, setLoadingThread] = useState(false)
+  // On-demand history backfill ("+5 more") once local DB pagination is exhausted
+  const [fetchingHistory, setFetchingHistory] = useState(false)
+  const [historyExhausted, setHistoryExhausted] = useState(false)
 
   // Other state
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null)
@@ -201,6 +204,8 @@ export default function InboxPage() {
     setThreadMessages([])
     setThreadCursor(null)
     setHasMoreMessages(false)
+    setFetchingHistory(false)
+    setHistoryExhausted(false)
     pendingScrollBottomRef.current = true
 
     const { data, error } = await supabase
@@ -253,6 +258,69 @@ export default function InboxPage() {
     setLoadingMore(false)
   }, [threadCursor, loadingMore, hasMoreMessages])
 
+  // Local DB pagination exhausted — ask wa-service to pull more from WhatsApp itself,
+  // forward into inbox_messages, then re-query so the UI stays DB-sourced
+  const fetchOlderHistory = useCallback(async () => {
+    const waNumber = selectedNumberRef.current
+    if (!waNumber || fetchingHistory || historyExhausted || threadMessages.length === 0) return
+
+    const oldest = threadMessages[0]
+    if (!oldest.wa_message_id) {
+      setHistoryExhausted(true)
+      return
+    }
+    setFetchingHistory(true)
+
+    try {
+      const res = await fetch('/api/messages/fetch-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          whatsapp_number: waNumber,
+          oldest_message_id: oldest.wa_message_id,
+          oldest_from_me: oldest.direction === 'keluar',
+          oldest_received_at: oldest.received_at,
+        }),
+      })
+      const result = await res.json().catch(() => ({}))
+
+      if (!res.ok || !result?.count) {
+        setHistoryExhausted(true)
+        return
+      }
+
+      const container = threadScrollRef.current
+      if (container) {
+        scrollRestoreRef.current = {
+          prevHeight: container.scrollHeight,
+          prevTop: container.scrollTop,
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('inbox_messages')
+        .select('*')
+        .eq('whatsapp_number', waNumber)
+        .lt('received_at', oldest.received_at)
+        .order('received_at', { ascending: false })
+        .limit(PAGE_SIZE)
+
+      if (!error && data && data.length > 0) {
+        const olderMsgs = [...data].reverse()
+        setThreadCursor(olderMsgs[0].received_at)
+        setHasMoreMessages(data.length === PAGE_SIZE)
+        setThreadMessages(prev => [...olderMsgs, ...prev])
+      } else {
+        scrollRestoreRef.current = null
+        setHistoryExhausted(true)
+      }
+    } catch {
+      setHistoryExhausted(true)
+    } finally {
+      setFetchingHistory(false)
+    }
+  }, [fetchingHistory, historyExhausted, threadMessages])
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setUserId(data.user.id)
@@ -265,13 +333,16 @@ export default function InboxPage() {
     const container = threadScrollRef.current
     if (!container) return
     const handleScroll = () => {
-      if (container.scrollTop < 80 && hasMoreMessages && !loadingMore) {
+      if (container.scrollTop >= 80) return
+      if (hasMoreMessages && !loadingMore) {
         loadMoreMessages()
+      } else if (!hasMoreMessages && !historyExhausted && !fetchingHistory && !loadingMore) {
+        fetchOlderHistory()
       }
     }
     container.addEventListener('scroll', handleScroll, { passive: true })
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [hasMoreMessages, loadingMore, loadMoreMessages])
+  }, [hasMoreMessages, loadingMore, loadMoreMessages, historyExhausted, fetchingHistory, fetchOlderHistory])
 
   // Realtime subscription
   useEffect(() => {
