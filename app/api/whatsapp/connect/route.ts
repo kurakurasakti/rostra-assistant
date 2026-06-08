@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getQRCode } from '@/lib/whatsapp'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -21,21 +20,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: 'connected' })
   }
 
-  const deviceResult = await getQRCode(user.id)
-  if (deviceResult.status === 'connected') {
-    await supabase
-      .from('profiles')
-      .update({ wa_connected: true, onboarding_complete: true })
-      .eq('id', user.id)
-    return NextResponse.json({ status: 'connected' })
+  const waUrl = (process.env.WA_SERVICE_URL || 'http://localhost:3001').replace(/\/$/, '')
+  const res = await fetch(`${waUrl}/session/${user.id}/connect`, { method: 'POST' })
+  if (!res.ok) {
+    const text = await res.text()
+    return NextResponse.json({ error: `WA service error: ${text}` }, { status: 502 })
   }
 
-  if (deviceResult.status === 'waiting_scan' && deviceResult.qr) {
-    return NextResponse.json({ qr_base64: deviceResult.qr })
-  }
-
-  return NextResponse.json(
-    { status: 'waiting', qr_base64: deviceResult.qr || null },
-    { status: 202 },
-  )
+  const data = await res.json()
+  return NextResponse.json(data)
 }

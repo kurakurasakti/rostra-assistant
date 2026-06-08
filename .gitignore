@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/playwright-report/
+/e2e/.auth/
 
 # next.js
 /.next/
@@ -37,7 +39,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# brainstorming
+.superpowers/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.superpowers/
 .env*.local

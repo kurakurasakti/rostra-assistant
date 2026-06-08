@@ -2,8 +2,19 @@ export type OrderStatus = 'aktif' | 'selesai' | 'dibatalkan'
 export type MessageStatus = 'menunggu' | 'terkirim' | 'gagal' | 'dibatalkan'
 export type InboxDirection = 'masuk' | 'keluar'
 export type InboxStatus = 'baru' | 'dibalas' | 'diabaikan' | 'dieskalasi'
-export type MessageClassification = 'rutin' | 'sensitif' | 'tidak_diketahui'
+export type MessageClassification = 'rutin' | 'sensitif' | 'tidak_diketahui' | 'injection_attempt'
 export type TemplateType = 'konfirmasi_pesanan' | 'pengingat_pembayaran' | 'pengingat_janji_temu' | 'custom'
+
+export type QACategory = 'harga' | 'ketersediaan' | 'jadwal' | 'status' | 'pembayaran' | 'umum'
+
+export interface ConversationExample {
+  category: QACategory
+  customer: string
+  admin: string
+  source: 'upload' | 'correction'
+  used_count: number
+  created_at: string
+}
 
 export interface BusinessKnowledgeStructured {
   services: {
@@ -29,8 +40,6 @@ export interface Profile {
   id: string
   business_name: string
   brand_voice: string
-  fonnte_device_id: string | null
-  fonnte_device_token: string | null
   wa_connected: boolean
   onboarding_complete: boolean
   created_at: string
@@ -52,6 +61,10 @@ export interface Profile {
   business_knowledge_structured?: BusinessKnowledgeStructured | null
   auto_reply_level?: number | null
   feedback_count?: number | null
+  notification_wa_number?: string | null
+  conversation_examples?: ConversationExample[] | null
+  terms_agreed_at?: string | null
+  terms_version?: string | null
 }
 
 export interface Client {
@@ -122,6 +135,12 @@ export interface ScheduledMessage {
   created_at: string
 }
 
+export type FullOrder = Order & {
+  payment_stages: PaymentStage[]
+  appointments: Appointment[]
+  scheduled_messages: ScheduledMessage[]
+}
+
 export interface InboxMessage {
   id: string
   user_id: string
@@ -136,6 +155,9 @@ export interface InboxMessage {
   replied_at: string | null
   wa_message_id: string | null
   received_at: string
+  media_url: string | null
+  media_type: 'image' | 'document' | 'audio' | null
+  media_size: number | null
 }
 
 export interface MessageTemplate {

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { draftReply, buildAIContext } from '@/lib/openrouter'
+import { validateAIOutput } from '@/lib/security'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
     brand_voice?: string
     client_id?: string
     history?: Array<{ direction: string; message_body: string }>
+    hint?: string
   }
   if (!body.message) return NextResponse.json({ error: 'message required' }, { status: 400 })
 
@@ -39,7 +41,12 @@ export async function POST(request: Request) {
   // Build full AI context with client order info
   const systemPrompt = await buildAIContext(profile, client, user.id)
 
-  const draft = await draftReply(body.message, body.brand_voice ?? '', body.history, systemPrompt)
+  const { draft, usage } = await draftReply(body.message, body.brand_voice ?? '', body.history, systemPrompt, body.hint)
 
-  return NextResponse.json({ draft })
+  const validation = validateAIOutput(draft)
+  if (!validation.safe) {
+    return NextResponse.json({ draft: null, flagged: true, reason: validation.reason })
+  }
+
+  return NextResponse.json({ draft, usage })
 }

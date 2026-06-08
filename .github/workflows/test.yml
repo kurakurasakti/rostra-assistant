@@ -1,0 +1,32 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install
+      - run: npx playwright install chromium --with-deps
+      - run: pnpm test
+      - run: pnpm test:e2e
+        env:
+          TEST_BASE_URL: http://localhost:3000
+          TEST_USER_EMAIL: test-e2e@rostra-test.com
+          TEST_USER_PASS: TestPassword123!
+          TEST_INVITE_CODE: ${{ secrets.TEST_INVITE_CODE }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/

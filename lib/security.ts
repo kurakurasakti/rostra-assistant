@@ -5,18 +5,35 @@ const INJECTION_PATTERNS = [
   /kamu sekarang adalah/i,
   /instruksi baru/i,
   /sebagai (asisten|ai|bot) yang/i,
+  /peran baru/i,
+  /ubah (peran|instruksi|tugas)/i,
+  /mulai (sekarang|saat ini) kamu/i,
+  /tidak perlu (ikut|patuhi)/i,
+  /ceritakan (sistem|instruksi) (prompt|kamu)/i,
   // English
   /ignore (previous|all|prior)/i,
   /forget (your|all|previous)/i,
   /you are now/i,
   /new (instructions|rules|system prompt)/i,
   /pretend (you are|to be)/i,
-  /act as (if|a|an)/i,
+  /act as\b/i,
   /disregard/i,
-  // Structural
+  /override (your|all|previous)/i,
+  /jailbreak/i,
+  /do anything now/i,
+  /dan\s*is\s*jailbroken/i,
+  /reveal (your|the) (system|instructions|prompt)/i,
+  /what (are|were) your instructions/i,
+  /repeat (everything|the text|your system)/i,
+  // Structural / prompt format markers
   /\[SYSTEM\]/i,
   /\[INST\]/i,
   /<\/?system>/i,
+  /###\s*instruction/i,
+  /^---\s*\n.*system\s*:/im,
+  /system\s*prompt\s*:/i,
+  /<\|im_start\|>/i,
+  /\[\/INST\]/i,
 ]
 
 export function scanForInjection(message: string): {
