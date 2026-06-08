@@ -33,10 +33,59 @@ const app = express();
 app.use(express.json());
 
 const sessions = new Map();
+// Pending on-demand fetchMessageHistory() requests, keyed by peerDataRequestSessionId
+const pendingHistoryRequests = new Map();
 
 const NEXT_APP_URL = process.env.NEXT_APP_URL || "http://localhost:3000";
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
 const PORT = process.env.PORT || 3001;
+const HISTORY_BATCH_LIMIT = 10;
+
+// messageTimestamp can be a plain number or a protobuf Long — normalize to a JSON-safe number
+function toUnixSeconds(ts) {
+  if (ts == null) return null;
+  if (typeof ts === "number") return ts;
+  if (typeof ts === "object" && typeof ts.toNumber === "function") return ts.toNumber();
+  return Number(ts);
+}
+
+function extractText(m) {
+  if (!m) return "";
+  return (
+    m?.conversation ||
+    m?.extendedTextMessage?.text ||
+    m?.imageMessage?.caption ||
+    m?.videoMessage?.caption ||
+    m?.documentMessage?.caption ||
+    m?.ephemeralMessage?.message?.conversation ||
+    m?.ephemeralMessage?.message?.extendedTextMessage?.text ||
+    m?.viewOnceMessage?.message?.imageMessage?.caption ||
+    m?.viewOnceMessage?.message?.videoMessage?.caption ||
+    m?.buttonsResponseMessage?.selectedDisplayText ||
+    m?.listResponseMessage?.title ||
+    m?.templateButtonReplyMessage?.selectedDisplayText ||
+    ""
+  );
+}
+
+function forwardHistoryBatch(userId, batch) {
+  if (batch.length === 0) return;
+  console.log(`[${userId}] history: forwarding ${batch.length} messages`);
+  fetch(`${NEXT_APP_URL}/api/webhook/whatsapp/history`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-webhook-secret": WEBHOOK_SECRET,
+    },
+    body: JSON.stringify({ userId, messages: batch }),
+  })
+    .then((res) =>
+      console.log(`[${userId}] history forward response: ${res.status}`)
+    )
+    .catch((err) =>
+      console.error(`[${userId}] history forward error:`, err)
+    );
+}
 
 async function createSession(userId) {
   const authPath = path.join(__dirname, "auth", userId);
@@ -92,10 +141,24 @@ async function createSession(userId) {
 
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const errMessage = lastDisconnect?.error?.message;
+      const reasonName = Object.keys(DisconnectReason).find(
+        (k) => DisconnectReason[k] === statusCode
+      );
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
       sessionData.status = "disconnected";
-      console.log(`[${userId}] Disconnected. Reconnect: ${shouldReconnect}`);
+      console.log(
+        `[${userId}] Disconnected. statusCode=${statusCode} reason=${reasonName ?? "unknown"} message="${errMessage}" Reconnect: ${shouldReconnect}`
+      );
+
+      // Tear down the old socket fully before spinning up a new one — a stale socket left
+      // alive alongside a fresh one causes a concurrent-connection conflict, which WhatsApp
+      // resolves by killing one side with statusCode=401 "Intentional Logout"
+      sock.ev.removeAllListeners();
+      try {
+        sock.end(undefined);
+      } catch {}
 
       // Notify Next.js so wa_connected resets to false in DB
       fetch(`${NEXT_APP_URL}/api/whatsapp/disconnected`, {
@@ -114,6 +177,51 @@ async function createSession(userId) {
 
   sock.ev.on("creds.update", saveCreds);
 
+  sock.ev.on("messaging-history.set", async ({ messages, peerDataRequestSessionId }) => {
+    console.log(
+      `[${userId}] messaging-history.set count=${messages?.length ?? 0} peerDataRequestSessionId=${peerDataRequestSessionId ?? "none"}`
+    );
+    if (!messages || messages.length === 0) return;
+
+    // Case A: On-demand older history fetch response
+    if (peerDataRequestSessionId && pendingHistoryRequests.has(peerDataRequestSessionId)) {
+      const pending = pendingHistoryRequests.get(peerDataRequestSessionId);
+      pendingHistoryRequests.delete(peerDataRequestSessionId);
+      clearTimeout(pending.timeout);
+      pending.resolve(messages);
+      return;
+    }
+
+    // Case B: Passive sync on connect (group by chat, take latest N messages)
+    const byChat = new Map();
+    for (const msg of messages) {
+      if (!msg.message) continue;
+      const jid = msg.key.remoteJid;
+      if (!jid) continue;
+      if (!byChat.has(jid)) byChat.set(jid, []);
+      byChat.get(jid).push(msg);
+    }
+
+    const batch = [];
+    for (const [jid, msgs] of byChat) {
+      msgs.sort((a, b) => Number(b.messageTimestamp ?? 0) - Number(a.messageTimestamp ?? 0));
+      for (const msg of msgs.slice(0, HISTORY_BATCH_LIMIT)) {
+        const text = extractText(msg.message);
+        if (!text) continue;
+        batch.push({
+          sender: jid,
+          message: text,
+          name: msg.pushName || jid,
+          timestamp: toUnixSeconds(msg.messageTimestamp),
+          messageId: msg.key.id,
+          fromMe: !!msg.key.fromMe,
+        });
+      }
+    }
+
+    forwardHistoryBatch(userId, batch);
+  });
+
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
     console.log(
       `[${userId}] messages.upsert type=${type} count=${messages.length}`
@@ -129,21 +237,7 @@ async function createSession(userId) {
       if (msg.key.fromMe) continue;
       if (!msg.message) continue;
 
-      const m = msg.message;
-      const text =
-        m?.conversation ||
-        m?.extendedTextMessage?.text ||
-        m?.imageMessage?.caption ||
-        m?.videoMessage?.caption ||
-        m?.documentMessage?.caption ||
-        m?.ephemeralMessage?.message?.conversation ||
-        m?.ephemeralMessage?.message?.extendedTextMessage?.text ||
-        m?.viewOnceMessage?.message?.imageMessage?.caption ||
-        m?.viewOnceMessage?.message?.videoMessage?.caption ||
-        m?.buttonsResponseMessage?.selectedDisplayText ||
-        m?.listResponseMessage?.title ||
-        m?.templateButtonReplyMessage?.selectedDisplayText ||
-        "";
+      const text = extractText(msg.message);
 
       if (!text) continue;
 
@@ -276,7 +370,7 @@ app.get("/session/:userId/qr", async (req, res) => {
     const QRCode = require("qrcode");
     const qrBase64 = await QRCode.toDataURL(session.qr);
     res.json({ status: "waiting_scan", qr: qrBase64 });
-  } catch {
+  } catch (err) {
     res.json({ status: "waiting_scan", qr: session.qr });
   }
 });
@@ -348,6 +442,61 @@ app.post("/session/:userId/disconnect", async (req, res) => {
   await session.sock.logout();
   sessions.delete(req.params.userId);
   res.json({ success: true });
+});
+
+// On-demand older-history fetch (Tier 2 "load N more" — triggered by inbox scroll-to-top)
+app.post("/session/:userId/fetch-history", async (req, res) => {
+  const session = sessions.get(req.params.userId);
+
+  if (!session || session.status !== "connected") {
+    return res.status(400).json({ success: false, error: "Session tidak connected" });
+  }
+
+  const { chatJid, oldestMsgKey, oldestMsgTimestamp, count } = req.body;
+
+  if (!chatJid || !oldestMsgKey || !oldestMsgTimestamp) {
+    return res.status(400).json({
+      success: false,
+      error: "chatJid, oldestMsgKey, dan oldestMsgTimestamp wajib diisi",
+    });
+  }
+
+  try {
+    const { peerDataRequestSessionId } = await session.sock.fetchMessageHistory(
+      count || 5,
+      oldestMsgKey,
+      oldestMsgTimestamp
+    );
+
+    const messages = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pendingHistoryRequests.delete(peerDataRequestSessionId);
+        reject(new Error("History fetch timed out"));
+      }, 25000);
+      pendingHistoryRequests.set(peerDataRequestSessionId, { resolve, timeout });
+    });
+
+    const batch = [];
+    for (const msg of messages) {
+      if (!msg.message) continue;
+      const text = extractText(msg.message);
+      if (!text) continue;
+      batch.push({
+        sender: msg.key.remoteJid ?? chatJid,
+        message: text,
+        name: msg.pushName || msg.key.remoteJid || chatJid,
+        timestamp: toUnixSeconds(msg.messageTimestamp),
+        messageId: msg.key.id,
+        fromMe: !!msg.key.fromMe,
+      });
+    }
+
+    forwardHistoryBatch(req.params.userId, batch);
+    res.json({ success: true, count: batch.length });
+  } catch (err) {
+    console.error(`[${req.params.userId}] fetch-history error:`, err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
 });
 
 app.get("/health", (req, res) => {

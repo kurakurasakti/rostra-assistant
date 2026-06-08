@@ -22,6 +22,7 @@ import {
   ChevronsUp,
   FileText,
   X,
+  User,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -42,6 +43,30 @@ function formatTime(dateStr: string) {
   if (isToday(d)) return format(d, 'HH:mm')
   if (isYesterday(d)) return 'Kemarin'
   return format(d, 'dd/MM', { locale: idLocale })
+}
+
+function formatPhoneNumber(num: string): string {
+  let cleaned = num.trim()
+  if (cleaned.endsWith('@lid')) {
+    cleaned = cleaned.slice(0, -4)
+  }
+  if (cleaned.endsWith('@s.whatsapp.net')) {
+    cleaned = cleaned.slice(0, -15)
+  }
+  if (cleaned.startsWith('62')) {
+    return `+62 ${cleaned.slice(2, 5)}-${cleaned.slice(5, 9)}-${cleaned.slice(9)}`
+  }
+  return cleaned
+}
+
+function formatContactName(name: string | null | undefined, whatsapp_number: string): string {
+  if (name) {
+    const trimmed = name.trim()
+    if (!trimmed.includes('@') && !/^\+?\d+$/.test(trimmed)) {
+      return trimmed
+    }
+  }
+  return formatPhoneNumber(whatsapp_number)
 }
 
 function getInitials(name: string) {
@@ -99,7 +124,7 @@ function buildConversations(messages: InboxMessage[]): Conversation[] {
     if (!map[key]) {
       map[key] = {
         whatsapp_number: key,
-        contact_name: msg.sender_name ?? key,
+        contact_name: formatContactName(msg.sender_name, key),
         last_message: msg,
         unread_count: 0,
         messages: [],
@@ -112,8 +137,8 @@ function buildConversations(messages: InboxMessage[]): Conversation[] {
     if (msg.direction === 'masuk' && msg.status === 'baru') {
       map[key].unread_count++
     }
-    if (msg.direction === 'masuk' && msg.sender_name && map[key].contact_name === key) {
-      map[key].contact_name = msg.sender_name
+    if (msg.direction === 'masuk' && msg.sender_name && map[key].contact_name === formatPhoneNumber(key)) {
+      map[key].contact_name = formatContactName(msg.sender_name, key)
     }
   }
 
@@ -264,8 +289,8 @@ export default function InboxPage() {
     const waNumber = selectedNumberRef.current
     if (!waNumber || fetchingHistory || historyExhausted || threadMessages.length === 0) return
 
-    const oldest = threadMessages[0]
-    if (!oldest.wa_message_id) {
+    const oldest = threadMessages.find(m => !!m.wa_message_id)
+    if (!oldest) {
       setHistoryExhausted(true)
       return
     }
@@ -659,7 +684,11 @@ export default function InboxPage() {
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-primary/10 text-primary',
                   )}>
-                    {getInitials(conv.contact_name)}
+                    {/^\+?[\d\s\-]+$/.test(conv.contact_name) ? (
+                      <User className="w-4 h-4" />
+                    ) : (
+                      getInitials(conv.contact_name)
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
@@ -709,7 +738,9 @@ export default function InboxPage() {
             </button>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm truncate">{selectedConversation.contact_name}</p>
-              <p className="text-xs text-muted-foreground truncate">{selectedConversation.whatsapp_number}</p>
+              {selectedConversation.contact_name !== formatPhoneNumber(selectedConversation.whatsapp_number) && (
+                <p className="text-xs text-muted-foreground truncate">{formatPhoneNumber(selectedConversation.whatsapp_number)}</p>
+              )}
             </div>
             <ClassificationBadge value={selectedConversation.last_message.classification} />
           </div>

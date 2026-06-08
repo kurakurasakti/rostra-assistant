@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { normalizeWANumber } from '@/lib/whatsapp'
+import { scanForInjection } from '@/lib/security'
 
 // Called by rostra-wa for both passive (on-connect) and on-demand (scroll "+N") history backfill
 export async function POST(request: Request) {
@@ -49,23 +50,32 @@ async function processHistoryBatch(payload: any) {
 
   const supabase = await createServiceClient()
 
-  // Dedup against already-stored wa_message_ids (no unique constraint on the column — pre-filter instead)
-  const incomingIds = items.map((i) => String(i.messageId ?? '').trim()).filter(Boolean)
-  const { data: existing } = incomingIds.length
-    ? await supabase
-        .from('inbox_messages')
-        .select('wa_message_id')
-        .eq('user_id', userId)
-        .in('wa_message_id', incomingIds)
-    : { data: [] as { wa_message_id: string | null }[] }
+  // Get unique senders for bulk client resolution
+  const senders = items
+    .map((m) => normalizeWANumber(m.sender ?? ''))
+    .filter(Boolean) as string[]
+  const uniqueSenders = Array.from(new Set(senders))
 
-  const existingIds = new Set((existing ?? []).map((r) => r.wa_message_id))
+  if (uniqueSenders.length === 0) return
+
+  // Fetch existing clients for these senders
+  const { data: clients } = await supabase
+    .from('clients')
+    .select('id, whatsapp_number')
+    .eq('user_id', userId)
+    .in('whatsapp_number', uniqueSenders)
+
+  const clientMap = new Map<string, string>()
+  if (clients) {
+    for (const c of clients) {
+      if (c.whatsapp_number) {
+        clientMap.set(c.whatsapp_number, c.id)
+      }
+    }
+  }
 
   const rows: Record<string, unknown>[] = []
   for (const item of items) {
-    const messageId = String(item.messageId ?? '').trim()
-    if (messageId && existingIds.has(messageId)) continue
-
     const message = String(item.message ?? '').trim()
     const sender = String(item.sender ?? '').trim()
     if (!message || !sender) continue
@@ -73,23 +83,28 @@ async function processHistoryBatch(payload: any) {
     const normalizedSender = normalizeWANumber(sender)
     if (!normalizedSender) continue
 
-    const { data: client } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('whatsapp_number', normalizedSender)
-      .maybeSingle()
+    // Security scan for injection
+    const injectionCheck = scanForInjection(message)
+    const classification = injectionCheck.isSuspicious
+      ? 'injection_attempt'
+      : 'tidak_diketahui'
+
+    const status = injectionCheck.isSuspicious
+      ? 'dieskalasi'
+      : item.fromMe
+      ? 'dibalas'
+      : 'diabaikan'
 
     rows.push({
       user_id: userId,
-      client_id: client?.id ?? null,
+      client_id: clientMap.get(normalizedSender) ?? null,
       direction: item.fromMe ? 'keluar' : 'masuk',
       whatsapp_number: normalizedSender,
       sender_name: item.name || null,
       message_body: message,
-      wa_message_id: messageId || null,
-      classification: 'tidak_diketahui',
-      status: 'diabaikan',
+      wa_message_id: item.messageId || null,
+      classification,
+      status,
       received_at: item.timestamp
         ? new Date(Number(item.timestamp) * 1000).toISOString()
         : new Date().toISOString(),
@@ -97,15 +112,22 @@ async function processHistoryBatch(payload: any) {
   }
 
   if (rows.length === 0) {
-    console.log('[webhook/history] nothing new to insert (all duplicates or invalid)')
+    console.log('[webhook/history] nothing new to insert')
     return
   }
 
-  const { error } = await supabase.from('inbox_messages').insert(rows)
+  // Idempotent upsert based on (user_id, wa_message_id) unique constraint
+  const { error } = await supabase
+    .from('inbox_messages')
+    .upsert(rows, {
+      onConflict: 'user_id,wa_message_id',
+      ignoreDuplicates: true,
+    })
+
   if (error) {
-    console.error('[webhook/history] insert failed:', JSON.stringify(error))
+    console.error('[webhook/history] bulk upsert failed:', JSON.stringify(error))
     return
   }
 
-  console.log(`[webhook/history] inserted ${rows.length}/${items.length} backfilled messages for user ${userId.slice(0, 8)}...`)
+  console.log(`[webhook/history] bulk upsert success: inserted ${rows.length}/${items.length} backfilled messages for user ${userId.slice(0, 8)}...`)
 }
