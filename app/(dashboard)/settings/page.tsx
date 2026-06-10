@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +32,7 @@ import type { Profile, BusinessKnowledgeStructured, ConversationExample } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import BusinessKnowledgeSection from "@/components/settings/BusinessKnowledgeSection";
-import { SettingsNav, type SettingsTab } from "@/components/settings/SettingsNav";
+import { SettingsAnchorNav } from "@/components/settings/SettingsAnchorNav";
 import WhatsAppSection from "@/components/settings/WhatsAppSection";
 import AIRulesSection from "@/components/settings/AIRulesSection";
 import ImportDataSection from "@/components/settings/ImportDataSection";
@@ -87,19 +86,11 @@ export default function SettingsPage() {
   const [keywordInput, setKeywordInput] = useState("");
   const [autoReplyLevel, setAutoReplyLevel] = useState(1);
   const [feedbackCount, setFeedbackCount] = useState(0);
-  const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
 
   // Danger Zone
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
-
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    const valid: SettingsTab[] = ["profile", "whatsapp", "business", "ai", "import"];
-    if (tab && (valid as string[]).includes(tab)) setActiveTab(tab as SettingsTab);
-  }, [searchParams]);
 
   useEffect(() => {
     async function load() {
@@ -299,15 +290,14 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6 animate-enter">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,640px)_170px] lg:justify-center gap-8 p-6 lg:p-8 animate-enter">
+      <div className="space-y-6">
       <div>
         <h1 className="font-display font-bold text-2xl tracking-tight">Pengaturan</h1>
         <p className="text-muted-foreground text-sm mt-1">Kelola profil bisnis dan koneksi WhatsApp.</p>
       </div>
 
-      <SettingsNav activeTab={activeTab} onTabChange={setActiveTab} />
-
-      {/* Onboarding banner (shown on any tab) */}
+      {/* Onboarding banner */}
       {profile && !profile.onboarding_complete && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3.5">
           <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -325,7 +315,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {activeTab === "profile" && (
+      <section id="profile" className="scroll-mt-24">
         <form id="business-form" onSubmit={handleSaveProfile} className="rounded-xl border border-border bg-card p-5 space-y-5">
           <div>
             <h2 className="font-display font-semibold text-sm">Profil Bisnis</h2>
@@ -518,18 +508,18 @@ export default function SettingsPage() {
             </Button>
           </div>
         </form>
-      )}
+      </section>
 
-      {activeTab === "whatsapp" && (
+      <section id="whatsapp" className="scroll-mt-24">
         <div className="rounded-xl border border-border bg-card p-5">
           <WhatsAppSection
             initialNotificationNumber={profile?.notification_wa_number}
             onNotificationSaved={(number) => setProfile((prev) => prev ? { ...prev, notification_wa_number: number } : prev)}
           />
         </div>
-      )}
+      </section>
 
-      {activeTab === "business" && (
+      <section id="business" className="scroll-mt-24">
         <div className="rounded-xl border border-border bg-card p-5">
           <BusinessKnowledgeSection
             initialRaw={businessKnowledgeRaw}
@@ -540,31 +530,30 @@ export default function SettingsPage() {
             }}
           />
         </div>
-      )}
+      </section>
 
-      {activeTab === "ai" && (
-        <>
-          <div className="rounded-xl border border-border bg-card p-5">
-            <AIRulesSection
-              initialKeywords={escalationKeywords}
-              initialLevel={autoReplyLevel}
-              feedbackCount={feedbackCount}
-              onSave={(keywords) => setEscalationKeywords(keywords)}
-            />
-          </div>
-          <div className="rounded-xl border border-border bg-card p-5">
-            <TemplatesSection />
-          </div>
-        </>
-      )}
+      <section id="ai" className="scroll-mt-24 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <AIRulesSection
+            initialKeywords={escalationKeywords}
+            initialLevel={autoReplyLevel}
+            feedbackCount={feedbackCount}
+            onSave={(keywords) => setEscalationKeywords(keywords)}
+          />
+        </div>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <TemplatesSection />
+        </div>
+      </section>
 
-      {activeTab === "import" && (
+      <section id="import" className="scroll-mt-24">
         <div className="rounded-xl border border-border bg-card p-5">
           <ImportDataSection />
         </div>
-      )}
+      </section>
 
       {/* Danger Zone */}
+      <section id="danger" className="scroll-mt-24">
       <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-card p-5">
         <div className="flex items-center justify-between">
           <div>
@@ -626,6 +615,12 @@ export default function SettingsPage() {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
+      </section>
+      </div>
+
+      <div className="hidden lg:block">
+        <SettingsAnchorNav />
       </div>
     </div>
   );
