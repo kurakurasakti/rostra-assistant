@@ -1,5 +1,5 @@
 const WA_BASE = () => {
-  const url = process.env.WA_SERVICE_URL
+  const url = process.env.WA_SERVICE_URL?.replace(/\/$/, '')
   if (!url) throw new Error('WA_SERVICE_URL not set')
   return url
 }

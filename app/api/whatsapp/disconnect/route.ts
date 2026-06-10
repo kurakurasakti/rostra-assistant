@@ -6,7 +6,7 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const waUrl = process.env.WA_SERVICE_URL
+  const waUrl = process.env.WA_SERVICE_URL?.replace(/\/$/, '')
   if (waUrl) {
     await fetch(`${waUrl}/session/${user.id}/disconnect`, { method: 'POST' }).catch(() => {})
   }
