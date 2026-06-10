@@ -374,7 +374,7 @@ export default function InboxPage() {
     if (!userId) return
 
     const channel = supabase
-      .channel('inbox-realtime')
+      .channel(`inbox-realtime-${userId}`)
       .on(
         'postgres_changes',
         {
@@ -419,8 +419,17 @@ export default function InboxPage() {
       )
       .subscribe()
 
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'TOKEN_REFRESHED' && session) {
+          supabase.realtime.setAuth(session.access_token)
+        }
+      },
+    )
+
     return () => {
       supabase.removeChannel(channel)
+      authSub.unsubscribe()
     }
   }, [userId])
 

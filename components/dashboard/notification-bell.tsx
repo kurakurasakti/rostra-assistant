@@ -54,7 +54,7 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
     const supabase = createClient()
 
     const channel = supabase
-      .channel(`notifications-realtime-${variant}`)
+      .channel(`notifications-realtime-${variant}-${userId}`)
       .on(
         'postgres_changes',
         {
@@ -74,8 +74,17 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
       )
       .subscribe()
 
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'TOKEN_REFRESHED' && session) {
+          supabase.realtime.setAuth(session.access_token)
+        }
+      },
+    )
+
     return () => {
       supabase.removeChannel(channel)
+      authSub.unsubscribe()
     }
   }, [userId])
 
