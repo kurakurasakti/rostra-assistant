@@ -138,4 +138,14 @@ NEXT_PUBLIC_APP_URL
 INVITE_CODE               # controls registration
 ```
 
+### Supabase Email Redirect Configuration
+
+Email verification links need to redirect to `/auth/callback`. Configure in Supabase Dashboard:
+
+1. Go to Authentication → Email Templates
+2. In both "Confirm signup" and other email templates, find the redirect URL
+3. Ensure it points to: `{{ .ConfirmationURL }}`
+4. The system will automatically append `?code=...` to `{NEXT_PUBLIC_APP_URL}/auth/callback`
+5. Alternatively, manually set to: `{NEXT_PUBLIC_APP_URL}/auth/callback`
+
 Webhook URL for rostra-wa (production): `https://rostra.vercel.app/api/webhook/whatsapp`

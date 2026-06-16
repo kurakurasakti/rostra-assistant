@@ -52,41 +52,51 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
   useEffect(() => {
     if (!userId) return
     const supabase = createClient()
+    let channel: any = null
 
-    const channel = supabase
-      .channel(`notifications-realtime-${variant}-${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
-        payload => {
-          const notif = payload.new as Notification
-          setUnreadCount(prev => prev + 1)
-          // If popover is open, prepend new notification immediately
-          if (isOpenRef.current) {
-            setNotifications(prev => [notif, ...prev])
-          }
-        },
-      )
-      .subscribe()
+    // Get current session to authenticate realtime connection before subscribing
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        supabase.realtime.setAuth(session.access_token)
+      }
+
+      channel = supabase
+        .channel(`notifications-realtime-${variant}-${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${userId}`,
+          },
+          payload => {
+            const notif = payload.new as Notification
+            setUnreadCount(prev => prev + 1)
+            // If popover is open, prepend new notification immediately
+            if (isOpenRef.current) {
+              setNotifications(prev => [notif, ...prev])
+            }
+          },
+        )
+        .subscribe()
+    })
 
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (event === 'TOKEN_REFRESHED' && session) {
+        if (session) {
           supabase.realtime.setAuth(session.access_token)
         }
       },
     )
 
     return () => {
-      supabase.removeChannel(channel)
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
       authSub.unsubscribe()
     }
-  }, [userId])
+  }, [userId, variant])
 
   async function handleOpenChange(isOpen: boolean) {
     setOpen(isOpen)
