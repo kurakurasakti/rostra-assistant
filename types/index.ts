@@ -1,7 +1,7 @@
 export type OrderStatus = 'aktif' | 'selesai' | 'dibatalkan'
 export type MessageStatus = 'menunggu' | 'terkirim' | 'gagal' | 'dibatalkan'
 export type InboxDirection = 'masuk' | 'keluar'
-export type InboxStatus = 'baru' | 'dibalas' | 'diabaikan' | 'dieskalasi'
+export type InboxStatus = 'baru' | 'antri' | 'dibalas' | 'diabaikan' | 'dieskalasi'
 export type MessageClassification = 'rutin' | 'sensitif' | 'tidak_diketahui' | 'injection_attempt'
 export type TemplateType = 'konfirmasi_pesanan' | 'pengingat_pembayaran' | 'pengingat_janji_temu' | 'custom'
 
@@ -107,7 +107,7 @@ export interface PaymentStage {
 
 export interface Appointment {
   id: string
-  order_id: string
+  order_id: string | null
   user_id: string
   client_id: string
   title: string

@@ -11,14 +11,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { ArrowLeft, Plus, MessageSquare, ArrowDownLeft, ArrowUpRight } from "lucide-react"
+import { ArrowLeft, Plus, MessageSquare, ArrowDownLeft, ArrowUpRight, CalendarClock, ChevronDown, ShoppingBag } from "lucide-react"
 import Link from "next/link"
 import { format, parseISO, formatDistanceToNow } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import { normalizeWANumber } from "@/lib/whatsapp"
-import type { Client, PaymentStage, ScheduledMessage, FullOrder, InboxMessage } from "@/types"
+import type { Appointment, Client, PaymentStage, ScheduledMessage, FullOrder, InboxMessage } from "@/types"
 import OrderCard from "@/components/clients/OrderCard"
 import OrderFormModal from "@/components/clients/OrderFormModal"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function ClientDetailPage() {
   const params = useParams<{ id: string }>()
@@ -27,6 +30,7 @@ export default function ClientDetailPage() {
 
   const [client, setClient] = useState<Client | null>(null)
   const [orders, setOrders] = useState<FullOrder[]>([])
+  const [standaloneAppointments, setStandaloneAppointments] = useState<Appointment[]>([])
   const [messages, setMessages] = useState<InboxMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
@@ -43,12 +47,23 @@ export default function ClientDetailPage() {
   const [orderModalOpen, setOrderModalOpen] = useState(false)
   const [editingOrder, setEditingOrder] = useState<FullOrder | null>(null)
 
+  // Standalone appointment modal state
+  const [apptModalOpen, setApptModalOpen] = useState(false)
+  const [apptSaving, setApptSaving] = useState(false)
+  const [apptForm, setApptForm] = useState({
+    title: "",
+    scheduled_at: "",
+    location: "",
+    reminder_hours_before: "24",
+    notes: "",
+  })
+
   const loadData = useCallback(async () => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [clientRes, ordersRes, messagesRes] = await Promise.all([
+    const [clientRes, ordersRes, messagesRes, standaloneApptRes] = await Promise.all([
       supabase.from("clients").select("*").eq("id", clientId).eq("user_id", user.id).single(),
       supabase
         .from("orders")
@@ -63,6 +78,13 @@ export default function ClientDetailPage() {
         .eq("client_id", clientId)
         .order("received_at", { ascending: false })
         .limit(50),
+      supabase
+        .from("appointments")
+        .select("*")
+        .eq("client_id", clientId)
+        .eq("user_id", user.id)
+        .is("order_id", null)
+        .order("scheduled_at", { ascending: true }),
     ])
 
     if (!clientRes.data) { router.push("/clients"); return }
@@ -72,6 +94,7 @@ export default function ClientDetailPage() {
     setEditName(c.name); setEditWA(c.whatsapp_number)
     setEditEmail(c.email ?? ""); setEditNotes(c.notes ?? ""); setEditAINotes(c.ai_notes ?? "")
     setOrders(ordersRes.data ?? [])
+    setStandaloneAppointments(standaloneApptRes.data ?? [])
     setMessages(messagesRes.data ?? [])
     setLoading(false)
   }, [clientId, router])
@@ -112,6 +135,50 @@ export default function ClientDetailPage() {
   function openEditOrder(order: FullOrder) {
     setEditingOrder(order)
     setOrderModalOpen(true)
+  }
+
+  function openApptModal() {
+    setApptForm({ title: "", scheduled_at: "", location: "", reminder_hours_before: "24", notes: "" })
+    setApptModalOpen(true)
+  }
+
+  async function handleSaveStandaloneAppointment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apptForm.title.trim() || !apptForm.scheduled_at) {
+      toast.error("Judul dan waktu wajib diisi.")
+      return
+    }
+    setApptSaving(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setApptSaving(false); return }
+
+    const { error } = await supabase.from("appointments").insert({
+      user_id: user.id,
+      client_id: clientId,
+      order_id: null,
+      title: apptForm.title.trim(),
+      scheduled_at: new Date(apptForm.scheduled_at).toISOString(),
+      location: apptForm.location.trim() || null,
+      reminder_hours_before: Number(apptForm.reminder_hours_before),
+      notes: apptForm.notes.trim() || null,
+    })
+
+    if (error) {
+      toast.error("Gagal menyimpan janji temu.")
+    } else {
+      toast.success("Janji temu berhasil disimpan.")
+      setApptModalOpen(false)
+      loadData()
+    }
+    setApptSaving(false)
+  }
+
+  async function handleDeleteStandaloneAppointment(apptId: string) {
+    const supabase = createClient()
+    await supabase.from("appointments").delete().eq("id", apptId)
+    toast.success("Janji temu dihapus.")
+    loadData()
   }
 
   async function handleSaveOrder(data: {
@@ -288,31 +355,83 @@ export default function ClientDetailPage() {
         {/* Tab 2: Orders */}
         <TabsContent value="orders" className="space-y-4">
           <div className="flex justify-end">
-            <Button size="sm" className="gap-1.5" onClick={openNewOrder}>
-              <Plus className="w-4 h-4" />
-              Buat Pesanan
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger className={cn(buttonVariants({ size: "sm" }), "gap-1.5")}>
+                <Plus className="w-4 h-4" />
+                  Actions
+                <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={openNewOrder} className="gap-2 cursor-pointer">
+                  <ShoppingBag className="w-4 h-4" />
+                  Buat Pesanan
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={openApptModal} className="gap-2 cursor-pointer">
+                  <CalendarClock className="w-4 h-4" />
+                  Buat Janji Temu
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          {orders.length === 0 ? (
+          {/* Standalone appointments */}
+          {standaloneAppointments.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Janji Temu</p>
+              {standaloneAppointments.map(appt => (
+                <div key={appt.id} className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <CalendarClock className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{appt.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {format(parseISO(appt.scheduled_at), "d MMM yyyy, HH:mm")}
+                    </p>
+                    {appt.location && (
+                      <p className="text-xs text-muted-foreground">📍 {appt.location}</p>
+                    )}
+                    {appt.notes && (
+                      <p className="text-xs text-muted-foreground mt-1 italic">{appt.notes}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => handleDeleteStandaloneAppointment(appt.id)}
+                  >
+                    Hapus
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {orders.length === 0 && standaloneAppointments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-border">
               <MessageSquare className="w-10 h-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">Belum ada pesanan</p>
+              <p className="text-sm font-medium text-muted-foreground">Belum ada pesanan atau janji temu</p>
             </div>
-          ) : (
-            orders.map(order => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                expanded={expandedOrder === order.id}
-                onToggle={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                onEdit={() => openEditOrder(order)}
-                onMarkPaid={handleMarkPaid}
-                onSendNow={handleSendNow}
-                onCancelMsg={handleCancelMsg}
-              />
-            ))
-          )}
+          ) : orders.length > 0 ? (
+            <div className="space-y-3">
+              {standaloneAppointments.length > 0 && (
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pesanan</p>
+              )}
+              {orders.map(order => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  expanded={expandedOrder === order.id}
+                  onToggle={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+                  onEdit={() => openEditOrder(order)}
+                  onMarkPaid={handleMarkPaid}
+                  onSendNow={handleSendNow}
+                  onCancelMsg={handleCancelMsg}
+                />
+              ))}
+            </div>
+          ) : null}
         </TabsContent>
 
         {/* Tab 3: Message History */}
@@ -389,6 +508,83 @@ export default function ClientDetailPage() {
         editingOrder={editingOrder}
         onSave={handleSaveOrder}
       />
+
+      {/* Standalone Appointment Modal */}
+      <Dialog open={apptModalOpen} onOpenChange={setApptModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display">Buat Janji Temu</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveStandaloneAppointment} className="space-y-4 pt-1">
+            <div className="space-y-1.5">
+              <Label>Judul *</Label>
+              <Input
+                value={apptForm.title}
+                onChange={e => setApptForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Cth: Kunjungan fitting awal"
+                required
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Waktu *</Label>
+              <Input
+                type="datetime-local"
+                value={apptForm.scheduled_at}
+                onChange={e => setApptForm(f => ({ ...f, scheduled_at: e.target.value }))}
+                required
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Lokasi <span className="text-muted-foreground font-normal">(opsional)</span></Label>
+              <Input
+                value={apptForm.location}
+                onChange={e => setApptForm(f => ({ ...f, location: e.target.value }))}
+                placeholder="Cth: Toko / Rumah klien"
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Pengingat</Label>
+              <Select
+                value={apptForm.reminder_hours_before}
+                onValueChange={v => setApptForm(f => ({ ...f, reminder_hours_before: v ?? f.reminder_hours_before }))}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 jam sebelum</SelectItem>
+                  <SelectItem value="2">2 jam sebelum</SelectItem>
+                  <SelectItem value="6">6 jam sebelum</SelectItem>
+                  <SelectItem value="12">12 jam sebelum</SelectItem>
+                  <SelectItem value="24">1 hari sebelum</SelectItem>
+                  <SelectItem value="48">2 hari sebelum</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Catatan <span className="text-muted-foreground font-normal">(opsional)</span></Label>
+              <Textarea
+                value={apptForm.notes}
+                onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))}
+                rows={2}
+                className="resize-none text-sm"
+                placeholder="Cth: Bawa referensi kain dari Instagram"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="outline" size="sm" onClick={() => setApptModalOpen(false)}>
+                Batal
+              </Button>
+              <Button type="submit" size="sm" disabled={apptSaving}>
+                {apptSaving ? "Menyimpan..." : "Simpan Janji Temu"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
