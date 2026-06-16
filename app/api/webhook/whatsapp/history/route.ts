@@ -61,15 +61,19 @@ async function processHistoryBatch(payload: any) {
   // Fetch existing clients for these senders
   const { data: clients } = await supabase
     .from('clients')
-    .select('id, whatsapp_number')
+    .select('id, whatsapp_number, name')
     .eq('user_id', userId)
     .in('whatsapp_number', uniqueSenders)
 
   const clientMap = new Map<string, string>()
+  const clientNameMap = new Map<string, string>()
   if (clients) {
     for (const c of clients) {
       if (c.whatsapp_number) {
         clientMap.set(c.whatsapp_number, c.id)
+        if (c.name) {
+          clientNameMap.set(c.whatsapp_number, c.name)
+        }
       }
     }
   }
@@ -81,6 +85,7 @@ async function processHistoryBatch(payload: any) {
     if (!message || !sender) continue
 
     const normalizedSender = normalizeWANumber(sender)
+    console.log(`[webhook/history] item: sender=${sender} normalized=${normalizedSender ?? 'SKIPPED'} name=${item.name || 'NONE'}`)
     if (!normalizedSender) continue
 
     // Security scan for injection
@@ -100,7 +105,7 @@ async function processHistoryBatch(payload: any) {
       client_id: clientMap.get(normalizedSender) ?? null,
       direction: item.fromMe ? 'keluar' : 'masuk',
       whatsapp_number: normalizedSender,
-      sender_name: item.name || null,
+      sender_name: clientNameMap.get(normalizedSender) || item.name || null,
       message_body: message,
       wa_message_id: item.messageId || null,
       classification,
@@ -116,7 +121,7 @@ async function processHistoryBatch(payload: any) {
     return
   }
 
-  // Idempotent upsert based on (user_id, wa_message_id) unique constraint
+  // Insert new rows (ignore duplicates to preserve existing classification/status/drafts)
   const { error } = await supabase
     .from('inbox_messages')
     .upsert(rows, {
@@ -129,5 +134,20 @@ async function processHistoryBatch(payload: any) {
     return
   }
 
-  console.log(`[webhook/history] bulk upsert success: inserted ${rows.length}/${items.length} backfilled messages for user ${userId.slice(0, 8)}...`)
+  // Patch sender_name on existing rows where it's null or still a raw JID string.
+  // Runs after upsert so we don't touch classification/status/drafts.
+  const rowsWithName = rows.filter(r => r.sender_name && r.wa_message_id)
+  if (rowsWithName.length > 0) {
+    for (const row of rowsWithName) {
+      await supabase
+        .from('inbox_messages')
+        .update({ sender_name: row.sender_name })
+        .eq('user_id', userId)
+        .eq('wa_message_id', row.wa_message_id as string)
+        .or('sender_name.is.null,sender_name.like.%@s.whatsapp.net,sender_name.like.%@lid')
+    }
+    console.log(`[webhook/history] sender_name patch attempted for ${rowsWithName.length} rows`)
+  }
+
+  console.log(`[webhook/history] done: ${rows.length}/${items.length} rows processed for user ${userId.slice(0, 8)}...`)
 }

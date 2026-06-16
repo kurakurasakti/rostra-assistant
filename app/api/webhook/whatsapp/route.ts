@@ -43,7 +43,7 @@ async function processIncomingMessage(payload: any) {
   const mediaUrl = payload.media_url ? String(payload.media_url) : null;
   const mediaType = payload.media_type ? String(payload.media_type) : null;
   const mediaSize = payload.media_size ? Number(payload.media_size) : null;
-  const isMedia = !!mediaUrl;
+  const isMedia = !!mediaUrl || !!mediaType;
 
   console.log("[webhook] processing:", {
     userId: userId.slice(0, 8) + "...",
@@ -101,7 +101,7 @@ async function processIncomingMessage(payload: any) {
       client_id: client?.id ?? null,
       direction: "masuk",
       whatsapp_number: normalizedSender,
-      sender_name: name || null,
+      sender_name: client?.name || name || null,
       message_body: message,
       wa_message_id: messageId || null,
       classification: "injection_attempt",
@@ -134,8 +134,8 @@ async function processIncomingMessage(payload: any) {
       client_id: client?.id ?? null,
       direction: "masuk",
       whatsapp_number: normalizedSender,
-      sender_name: name || null,
-      message_body: message || (mediaType === "image" ? "[Foto]" : "[Dokumen]"),
+      sender_name: client?.name || name || null,
+      message_body: message || (mediaType === "image" ? "[Foto]" : mediaType === "audio" ? "[Audio]" : "[Dokumen]"),
       wa_message_id: messageId || null,
       classification: "tidak_diketahui",
       status: isMedia ? "dieskalasi" : "baru",
@@ -163,11 +163,14 @@ async function processIncomingMessage(payload: any) {
 
   if (isMedia) {
     // Media always escalated to owner — no AI involvement
+    const mediaLabel = mediaType === "image" ? "[Foto]" : mediaType === "audio" ? "[Audio]" : "[Dokumen]";
+    const preview = message ? `${mediaLabel} ${message}` : mediaLabel;
+
     sendEscalationNotification(
       userId,
       name || normalizedSender,
-      message || "[Media]",
-      "sensitif",
+      preview,
+      "media",
     ).catch(() => {});
     return;
   }

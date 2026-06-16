@@ -1,7 +1,7 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { sendTextMessage } from '@/lib/whatsapp'
 
-type EscalationType = 'sensitif' | 'injection'
+type EscalationType = 'sensitif' | 'injection' | 'media'
 type NotifType = 'eskalasi' | 'injection'
 
 async function insertNotification(
@@ -32,7 +32,9 @@ export async function sendEscalationNotification(
   const notifType: NotifType = type === 'injection' ? 'injection' : 'eskalasi'
   const notifTitle = type === 'injection'
     ? 'Percobaan manipulasi AI terdeteksi'
-    : 'Pesan sensitif perlu perhatian'
+    : type === 'media'
+      ? 'Klien mengirim media (foto/dokumen)'
+      : 'Pesan sensitif perlu perhatian'
   const notifBody = `Dari ${contactName}: "${preview}"`
 
   // In-app notification (always fires)
@@ -40,7 +42,7 @@ export async function sendEscalationNotification(
 
   // WA alert (fires only if configured)
   try {
-    const supabase = await createClient()
+    const supabase = await createServiceClient()
     const { data: profile } = await supabase
       .from('profiles')
       .select('notification_wa_number, wa_connected')
@@ -51,7 +53,9 @@ export async function sendEscalationNotification(
 
     const label = type === 'injection'
       ? '⚠️ *Percobaan Manipulasi AI* terdeteksi'
-      : '🔔 *Pesan sensitif* perlu perhatian kamu'
+      : type === 'media'
+        ? '📷 *Klien mengirim media* (AI tidak bisa membaca)'
+        : '🔔 *Pesan sensitif* perlu perhatian kamu'
 
     const message = [
       label,

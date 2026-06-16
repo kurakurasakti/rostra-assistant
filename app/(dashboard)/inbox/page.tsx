@@ -23,6 +23,8 @@ import {
   FileText,
   X,
   User,
+  Pencil,
+  UserPlus,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -47,7 +49,8 @@ function formatTime(dateStr: string) {
 
 function formatPhoneNumber(num: string): string {
   let cleaned = num.trim()
-  if (cleaned.endsWith('@lid')) {
+  const isLid = cleaned.endsWith('@lid')
+  if (isLid) {
     cleaned = cleaned.slice(0, -4)
   }
   if (cleaned.endsWith('@s.whatsapp.net')) {
@@ -56,6 +59,8 @@ function formatPhoneNumber(num: string): string {
   if (cleaned.startsWith('62')) {
     return `+62 ${cleaned.slice(2, 5)}-${cleaned.slice(5, 9)}-${cleaned.slice(9)}`
   }
+  // LID or non-Indonesian number — no real phone available
+  if (isLid) return cleaned
   return cleaned
 }
 
@@ -104,6 +109,7 @@ function ClassificationBadge({ value }: { value: string }) {
 function StatusDot({ status }: { status: string }) {
   const colors: Record<string, string> = {
     baru: 'bg-orange-500',
+    antri: 'bg-amber-400',
     dibalas: 'bg-green-500',
     diabaikan: 'bg-gray-400',
     dieskalasi: 'bg-red-500',
@@ -116,15 +122,28 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
-function buildConversations(messages: InboxMessage[]): Conversation[] {
+function buildConversations(
+  messages: InboxMessage[],
+  clients: { whatsapp_number: string; name: string }[]
+): Conversation[] {
   const map: Record<string, Conversation> = {}
+
+  const clientMap = new Map<string, string>()
+  for (const c of clients) {
+    if (c.whatsapp_number) {
+      clientMap.set(c.whatsapp_number, c.name)
+    }
+  }
 
   for (const msg of messages) {
     const key = msg.whatsapp_number
+    const savedName = clientMap.get(key)
+    const displayName = savedName || formatContactName(msg.sender_name, key)
+
     if (!map[key]) {
       map[key] = {
         whatsapp_number: key,
-        contact_name: formatContactName(msg.sender_name, key),
+        contact_name: displayName,
         last_message: msg,
         unread_count: 0,
         messages: [],
@@ -137,8 +156,8 @@ function buildConversations(messages: InboxMessage[]): Conversation[] {
     if (msg.direction === 'masuk' && msg.status === 'baru') {
       map[key].unread_count++
     }
-    if (msg.direction === 'masuk' && msg.sender_name && map[key].contact_name === formatPhoneNumber(key)) {
-      map[key].contact_name = formatContactName(msg.sender_name, key)
+    if (displayName !== formatPhoneNumber(key) && map[key].contact_name === formatPhoneNumber(key)) {
+      map[key].contact_name = displayName
     }
   }
 
@@ -155,6 +174,13 @@ export default function InboxPage() {
   // Sidebar state — drives conversation list
   const [messages, setMessages] = useState<InboxMessage[]>([])
   const [loadingMessages, setLoadingMessages] = useState(true)
+  const [clients, setClients] = useState<{ whatsapp_number: string; name: string }[]>([])
+
+  // Rename contact state
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [addingClient, setAddingClient] = useState(false)
 
   // Thread pagination state
   const [threadMessages, setThreadMessages] = useState<InboxMessage[]>([])
@@ -181,6 +207,8 @@ export default function InboxPage() {
   const [queuedEntry, setQueuedEntry] = useState<{ queue_id: string; message_id: string; send_at: string } | null>(null)
   const [queueCountdown, setQueueCountdown] = useState<number>(0)
   const queueTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // True when user has manually typed in the textarea — bypass queue on send
+  const isDraftUserModifiedRef = useRef(false)
 
   // Refs
   const threadEndRef = useRef<HTMLDivElement>(null)
@@ -194,6 +222,11 @@ export default function InboxPage() {
 
   useEffect(() => {
     selectedNumberRef.current = selectedNumber
+  }, [selectedNumber])
+
+  useEffect(() => {
+    setIsEditingName(false)
+    setNewName('')
   }, [selectedNumber])
 
   // Runs synchronously after DOM mutations — handles both scroll-restore (load more)
@@ -215,7 +248,54 @@ export default function InboxPage() {
     }
   }, [threadMessages, loadingThread])
 
+  const activateQueueCountdown = useCallback(async (messageId: string, draftReply: string) => {
+    console.log('[inbox] activateQueueCountdown called, messageId:', messageId, '| draft:', draftReply.slice(0, 40))
+    const { data: queueEntry, error: queueFetchErr } = await supabase
+      .from('send_queue')
+      .select('id, send_at')
+      .eq('message_id', messageId)
+      .eq('cancelled', false)
+      .eq('sent', false)
+      .maybeSingle()
+
+    console.log('[inbox] send_queue fetch →', queueEntry ? `id=${queueEntry.id} send_at=${queueEntry.send_at}` : 'NOT FOUND', queueFetchErr ? `err=${JSON.stringify(queueFetchErr)}` : '')
+    if (!queueEntry) return
+
+    setDraft(draftReply)
+    isDraftUserModifiedRef.current = false
+    setQueuedEntry({ queue_id: queueEntry.id, message_id: messageId, send_at: queueEntry.send_at })
+
+    const secondsLeft = Math.max(0, Math.round((new Date(queueEntry.send_at).getTime() - Date.now()) / 1000))
+    setQueueCountdown(secondsLeft)
+
+    if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+    queueTimerRef.current = setInterval(() => {
+      setQueueCountdown(prev => {
+        if (prev <= 1) {
+          if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+          setQueuedEntry(null)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadMessages = useCallback(async () => {
+    // 1. Trigger contacts sync from wa-service store to database (run in background)
+    fetch('/api/whatsapp/sync-contacts', { method: 'POST' }).catch((err) => {
+      console.error('[inbox/loadMessages] sync-contacts failed:', err)
+    })
+
+    // 2. Fetch clients
+    const { data: clientsData } = await supabase
+      .from('clients')
+      .select('whatsapp_number, name')
+    console.log(`[inbox/loadMessages] fetched ${clientsData?.length ?? 0} clients:`, clientsData)
+    if (clientsData) {
+      setClients(clientsData)
+    }
+
     const { data, error } = await supabase
       .from('inbox_messages')
       .select('*')
@@ -245,9 +325,16 @@ export default function InboxPage() {
       setThreadMessages(msgs)
       if (msgs.length > 0) setThreadCursor(msgs[0].received_at)
       setHasMoreMessages(data.length === PAGE_SIZE)
+
+      // Restore countdown if an antri message exists in thread
+      const queuedMsg = [...msgs].reverse().find(
+        (m: InboxMessage) => m.direction === 'masuk' && m.status === 'antri' && m.ai_draft_reply,
+      )
+      console.log('[inbox/loadThread] antri msg in thread:', queuedMsg ? queuedMsg.id : 'none')
+      if (queuedMsg) activateQueueCountdown(queuedMsg.id, queuedMsg.ai_draft_reply!)
     }
     setLoadingThread(false)
-  }, [])
+  }, [activateQueueCountdown])
 
   const loadMoreMessages = useCallback(async () => {
     if (!selectedNumberRef.current || !threadCursor || loadingMore || !hasMoreMessages) return
@@ -274,7 +361,10 @@ export default function InboxPage() {
       const olderMsgs = [...data].reverse()
       setHasMoreMessages(data.length === PAGE_SIZE)
       setThreadCursor(olderMsgs[0].received_at)
-      setThreadMessages(prev => [...olderMsgs, ...prev])
+      setThreadMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id))
+        return [...olderMsgs.filter(m => !existingIds.has(m.id)), ...prev]
+      })
     } else {
       setHasMoreMessages(false)
       scrollRestoreRef.current = null
@@ -334,7 +424,10 @@ export default function InboxPage() {
         const olderMsgs = [...data].reverse()
         setThreadCursor(olderMsgs[0].received_at)
         setHasMoreMessages(data.length === PAGE_SIZE)
-        setThreadMessages(prev => [...olderMsgs, ...prev])
+        setThreadMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id))
+          return [...olderMsgs.filter(m => !existingIds.has(m.id)), ...prev]
+        })
       } else {
         scrollRestoreRef.current = null
         setHistoryExhausted(true)
@@ -373,72 +466,282 @@ export default function InboxPage() {
   useEffect(() => {
     if (!userId) return
 
-    const channel = supabase
-      .channel(`inbox-realtime-${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'inbox_messages',
-          filter: `user_id=eq.${userId}`,
-        },
-        payload => {
-          const newMsg = payload.new as InboxMessage
-          setMessages(prev => [...prev, newMsg])
-          if (selectedNumberRef.current === newMsg.whatsapp_number) {
-            pendingScrollBottomRef.current = true
-            setThreadMessages(prev => [...prev, newMsg])
+    let channel: any = null
+    let clientsChannel: any = null
+
+    // Get current session to authenticate realtime connection before subscribing
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        supabase.realtime.setAuth(session.access_token)
+      }
+
+      channel = supabase
+        .channel(`inbox-realtime-${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'inbox_messages',
+            filter: `user_id=eq.${userId}`,
+          },
+          payload => {
+            const newMsg = payload.new as InboxMessage
+            setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg])
+            if (selectedNumberRef.current === newMsg.whatsapp_number) {
+              pendingScrollBottomRef.current = true
+              setThreadMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg])
+            }
+            setNewMessageIds(prev => new Set([...prev, newMsg.id]))
+            setTimeout(() => {
+              setNewMessageIds(prev => {
+                const next = new Set(prev)
+                next.delete(newMsg.id)
+                return next
+              })
+            }, 400)
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'inbox_messages',
+            filter: `user_id=eq.${userId}`,
+          },
+          payload => {
+            const updated = payload.new as InboxMessage
+            setMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)))
+            setThreadMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)))
+
+            // Level 2: message queued for auto-send — populate draft + start countdown
+            console.log('[inbox/realtime UPDATE] id:', updated.id, '| status:', updated.status, '| direction:', updated.direction, '| selectedNumber:', selectedNumberRef.current, '| waNumber:', updated.whatsapp_number, '| has_draft:', !!updated.ai_draft_reply)
+            if (
+              updated.status === 'antri' &&
+              updated.ai_draft_reply &&
+              updated.direction === 'masuk' &&
+              selectedNumberRef.current === updated.whatsapp_number
+            ) {
+              console.log('[inbox/realtime UPDATE] antri match → calling activateQueueCountdown')
+              activateQueueCountdown(updated.id, updated.ai_draft_reply)
+            }
+          },
+        )
+        .subscribe()
+
+      clientsChannel = supabase
+        .channel(`clients-realtime-${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'clients',
+            filter: `user_id=eq.${userId}`,
+          },
+          () => {
+            supabase
+              .from('clients')
+              .select('whatsapp_number, name')
+              .then(({ data }) => {
+                if (data) setClients(data)
+              })
           }
-          setNewMessageIds(prev => new Set([...prev, newMsg.id]))
-          setTimeout(() => {
-            setNewMessageIds(prev => {
-              const next = new Set(prev)
-              next.delete(newMsg.id)
-              return next
-            })
-          }, 400)
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'inbox_messages',
-          filter: `user_id=eq.${userId}`,
-        },
-        payload => {
-          setMessages(prev =>
-            prev.map(m => (m.id === payload.new.id ? (payload.new as InboxMessage) : m)),
-          )
-          setThreadMessages(prev =>
-            prev.map(m => (m.id === payload.new.id ? (payload.new as InboxMessage) : m)),
-          )
-        },
-      )
-      .subscribe()
+        )
+        .subscribe()
+    })
 
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (event === 'TOKEN_REFRESHED' && session) {
+        if (session) {
           supabase.realtime.setAuth(session.access_token)
         }
       },
     )
 
     return () => {
-      supabase.removeChannel(channel)
+      if (channel) supabase.removeChannel(channel)
+      if (clientsChannel) supabase.removeChannel(clientsChannel)
       authSub.unsubscribe()
     }
   }, [userId])
 
-  const conversations = buildConversations(messages)
+  const conversations = buildConversations(messages, clients)
   const selectedConversation = selectedNumber
     ? conversations.find(c => c.whatsapp_number === selectedNumber)
     : null
   const thread = threadMessages
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread_count, 0)
+
+  const handleRename = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedConversation || !newName.trim()) return
+    setSavingName(true)
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Find if client exists
+      const { data: existingClient } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('whatsapp_number', selectedConversation.whatsapp_number)
+        .maybeSingle()
+
+      let clientId = existingClient?.id
+
+      if (clientId) {
+        // Update existing client name
+        await supabase
+          .from('clients')
+          .update({ name: newName.trim() })
+          .eq('id', clientId)
+      } else {
+        // Insert new client
+        const { data: newClient } = await supabase
+          .from('clients')
+          .insert({
+            user_id: user.id,
+            whatsapp_number: selectedConversation.whatsapp_number,
+            name: newName.trim()
+          })
+          .select('id')
+          .single()
+        clientId = newClient?.id
+      }
+
+      // Update sender_name and client_id in inbox_messages
+      await supabase
+        .from('inbox_messages')
+        .update({
+          sender_name: newName.trim(),
+          client_id: clientId
+        })
+        .eq('user_id', user.id)
+        .eq('whatsapp_number', selectedConversation.whatsapp_number)
+
+      // Update local clients state
+      setClients(prev => {
+        const idx = prev.findIndex(c => c.whatsapp_number === selectedConversation.whatsapp_number)
+        if (idx !== -1) {
+          const updated = [...prev]
+          updated[idx] = { ...updated[idx], name: newName.trim() }
+          return updated
+        } else {
+          return [...prev, { whatsapp_number: selectedConversation.whatsapp_number, name: newName.trim() }]
+        }
+      })
+
+      // Update local messages state
+      setMessages(prev =>
+        prev.map(m =>
+          m.whatsapp_number === selectedConversation.whatsapp_number
+            ? { ...m, sender_name: newName.trim(), client_id: clientId }
+            : m
+        )
+      )
+
+      // Update local threadMessages state
+      setThreadMessages(prev =>
+        prev.map(m =>
+          m.whatsapp_number === selectedConversation.whatsapp_number
+            ? { ...m, sender_name: newName.trim(), client_id: clientId }
+            : m
+        )
+      )
+
+      toast.success('Nama kontak berhasil diperbarui')
+      setIsEditingName(false)
+    } catch (err) {
+      console.error('[inbox/handleRename] error:', err)
+      toast.error('Gagal memperbarui nama kontak')
+    } finally {
+      setSavingName(false)
+    }
+  }
+
+  const handleMarkAsClient = async () => {
+    if (!selectedConversation || addingClient) return
+    setAddingClient(true)
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setAddingClient(false)
+        return
+      }
+
+      const waNumber = selectedConversation.whatsapp_number
+      const name = selectedConversation.contact_name
+
+      // Double check duplicate in DB
+      const { data: existingClient } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('whatsapp_number', waNumber)
+        .maybeSingle()
+
+      let clientId = existingClient?.id
+
+      if (!clientId) {
+        // Insert new client
+        const { data: newClient, error: insertError } = await supabase
+          .from('clients')
+          .insert({
+            user_id: user.id,
+            whatsapp_number: waNumber,
+            name: name,
+          })
+          .select('id')
+          .single()
+
+        if (insertError) throw insertError
+        clientId = newClient?.id
+      }
+
+      // Update inbox_messages
+      await supabase
+        .from('inbox_messages')
+        .update({
+          client_id: clientId
+        })
+        .eq('user_id', user.id)
+        .eq('whatsapp_number', waNumber)
+
+      // Update local clients list
+      setClients(prev => {
+        if (prev.some(c => c.whatsapp_number === waNumber)) return prev
+        return [...prev, { whatsapp_number: waNumber, name }]
+      })
+
+      // Update local messages and thread messages
+      setMessages(prev =>
+        prev.map(m =>
+          m.whatsapp_number === waNumber
+            ? { ...m, client_id: clientId }
+            : m
+        )
+      )
+      setThreadMessages(prev =>
+        prev.map(m =>
+          m.whatsapp_number === waNumber
+            ? { ...m, client_id: clientId }
+            : m
+        )
+      )
+
+      toast.success(`Kontak "${name}" berhasil ditambahkan sebagai klien`)
+    } catch (err) {
+      console.error('[inbox/handleMarkAsClient] error:', err)
+      toast.error('Gagal menambahkan sebagai klien')
+    } finally {
+      setAddingClient(false)
+    }
+  }
 
   function selectConversation(waNumber: string) {
     setSelectedNumber(waNumber)
@@ -446,6 +749,10 @@ export default function InboxPage() {
     setHint('')
     setOriginalAiDraft(null)
     setMobileView('thread')
+    if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+    setQueuedEntry(null)
+    setQueueCountdown(0)
+    isDraftUserModifiedRef.current = false
     loadThread(waNumber)
   }
 
@@ -465,6 +772,7 @@ export default function InboxPage() {
           message: lastIncoming.message_body,
           history: thread.map(m => ({ direction: m.direction, message_body: m.message_body })),
           hint: withHint ?? undefined,
+          message_id: lastIncoming.id,
         }),
       })
       const data = await res.json()
@@ -477,6 +785,7 @@ export default function InboxPage() {
       }
       const newDraft = data.draft ?? ''
       setDraft(newDraft)
+      isDraftUserModifiedRef.current = false
       if (!withHint) setOriginalAiDraft(newDraft)
       setHint('')
     } catch (err) {
@@ -498,7 +807,7 @@ export default function InboxPage() {
           whatsapp_number: selectedNumber,
           message: draft.trim(),
           reply_to_id: lastIncoming?.id,
-          force_send: forceSend || undefined,
+          force_send: forceSend || isDraftUserModifiedRef.current || undefined,
         }),
       })
       if (!res.ok) {
@@ -534,6 +843,7 @@ export default function InboxPage() {
       setDraft('')
       setOriginalAiDraft(null)
       setHint('')
+      isDraftUserModifiedRef.current = false
       if (queueTimerRef.current) clearInterval(queueTimerRef.current)
       setQueuedEntry(null)
       if (wasCorrected) {
@@ -550,15 +860,17 @@ export default function InboxPage() {
 
   async function handleCancelQueue() {
     if (!queuedEntry) return
+    const entry = queuedEntry
+    // Clear UI immediately so rapid calls (e.g. keystrokes) don't fire twice
+    if (queueTimerRef.current) clearInterval(queueTimerRef.current)
+    setQueuedEntry(null)
+    setQueueCountdown(0)
     try {
       await fetch('/api/queue/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queue_id: queuedEntry.queue_id, message_id: queuedEntry.message_id }),
+        body: JSON.stringify({ queue_id: entry.queue_id, message_id: entry.message_id }),
       })
-      if (queueTimerRef.current) clearInterval(queueTimerRef.current)
-      setQueuedEntry(null)
-      setQueueCountdown(0)
       toast.success('Pengiriman otomatis dibatalkan')
     } catch {
       toast.error('Gagal membatalkan')
@@ -746,13 +1058,68 @@ export default function InboxPage() {
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate">{selectedConversation.contact_name}</p>
-              {selectedConversation.contact_name !== formatPhoneNumber(selectedConversation.whatsapp_number) && (
+              {isEditingName ? (
+                <form onSubmit={handleRename} className="flex items-center gap-2 max-w-sm">
+                  <Input
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    className="h-8 text-xs py-0.5 px-2"
+                    placeholder="Nama kontak"
+                    disabled={savingName}
+                    autoFocus
+                  />
+                  <Button type="submit" size="sm" className="h-8 px-2.5 text-xs" disabled={savingName}>
+                    {savingName ? '...' : 'Simpan'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => setIsEditingName(false)}
+                    disabled={savingName}
+                  >
+                    Batal
+                  </Button>
+                </form>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <p className="font-semibold text-sm truncate">{selectedConversation.contact_name}</p>
+                  <button
+                    onClick={() => {
+                      setIsEditingName(true)
+                      setNewName(selectedConversation.contact_name)
+                    }}
+                    className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
+                    title="Ubah Nama Kontak"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              {!isEditingName && selectedConversation.contact_name !== formatPhoneNumber(selectedConversation.whatsapp_number) && (
                 <p className="text-xs text-muted-foreground truncate">{formatPhoneNumber(selectedConversation.whatsapp_number)}</p>
               )}
             </div>
+            {!clients.some(c => c.whatsapp_number === selectedConversation.whatsapp_number) && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 text-xs gap-1.5 shrink-0 font-medium text-muted-foreground hover:text-foreground border-border bg-background"
+                onClick={handleMarkAsClient}
+                disabled={addingClient}
+              >
+                {addingClient ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <UserPlus className="w-3.5 h-3.5" />
+                )}
+                Tambah Sebagai Klien
+              </Button>
+            )}
             <ClassificationBadge value={selectedConversation.last_message.classification} />
-          </div>
+          </div>  
 
           {/* Messages */}
           <div ref={threadScrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
@@ -801,7 +1168,7 @@ export default function InboxPage() {
             )}
 
             {/* Message bubbles */}
-            {thread.map(msg => (
+            {[...new Map(thread.map(m => [m.id, m])).values()].map(msg => (
               <div
                 key={msg.id}
                 className={cn(
@@ -850,6 +1217,11 @@ export default function InboxPage() {
                     </a>
                   )}
 
+                  {/* Image placeholder when URL unavailable */}
+                  {msg.media_type === 'image' && !msg.media_url && (
+                    <p className="text-[12px] italic text-muted-foreground mb-1">📷 Foto (tidak dapat dimuat)</p>
+                  )}
+
                   {/* Audio indicator */}
                   {msg.media_type === 'audio' && (
                     <p className="text-[12px] italic mb-1">🎵 Pesan suara</p>
@@ -890,7 +1262,11 @@ export default function InboxPage() {
               </div>
               <Textarea
                 value={draft}
-                onChange={e => setDraft(e.target.value)}
+                onChange={e => {
+                  setDraft(e.target.value)
+                  isDraftUserModifiedRef.current = true
+                  if (queuedEntry) handleCancelQueue()
+                }}
                 placeholder="Ketik balasan atau muat draft AI..."
                 className="resize-none text-[13px] min-h-[72px] bg-background disabled:opacity-60 disabled:cursor-wait"
                 rows={3}
