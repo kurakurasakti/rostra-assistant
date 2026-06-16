@@ -13,11 +13,13 @@ export default function AIRulesSection({
   initialKeywords,
   initialLevel,
   feedbackCount,
+  hasAnalyzedVoice = false,
   onSave,
 }: {
   initialKeywords: string[]
   initialLevel: number
   feedbackCount: number
+  hasAnalyzedVoice?: boolean
   onSave: (keywords: string[]) => void
 }) {
   const [escalationKeywords, setEscalationKeywords] = useState<string[]>(initialKeywords)
@@ -134,7 +136,9 @@ export default function AIRulesSection({
             { level: 3, label: "Full Auto", desc: "AI balas otomatis semua pesan rutin. Hanya pesan sensitif yang masuk inbox untuk review.", threshold: LEVEL3_THRESHOLD },
           ].map((item) => {
             const isActive = currentLevel === item.level
-            const unlocked = feedbackCount >= item.threshold
+            const unlocked = item.level === 2
+              ? (feedbackCount >= item.threshold || hasAnalyzedVoice)
+              : (feedbackCount >= item.threshold)
             const locked = !unlocked
             const canActivate = unlocked && !isActive
             const progress = item.threshold > 0 ? Math.min((feedbackCount / item.threshold) * 100, 100) : 100
@@ -144,7 +148,11 @@ export default function AIRulesSection({
                   <p className="text-xs font-medium">
                     ● Level {item.level} — {item.label}
                     {isActive && <span className="text-emerald-600 ml-2">✓ AKTIF SEKARANG</span>}
-                    {locked && <span className="text-amber-600 ml-2">🔒 Butuh {item.threshold} koreksi</span>}
+                    {locked && (
+                      <span className="text-amber-600 ml-2">
+                        🔒 Butuh {item.threshold} koreksi
+                      </span>
+                    )}
                   </p>
                   {canActivate && (
                     <Button
@@ -159,13 +167,16 @@ export default function AIRulesSection({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">{item.desc}</p>
-                {item.threshold > 0 && (
+                {item.threshold > 0 && !unlocked && (
                   <>
                     <div className="w-full bg-muted rounded-full h-1.5">
                       <div className="bg-accent h-1.5 rounded-full" style={{ width: `${progress}%` }} />
                     </div>
                     <p className="text-xs text-muted-foreground">Kamu sudah melakukan {feedbackCount}/{item.threshold} koreksi.</p>
                   </>
+                )}
+                {item.level === 2 && hasAnalyzedVoice && (
+                  <p className="text-xs text-emerald-600 font-medium">✨ Terbuka otomatis karena kamu sudah menganalisa chat WhatsApp!</p>
                 )}
               </div>
             )

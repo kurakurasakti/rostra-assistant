@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     client_id?: string
     history?: Array<{ direction: string; message_body: string }>
     hint?: string
+    message_id?: string
   }
   if (!body.message) return NextResponse.json({ error: 'message required' }, { status: 400 })
 
@@ -46,6 +47,15 @@ export async function POST(request: Request) {
   const validation = validateAIOutput(draft)
   if (!validation.safe) {
     return NextResponse.json({ draft: null, flagged: true, reason: validation.reason })
+  }
+
+  // Save draft to database if message_id is provided
+  if (body.message_id && draft) {
+    await supabase
+      .from('inbox_messages')
+      .update({ ai_draft_reply: draft })
+      .eq('id', body.message_id)
+      .eq('user_id', user.id)
   }
 
   return NextResponse.json({ draft, usage })

@@ -26,12 +26,11 @@ function getProviders(analysis = false): AIProvider[] {
     providers.push({
       base: (process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com') + '/v1',
       apiKey: process.env.DEEPSEEK_API_KEY,
-      // Real-time tasks use deepseek-chat (non-thinking alias of v4-flash).
-      // deepseek-v4-flash fills ALL max_tokens with reasoning_content → content empty.
-      // deepseek-chat forces non-thinking mode. Valid until 2026-07-24.
+      // Real-time tasks use deepseek-v4-flash (with thinking disabled explicitly).
+      // Analysis tasks use deepseek-v4-pro for higher reasoning quality and style extraction.
       model: analysis
-        ? (process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash')
-        : (process.env.DEEPSEEK_CHAT_MODEL ?? 'deepseek-chat'),
+        ? (process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-pro')
+        : (process.env.DEEPSEEK_CHAT_MODEL ?? 'deepseek-v4-flash'),
     })
   }
 
@@ -76,6 +75,8 @@ async function callWithFallback(
             { role: 'user', content: user },
           ],
           max_tokens: maxTokens,
+          // Explicitly disable thinking for DeepSeek API to prevent empty content/reasoning overflow
+          ...(provider.base.includes('deepseek.com') ? { thinking: { type: 'disabled' } } : {}),
         }),
       })
 
@@ -255,7 +256,7 @@ function buildExamplesSection(examples: ConversationExample[] | null | undefined
     (a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category),
   )
 
-  const body = sorted.map(e => `Pelanggan: "${e.customer}"\nKamu: "${e.admin}"`).join('\n\n')
+  const body = sorted.map(e => `Pelanggan: "${e.customer}"\nAdmin: "${e.admin}"`).join('\n\n')
 
   return `=== CONTOH BALASAN NYATA BISNIS INI ===
 Gunakan contoh berikut sebagai referensi gaya dan isi balasan.
@@ -374,6 +375,15 @@ async function callAnalysisAI(
   return text
 }
 
+function extractJSON(text: string): string {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start !== -1 && end !== -1 && end > start) {
+    return text.substring(start, end + 1)
+  }
+  return text
+}
+
 // ── CLASSIFY ─────────────────────────────────────────────────────────────────
 
 // Internal: minimal classify call, no business context.
@@ -381,13 +391,14 @@ async function callAnalysisAI(
 async function classifyOnly(message: string): Promise<MessageClassification> {
   try {
     const raw = await callAI(CLASSIFY_SYSTEM, `Pesan: ${message}`, 150, 'classify')
-    const clean = raw.replace(/```json|```/g, '').trim()
+    const clean = extractJSON(raw).replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(clean) as { classification: string }
     if (parsed.classification === 'rutin' || parsed.classification === 'sensitif') {
       return parsed.classification
     }
     return 'tidak_diketahui'
-  } catch {
+  } catch (err) {
+    console.error('[classifyOnly] Parsing failed for raw output:', err)
     return 'tidak_diketahui'
   }
 }
@@ -478,9 +489,12 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
 
   try {
     const result = await callAnalysisAI(system, rawText, 800)
-    const clean = result.replace(/```json|```/g, '').trim()
+    console.log('[extractBusinessKnowledge] Raw AI response:', result)
+    const clean = extractJSON(result).replace(/```json|```/g, '').trim()
+    console.log('[extractBusinessKnowledge] Extracted clean JSON:', clean)
     return JSON.parse(clean) as BusinessKnowledgeStructured
-  } catch {
+  } catch (err) {
+    console.error('[extractBusinessKnowledge] Failed parsing business knowledge JSON:', err)
     return { ...EMPTY_STRUCTURED }
   }
 }
@@ -498,7 +512,7 @@ export async function extractBusinessKnowledgeFromImages(
 
   const model = process.env.OPENROUTER_API_KEY
     ? (process.env.OPENROUTER_MODEL ?? 'google/gemini-flash-1.5')
-    : (process.env.DEEPSEEK_MODEL ?? 'deepseek-chat')
+    : (process.env.DEEPSEEK_CHAT_MODEL ?? 'deepseek-chat')
 
   const prompt = `Kamu mengekstrak informasi bisnis dari gambar katalog/price list Indonesia.
 Baca semua teks, harga, layanan, dan informasi yang terlihat di gambar.
@@ -534,9 +548,12 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
 
     const data = await res.json()
     const raw = data.choices?.[0]?.message?.content ?? ''
-    const clean = raw.replace(/```json|```/g, '').trim()
+    console.log('[extractBusinessKnowledgeFromImages] Raw AI response:', raw)
+    const clean = extractJSON(raw).replace(/```json|```/g, '').trim()
+    console.log('[extractBusinessKnowledgeFromImages] Extracted clean JSON:', clean)
     return JSON.parse(clean) as BusinessKnowledgeStructured
-  } catch {
+  } catch (err) {
+    console.error('[extractBusinessKnowledgeFromImages] Failed parsing business knowledge JSON:', err)
     return { ...EMPTY_STRUCTURED }
   }
 }
@@ -609,7 +626,7 @@ Fokus pada pola yang BERULANG dikoreksi admin. JANGAN gunakan bullet points.`
   const user = `Berikut ${feedback.length} koreksi admin terbaru:\n\n${corrections}\n\nPerbarui deskripsi gaya komunikasi.`
 
   try {
-    const updated = await callAI(system, user, 300, 'reanalyze')
+    const updated = await callAnalysisAI(system, user, 300)
     if (updated.trim()) {
       await supabase
         .from('profiles')
@@ -714,8 +731,10 @@ export async function classifyAndDraft(
 
     // AI Call 1: classify only (~220 tokens, CLASSIFY_SYSTEM cached globally)
     const classification = await classifyOnly(messageBody)
+    console.log('[classifyAndDraft] classification:', classification, '| messageId:', messageId, '| auto_reply_level:', profile.auto_reply_level)
 
     if (classification !== 'rutin') {
+      console.log('[classifyAndDraft] non-rutin → no draft. status:', classification === 'sensitif' ? 'dieskalasi' : 'baru')
       await supabase
         .from('inbox_messages')
         .update({
@@ -764,8 +783,12 @@ export async function classifyAndDraft(
     let safeDraft: string | null = rawDraft || null
     if (safeDraft) {
       const validation = validateAIOutput(safeDraft)
-      if (!validation.safe) safeDraft = null
+      if (!validation.safe) {
+        console.warn('[classifyAndDraft] AI output failed validation → draft nulled')
+        safeDraft = null
+      }
     }
+    console.log('[classifyAndDraft] draft result:', safeDraft ? `"${safeDraft.slice(0, 60)}..."` : 'null (no draft)')
 
     await supabase
       .from('inbox_messages')
@@ -776,29 +799,56 @@ export async function classifyAndDraft(
       })
       .eq('id', messageId)
 
-    // Auto-reply if level >= 2 and draft is valid
+    // Auto-reply based on level
     const autoReplyLevel = profile.auto_reply_level ?? 1
+    console.log('[classifyAndDraft] auto_reply_level:', autoReplyLevel, '| safeDraft:', !!safeDraft)
     if (safeDraft && autoReplyLevel >= 2) {
       const waNumber = msgRow?.whatsapp_number
+      console.log('[classifyAndDraft] waNumber:', waNumber, '| level branch:', autoReplyLevel >= 3 ? 'full-auto' : 'semi-auto queue')
       if (waNumber) {
-        try {
-          await sendTextMessage(waNumber, safeDraft, userId)
-          await Promise.all([
-            supabase
-              .from('inbox_messages')
-              .update({ status: 'dibalas', replied_at: new Date().toISOString() })
-              .eq('id', messageId),
-            supabase.from('inbox_messages').insert({
+        if (autoReplyLevel >= 3) {
+          // Full Auto (level 3): send immediately
+          try {
+            await sendTextMessage(waNumber, safeDraft, userId)
+            await Promise.all([
+              supabase
+                .from('inbox_messages')
+                .update({ status: 'dibalas', replied_at: new Date().toISOString() })
+                .eq('id', messageId),
+              supabase.from('inbox_messages').insert({
+                user_id: userId,
+                direction: 'keluar',
+                whatsapp_number: waNumber,
+                message_body: safeDraft,
+                classification: 'rutin',
+                status: 'dibalas',
+              }),
+            ])
+          } catch (err) {
+            console.error('[classifyAndDraft] auto-reply failed:', err)
+          }
+        } else {
+          // Semi-Auto (level 2): queue with 5-min delay, owner can cancel/edit
+          const sendAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+          console.log('[classifyAndDraft] inserting to send_queue, send_at:', sendAt)
+          try {
+            const { error: queueErr } = await supabase.from('send_queue').insert({
               user_id: userId,
-              direction: 'keluar',
-              whatsapp_number: waNumber,
-              message_body: safeDraft,
-              classification: 'rutin',
-              status: 'dibalas',
-            }),
-          ])
-        } catch (err) {
-          console.error('[classifyAndDraft] auto-reply failed:', err)
+              message_id: messageId,
+              to_number: waNumber,
+              message: safeDraft,
+              send_at: sendAt,
+            })
+            if (queueErr) console.error('[classifyAndDraft] send_queue insert error:', queueErr)
+            const { error: updateErr } = await supabase
+              .from('inbox_messages')
+              .update({ status: 'antri', ai_draft_reply: safeDraft })
+              .eq('id', messageId)
+            if (updateErr) console.error('[classifyAndDraft] antri update error:', updateErr)
+            console.log('[classifyAndDraft] queue OK → message status set to antri')
+          } catch (err) {
+            console.error('[classifyAndDraft] queue insert failed:', err)
+          }
         }
       }
     }

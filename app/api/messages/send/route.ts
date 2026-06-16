@@ -52,10 +52,13 @@ async function updateConversationExamples(
     updated[replaceIdx] = newExample
   }
 
-  await supabase
+  const { error } = await supabase
     .from('profiles')
     .update({ conversation_examples: updated })
     .eq('id', userId)
+  if (error) {
+    console.error('[updateConversationExamples] error:', error)
+  }
 }
 
 export async function POST(request: Request) {
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('wa_connected, auto_reply_level, feedback_count')
+    .select('wa_connected, auto_reply_level, feedback_count, conversation_examples')
     .eq('id', user.id)
     .single()
 
@@ -85,7 +88,8 @@ export async function POST(request: Request) {
   }
 
   // Level 2 semi-auto: queue rutin messages with 5-min delay unless force_send=true
-  const isLevel2 = (profile.auto_reply_level ?? 1) >= 2 && (profile.feedback_count ?? 0) >= LEVEL2_THRESHOLD
+  const hasExamples = Array.isArray(profile.conversation_examples) && profile.conversation_examples.length > 0
+  const isLevel2 = (profile.auto_reply_level ?? 1) >= 2 && ((profile.feedback_count ?? 0) >= LEVEL2_THRESHOLD || hasExamples)
   if (isLevel2 && !body.force_send && body.reply_to_id) {
     const { data: incoming } = await supabase
       .from('inbox_messages')
@@ -177,7 +181,13 @@ export async function POST(request: Request) {
         .eq('id', user.id)
         .single()
 
-      if (updatedProfile && updatedProfile.feedback_count > 0 && updatedProfile.feedback_count % 10 === 0) {
+      if (
+        updatedProfile &&
+        updatedProfile.feedback_count > 0 &&
+        (updatedProfile.feedback_count === 3 ||
+          updatedProfile.feedback_count === 6 ||
+          updatedProfile.feedback_count % 10 === 0)
+      ) {
         import('@/lib/openrouter').then(({ reanalyzeBrandVoice }) => {
           reanalyzeBrandVoice(user.id).catch(() => {})
         }).catch(() => {})
