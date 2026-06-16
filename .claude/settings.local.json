@@ -29,7 +29,18 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(list\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)[:20]\\)\")",
       "mcp__supabase__execute_sql",
       "mcp__supabase__apply_migration",
-      "Bash(xargs ls -la)"
+      "Bash(xargs ls -la)",
+      "Bash(supabase list-tables *)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
+      "Bash(supabase --version)",
+      "Bash(mcp__plugin_railway_railway__get_logs '{\"log_type\":\"http\",\"status\":\">=500\",\"lines\":30}')",
+      "Bash(railway list *)",
+      "Bash(railway service *)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.4\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway variable set WA_SERVICE_URL=https://rostra-wa-service-production.up.railway.app --service rostra-wa-service --project 7d40b2f1-1f78-4fb7-aba8-f534ea7279bf --environment production)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.4\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway redeploy --service rostra-wa-service --project 7d40b2f1-1f78-4fb7-aba8-f534ea7279bf --environment production --detach)",
+      "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.4\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway deployment list --service rostra-wa-service --project 7d40b2f1-1f78-4fb7-aba8-f534ea7279bf --environment production --json)",
+      "WebFetch(domain:baileys.wiki)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   },
   "enableAllProjectMcpServers": true,
