@@ -71,6 +71,24 @@ export default function DashboardPage() {
         supabase.from("inbox_messages").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "baru").eq("direction", "masuk").lt("received_at", thirtyDaysAgo.toISOString()),
       ])
 
+      let waConnected = profileRes.data?.wa_connected ?? false
+
+      if (profileRes.error && profileRes.error.code === "PGRST116") {
+        console.log("Profile missing on dashboard load, creating default profile for user:", user.id);
+        const { data: insertedData, error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            business_name: "",
+            brand_voice: "Ramah, profesional, dan informatif",
+          })
+          .select("wa_connected")
+          .single();
+        if (!insertError && insertedData) {
+          waConnected = insertedData.wa_connected;
+        }
+      }
+
       const { data: unpaidStages } = await supabase
         .from("payment_stages")
         .select("amount, due_date, orders!inner(user_id)")
@@ -124,7 +142,7 @@ export default function DashboardPage() {
         messageTrend: (messagesRes.count ?? 0) - (prevMessageRes.count ?? 0),
       })
       setOnboarding({
-        wa: profileRes.data?.wa_connected ?? false,
+        wa: waConnected,
         clients: (clientRes.count ?? 0) > 0,
         orders: (allOrdersRes.count ?? 0) > 0,
       })

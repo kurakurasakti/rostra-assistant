@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { calculateCompleteness } from "@/lib/business-knowledge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,9 +97,9 @@ export default function BusinessKnowledgeSection({
       special_notes: null,
     },
   );
-  const [completeness, setCompleteness] = useState<CompletenessResult | null>(
-    null,
-  );
+  const completeness = useMemo(() => {
+    return calculateCompleteness(structured);
+  }, [structured]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -217,15 +218,8 @@ export default function BusinessKnowledgeSection({
       }
 
       setStructured(data.structured);
-      setCompleteness(data.completeness);
 
-      if (data.completeness.score < 0.5) {
-        setStep("wizard");
-        setCurrentWizardStep(0);
-        setWizardAnswers({});
-      } else {
-        setStep("result");
-      }
+      setStep("result");
     } catch {
       toast.error("Gagal menghubungi server. Coba lagi.");
     }
@@ -883,7 +877,6 @@ export default function BusinessKnowledgeSection({
           className="h-8 text-xs gap-1.5 text-muted-foreground"
           onClick={() => {
             setStep("input");
-            setCompleteness(null);
           }}
         >
           <RotateCcw className="w-3 h-3" />

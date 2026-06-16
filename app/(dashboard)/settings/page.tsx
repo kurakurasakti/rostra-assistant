@@ -100,29 +100,50 @@ export default function SettingsPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single();
 
-      if (data) {
-        setProfile(data);
-        setBusinessName(data.business_name ?? "");
-        setBrandVoice(data.brand_voice ?? "");
+      let activeProfile = data;
+
+      if (error && error.code === "PGRST116") {
+        console.log("Profile missing, creating default profile for user:", user.id);
+        const { data: insertedData, error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            business_name: "",
+            brand_voice: "Ramah, profesional, dan informatif",
+          })
+          .select("*")
+          .single();
+
+        if (!insertError && insertedData) {
+          activeProfile = insertedData;
+        } else {
+          console.error("Failed to auto-create profile:", insertError);
+        }
+      }
+
+      if (activeProfile) {
+        setProfile(activeProfile);
+        setBusinessName(activeProfile.business_name ?? "");
+        setBrandVoice(activeProfile.brand_voice ?? "");
 
         // Section C
-        setBusinessKnowledgeRaw(data.business_knowledge_raw ?? null);
-        setBusinessKnowledgeStructured(data.business_knowledge_structured ?? null);
+        setBusinessKnowledgeRaw(activeProfile.business_knowledge_raw ?? null);
+        setBusinessKnowledgeStructured(activeProfile.business_knowledge_structured ?? null);
 
         // Section D
-        setEscalationKeywords(Array.isArray(data.escalation_keywords) ? data.escalation_keywords : []);
-        setAutoReplyLevel(data.auto_reply_level ?? 1);
-        setFeedbackCount(data.feedback_count ?? 0);
+        setEscalationKeywords(Array.isArray(activeProfile.escalation_keywords) ? activeProfile.escalation_keywords : []);
+        setAutoReplyLevel(activeProfile.auto_reply_level ?? 1);
+        setFeedbackCount(activeProfile.feedback_count ?? 0);
 
         // Conversation examples
-        if (Array.isArray(data.conversation_examples) && data.conversation_examples.length > 0) {
-          setConversationExamples(data.conversation_examples as ConversationExample[]);
+        if (Array.isArray(activeProfile.conversation_examples) && activeProfile.conversation_examples.length > 0) {
+          setConversationExamples(activeProfile.conversation_examples as ConversationExample[]);
         }
       }
       setLoading(false);
@@ -137,7 +158,16 @@ export default function SettingsPage() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      console.error("[handleSaveProfile] No authenticated user found");
+      return;
+    }
+
+    console.log("[handleSaveProfile] Saving profile for user:", user.id, {
+      businessName,
+      brandVoice,
+      escalationKeywords,
+    });
 
     const { error } = await supabase
       .from("profiles")
@@ -149,8 +179,13 @@ export default function SettingsPage() {
       })
       .eq("id", user.id);
 
-    if (error) toast.error("Gagal menyimpan. Coba lagi.");
-    else toast.success("Pengaturan berhasil disimpan.");
+    if (error) {
+      console.error("[handleSaveProfile] Error saving profile:", error);
+      toast.error("Gagal menyimpan. Coba lagi.");
+    } else {
+      console.log("[handleSaveProfile] Profile saved successfully in DB");
+      toast.success("Pengaturan berhasil disimpan.");
+    }
     setSaving(false);
   }
 
@@ -229,6 +264,7 @@ export default function SettingsPage() {
 
   async function handleUseVoice() {
     const voice = brandVoicePreview;
+    console.log("[handleUseVoice] Setting local brandVoice state to preview:", voice);
     setBrandVoice(voice);
     setAnalyzeStep("idle");
     setBrandVoicePreview("");
@@ -239,13 +275,17 @@ export default function SettingsPage() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      console.log("[handleUseVoice] Reloading conversation_examples from DB for user:", user.id);
       const { data, error } = await supabase
         .from("profiles")
         .select("conversation_examples")
         .eq("id", user.id)
         .single();
-      if (error) toast.error("Gagal menyimpan gaya komunikasi.");
-      else {
+      if (error) {
+        console.error("[handleUseVoice] Error loading examples:", error);
+        toast.error("Gagal menyimpan gaya komunikasi.");
+      } else {
+        console.log("[handleUseVoice] Successfully loaded conversation_examples:", data?.conversation_examples?.length);
         toast.success("Gaya komunikasi berhasil disimpan.");
         if (Array.isArray(data?.conversation_examples)) {
           setConversationExamples(data.conversation_examples as ConversationExample[]);
@@ -538,6 +578,7 @@ export default function SettingsPage() {
             initialKeywords={escalationKeywords}
             initialLevel={autoReplyLevel}
             feedbackCount={feedbackCount}
+            hasAnalyzedVoice={conversationExamples.length > 0}
             onSave={(keywords) => setEscalationKeywords(keywords)}
           />
         </div>

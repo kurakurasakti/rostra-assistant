@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { parseWhatsAppExport, extractBusinessMessages, extractConversationContext, extractQAPairs, selectBestExamples } from '@/lib/chat-parser'
 import { analyzeBrandVoice } from '@/lib/openrouter'
@@ -29,7 +29,9 @@ export async function POST(request: Request) {
   const examples = selectBestExamples(rawPairs)
 
   // Save brand_voice + conversation_examples
-  await supabase
+  console.log('[analyze-voice] Saving brand_voice for user:', user.id)
+  const serviceClient = await createServiceClient()
+  const { data: updateData, error: updateError } = await serviceClient
     .from('profiles')
     .update({
       brand_voice: brandVoice,
@@ -37,6 +39,28 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', user.id)
+    .select()
+
+  if (updateError) {
+    console.error('[analyze-voice] Update error:', updateError)
+  }
+
+  // If profile doesn't exist, insert it
+  if (!updateData || updateData.length === 0) {
+    console.log('[analyze-voice] Profile missing, inserting for user:', user.id)
+    const { error: insertError } = await serviceClient
+      .from('profiles')
+      .insert({
+        id: user.id,
+        brand_voice: brandVoice,
+        conversation_examples: examples,
+      })
+    if (insertError) {
+      console.error('[analyze-voice] Insert error:', insertError)
+    }
+  } else {
+    console.log('[analyze-voice] Successfully updated brand_voice and examples')
+  }
 
   const examplesByCategory = examples.reduce<Record<string, number>>((acc, ex) => {
     acc[ex.category] = (acc[ex.category] ?? 0) + 1
