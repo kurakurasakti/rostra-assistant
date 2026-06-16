@@ -25,7 +25,7 @@ const {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   DisconnectReason,
-  makeInMemoryStore,
+  downloadMediaMessage,
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 
@@ -35,6 +35,16 @@ app.use(express.json());
 const sessions = new Map();
 // Pending on-demand fetchMessageHistory() requests, keyed by peerDataRequestSessionId
 const pendingHistoryRequests = new Map();
+// In-memory media cache: key = `${userId}:${messageId}`, value = { buffer, mimeType, createdAt }
+const mediaCache = new Map();
+
+// Evict media older than 1 hour every 30 min
+setInterval(() => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [key, entry] of mediaCache.entries()) {
+    if (entry.createdAt < cutoff) mediaCache.delete(key);
+  }
+}, 30 * 60 * 1000);
 
 const NEXT_APP_URL = process.env.NEXT_APP_URL || "http://localhost:3000";
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
@@ -47,6 +57,61 @@ function toUnixSeconds(ts) {
   if (typeof ts === "number") return ts;
   if (typeof ts === "object" && typeof ts.toNumber === "function") return ts.toNumber();
   return Number(ts);
+}
+
+class ContactStore {
+  constructor(filePath) {
+    this.filePath = filePath;
+    this.contacts = {};
+  }
+
+  load() {
+    try {
+      if (fs.existsSync(this.filePath)) {
+        const data = fs.readFileSync(this.filePath, "utf8");
+        this.contacts = JSON.parse(data || "{}");
+        console.log(`[ContactStore] Loaded ${Object.keys(this.contacts).length} contacts`);
+      }
+    } catch (err) {
+      console.error("[ContactStore] failed to load:", err);
+    }
+  }
+
+  save() {
+    try {
+      const dir = path.dirname(this.filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(this.filePath, JSON.stringify(this.contacts, null, 2), "utf8");
+    } catch (err) {
+      console.error("[ContactStore] failed to save:", err);
+    }
+  }
+
+  update(list) {
+    if (!Array.isArray(list)) return;
+    let changed = false;
+    for (const item of list) {
+      const jid = item.id || item.lid || item.phoneNumber;
+      if (!jid) continue;
+
+      const displayName = item.name || item.notify || null;
+      if (!displayName) continue;
+
+      if (!this.contacts[jid] || this.contacts[jid].name !== displayName) {
+        this.contacts[jid] = {
+          jid,
+          name: displayName,
+          notify: item.notify || null
+        };
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.save();
+    }
+  }
 }
 
 function extractText(m) {
@@ -68,23 +133,77 @@ function extractText(m) {
   );
 }
 
-function forwardHistoryBatch(userId, batch) {
+function extractMedia(m) {
+  if (!m) return null;
+  if (m.imageMessage) return { type: "image", mimeType: m.imageMessage.mimetype || "image/jpeg" };
+  if (m.stickerMessage) return { type: "image", mimeType: m.stickerMessage.mimetype || "image/webp" };
+  if (m.videoMessage) return { type: "video", mimeType: m.videoMessage.mimetype || "video/mp4" };
+  if (m.audioMessage) return { type: "audio", mimeType: m.audioMessage.mimetype || "audio/ogg" };
+  if (m.documentMessage) return { type: "document", mimeType: m.documentMessage.mimetype || "application/octet-stream" };
+  if (m.viewOnceMessage?.message?.imageMessage) return { type: "image", mimeType: m.viewOnceMessage.message.imageMessage.mimetype || "image/jpeg" };
+  if (m.viewOnceMessage?.message?.videoMessage) return { type: "video", mimeType: m.viewOnceMessage.message.videoMessage.mimetype || "video/mp4" };
+  return null;
+}
+
+async function forwardHistoryBatch(userId, batch, attempt = 0) {
   if (batch.length === 0) return;
-  console.log(`[${userId}] history: forwarding ${batch.length} messages`);
-  fetch(`${NEXT_APP_URL}/api/webhook/whatsapp/history`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-webhook-secret": WEBHOOK_SECRET,
-    },
-    body: JSON.stringify({ userId, messages: batch }),
-  })
-    .then((res) =>
-      console.log(`[${userId}] history forward response: ${res.status}`)
-    )
-    .catch((err) =>
-      console.error(`[${userId}] history forward error:`, err)
-    );
+  console.log(`[${userId}] history: forwarding ${batch.length} messages (attempt ${attempt + 1})`);
+  try {
+    const res = await fetch(`${NEXT_APP_URL}/api/webhook/whatsapp/history`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-webhook-secret": WEBHOOK_SECRET,
+      },
+      body: JSON.stringify({ userId, messages: batch }),
+    });
+    console.log(`[${userId}] history forward response: ${res.status}`);
+    if (!res.ok && attempt < 2) {
+      await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
+      return forwardHistoryBatch(userId, batch, attempt + 1);
+    }
+  } catch (err) {
+    console.error(`[${userId}] history forward error:`, err);
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
+      return forwardHistoryBatch(userId, batch, attempt + 1);
+    }
+  }
+}
+
+async function forwardContacts(userId, contacts, attempt = 0) {
+  if (!contacts || contacts.length === 0) return;
+  const payload = {
+    userId,
+    contacts: contacts.map(c => ({
+      jid: c.id || c.lid || c.phoneNumber || null,
+      name: c.name || c.notify || null
+    })).filter(c => c.jid && c.name)
+  };
+
+  if (payload.contacts.length === 0) return;
+
+  try {
+    const res = await fetch(`${NEXT_APP_URL}/api/webhook/whatsapp/contacts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-webhook-secret": WEBHOOK_SECRET,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      console.error(`[${userId}] contacts forward failed with status:`, res.status);
+    } else {
+      console.log(`[${userId}] successfully forwarded ${payload.contacts.length} contacts`);
+    }
+  } catch (err) {
+    console.error(`[${userId}] contacts forward error:`, err);
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
+      return forwardContacts(userId, contacts, attempt + 1);
+    }
+  }
 }
 
 async function createSession(userId) {
@@ -102,12 +221,75 @@ async function createSession(userId) {
     markOnlineOnConnect: false,
   });
 
+  // Create auth directory if not exists
+  if (!fs.existsSync(authPath)) {
+    fs.mkdirSync(authPath, { recursive: true });
+  }
+
+  const storePath = path.join(authPath, "contacts_store.json");
+  const store = new ContactStore(storePath);
+  store.load();
+
   const sessionData = {
     sock,
     qr: null,
     status: "connecting",
     userId,
+    cachedHistory: [],
+    contactNames: new Map(), // jid/lid/phoneNumber → display name
+    lidToPn: new Map(),      // lid@lid → pn@s.whatsapp.net
+    store,
   };
+  const resolveContactName = (jid, pushName) => {
+    if (!jid) return null;
+
+    // 1. Try store contacts first (persisted and reactive)
+    const contact = store.contacts[jid];
+    if (contact) {
+      const displayName = contact.name || contact.notify || null;
+      if (displayName) {
+        console.log(`[wa-service/resolveContactName] found ${jid} in store contacts: "${displayName}"`);
+        return displayName;
+      }
+    }
+
+    // 2. Try in-memory contactNames map
+    if (sessionData.contactNames.has(jid)) {
+      const name = sessionData.contactNames.get(jid);
+      console.log(`[wa-service/resolveContactName] found ${jid} in contactNames: "${name}"`);
+      return name;
+    }
+
+    // For @lid JIDs: cross-reference via lidToPn
+    if (jid.endsWith("@lid")) {
+      const pnJid = sessionData.lidToPn.get(jid);
+      if (pnJid) {
+        const pnContact = store.contacts[pnJid];
+        if (pnContact) {
+          const displayName = pnContact.name || pnContact.notify || null;
+          if (displayName) {
+            console.log(`[wa-service/resolveContactName] found LID ${jid} via PN ${pnJid} in store: "${displayName}"`);
+            return displayName;
+          }
+        }
+        if (sessionData.contactNames.has(pnJid)) {
+          const name = sessionData.contactNames.get(pnJid);
+          console.log(`[wa-service/resolveContactName] found LID ${jid} via PN ${pnJid} in contactNames: "${name}"`);
+          return name;
+        }
+      }
+    }
+
+    // 3. Fall back to pushName
+    if (pushName) {
+      console.log(`[wa-service/resolveContactName] fallback to pushName for ${jid}: "${pushName}"`);
+      return pushName;
+    }
+    console.log(`[wa-service/resolveContactName] no name found for ${jid}`);
+    return null;
+  };
+  sessionData.resolveContactName = resolveContactName;
+
   sessions.set(userId, sessionData);
 
   sock.ev.on("connection.update", async (update) => {
@@ -125,6 +307,15 @@ async function createSession(userId) {
       const jid = sock.user?.id ?? "";
       const number = jid ? jid.split(":")[0].split("@")[0] : null;
       console.log(`[${userId}] Connected as ${number ?? "unknown"}`);
+
+      // Forward persisted contacts from store immediately on connection open
+      const persistedContacts = Object.values(store.contacts);
+      if (persistedContacts.length > 0) {
+        console.log(`[${userId}] forwarding ${persistedContacts.length} persisted contacts from store on connect`);
+        forwardContacts(userId, persistedContacts).catch((err) =>
+          console.error(`[${userId}] failed to forward persisted contacts:`, err)
+        );
+      }
 
       fetch(`${NEXT_APP_URL}/api/whatsapp/connected`, {
         method: "POST",
@@ -177,9 +368,55 @@ async function createSession(userId) {
 
   sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("messaging-history.set", async ({ messages, peerDataRequestSessionId }) => {
+  // Keep LID → PN map fresh for real-time message name resolution
+  sock.ev.on("lid-mapping.update", (mapping) => {
+    if (mapping?.lid && mapping?.pn) {
+      sessionData.lidToPn.set(`${mapping.lid}@lid`, `${mapping.pn}@s.whatsapp.net`);
+      console.log(`[${userId}] lid-mapping.update: ${mapping.lid}@lid → ${mapping.pn}@s.whatsapp.net`);
+    }
+  });
+
+  sock.ev.on("contacts.upsert", (contacts) => {
+    store.update(contacts);
+    let named = 0;
+    for (const contact of contacts) {
+      const displayName = contact.name || contact.notify || null;
+      if (!displayName) continue;
+      named++;
+      if (contact.id) sessionData.contactNames.set(contact.id, displayName);
+      if (contact.lid) sessionData.contactNames.set(contact.lid, displayName);
+      if (contact.phoneNumber) sessionData.contactNames.set(contact.phoneNumber, displayName);
+    }
+    if (named > 0) {
+      console.log(`[${userId}] contacts.upsert: updated ${named} contact names`);
+      forwardContacts(userId, contacts).catch((err) =>
+        console.error(`[${userId}] forwardContacts upsert error:`, err)
+      );
+    }
+  });
+
+  sock.ev.on("contacts.update", (updates) => {
+    store.update(updates);
+    let named = 0;
+    for (const update of updates) {
+      const displayName = update.name || update.notify || null;
+      if (!displayName) continue;
+      named++;
+      if (update.id) sessionData.contactNames.set(update.id, displayName);
+      if (update.lid) sessionData.contactNames.set(update.lid, displayName);
+      if (update.phoneNumber) sessionData.contactNames.set(update.phoneNumber, displayName);
+    }
+    if (named > 0) {
+      console.log(`[${userId}] contacts.update: updated ${named} contact names`);
+      forwardContacts(userId, updates).catch((err) =>
+        console.error(`[${userId}] forwardContacts update error:`, err)
+      );
+    }
+  });
+
+  sock.ev.on("messaging-history.set", async ({ messages, contacts, lidPnMappings, peerDataRequestSessionId }) => {
     console.log(
-      `[${userId}] messaging-history.set count=${messages?.length ?? 0} peerDataRequestSessionId=${peerDataRequestSessionId ?? "none"}`
+      `[${userId}] messaging-history.set count=${messages?.length ?? 0} contacts=${contacts?.length ?? 0} lidMappings=${lidPnMappings?.length ?? 0} peerDataRequestSessionId=${peerDataRequestSessionId ?? "none"}`
     );
     if (!messages || messages.length === 0) return;
 
@@ -191,6 +428,39 @@ async function createSession(userId) {
       pending.resolve(messages);
       return;
     }
+
+    // Update LID → PN mapping (lid part only, without @suffix)
+    // LIDMapping: { pn: "628xxx", lid: "97087..." }
+    if (lidPnMappings && lidPnMappings.length > 0) {
+      for (const mapping of lidPnMappings) {
+        if (mapping.lid && mapping.pn) {
+          sessionData.lidToPn.set(`${mapping.lid}@lid`, `${mapping.pn}@s.whatsapp.net`);
+        }
+      }
+      console.log(`[${userId}] lidToPn map updated: ${sessionData.lidToPn.size} entries`);
+    }
+
+    // Build contact name map indexed by ALL JID formats for each contact:
+    // contact.id (preferred), contact.lid (@lid), contact.phoneNumber (@s.whatsapp.net)
+    // contact.name = saved in YOUR phone, contact.notify = contact's own WA profile name
+    if (contacts && contacts.length > 0) {
+      store.update(contacts);
+      let named = 0;
+      for (const contact of contacts) {
+        const displayName = contact.name || contact.notify || null;
+        if (!displayName) continue;
+        named++;
+        if (contact.id) sessionData.contactNames.set(contact.id, displayName);
+        if (contact.lid) sessionData.contactNames.set(contact.lid, displayName);
+        if (contact.phoneNumber) sessionData.contactNames.set(contact.phoneNumber, displayName);
+      }
+      console.log(`[${userId}] contactNames map updated: ${named} named / ${contacts.length} total`);
+      forwardContacts(userId, contacts).catch((err) =>
+        console.error(`[${userId}] forwardContacts history error:`, err)
+      );
+    }
+
+
 
     // Case B: Passive sync on connect (group by chat, take latest N messages)
     const byChat = new Map();
@@ -205,13 +475,16 @@ async function createSession(userId) {
     const batch = [];
     for (const [jid, msgs] of byChat) {
       msgs.sort((a, b) => Number(b.messageTimestamp ?? 0) - Number(a.messageTimestamp ?? 0));
+      const firstMsg = msgs[0];
+      const resolvedName = resolveContactName(jid, firstMsg?.pushName);
+      console.log(`[${userId}] history chat: jid=${jid} pushName=${firstMsg?.pushName || 'NONE'} resolved="${resolvedName || 'null'}"`);
       for (const msg of msgs.slice(0, HISTORY_BATCH_LIMIT)) {
         const text = extractText(msg.message);
         if (!text) continue;
         batch.push({
           sender: jid,
           message: text,
-          name: msg.pushName || jid,
+          name: resolveContactName(jid, msg.pushName),
           timestamp: toUnixSeconds(msg.messageTimestamp),
           messageId: msg.key.id,
           fromMe: !!msg.key.fromMe,
@@ -219,7 +492,10 @@ async function createSession(userId) {
       }
     }
 
-    forwardHistoryBatch(userId, batch);
+    sessionData.cachedHistory = batch;
+    forwardHistoryBatch(userId, batch).catch((err) =>
+      console.error(`[${userId}] history forward unhandled:`, err)
+    );
   });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
@@ -238,14 +514,58 @@ async function createSession(userId) {
       if (!msg.message) continue;
 
       const text = extractText(msg.message);
+      const mediaInfo = extractMedia(msg.message);
 
-      if (!text) continue;
+      if (!text && !mediaInfo) continue;
 
       const sender = msg.key.remoteJid ?? "";
-      const senderName = msg.pushName || sender;
+      const senderName = resolveContactName(sender, msg.pushName);
+
+      let mediaUrl = null;
+      let mediaType = mediaInfo ? mediaInfo.type : null;
+      let mediaSize = null;
+
+      if (mediaInfo) {
+        try {
+          const buffer = await downloadMediaMessage(
+            msg,
+            "buffer",
+            {},
+            {
+              logger: pino({ level: "silent" }),
+              reuploadRequest: sock.updateMediaMessage,
+            }
+          );
+          if (buffer && buffer.length < 10 * 1024 * 1024) {
+            const cacheKey = `${userId}:${msg.key.id}`;
+            mediaCache.set(cacheKey, {
+              buffer,
+              mimeType: mediaInfo.mimeType,
+              createdAt: Date.now(),
+            });
+            mediaSize = buffer.length;
+            const waPublicUrl =
+              process.env.WA_SERVICE_PUBLIC_URL ||
+              `http://localhost:${PORT}`;
+            mediaUrl = `${waPublicUrl}/session/${userId}/media/${msg.key.id}`;
+            console.log(
+              `[wa-service] media cached: ${cacheKey} size=${mediaSize} url=${mediaUrl}`
+            );
+          } else if (buffer) {
+            console.log(
+              `[wa-service] media too large (${buffer.length} bytes), skipping cache`
+            );
+          }
+        } catch (err) {
+          console.error(
+            `[wa-service] media download failed:`,
+            err?.message || err
+          );
+        }
+      }
 
       console.log(
-        `[wa-service] message from ${sender}: "${text.slice(0, 60)}"`
+        `[wa-service] message from ${sender}: "${text.slice(0, 60)}" mediaType=${mediaType}`
       );
       console.log(
         `[wa-service] forwarding to ${NEXT_APP_URL}/api/webhook/whatsapp`
@@ -264,6 +584,9 @@ async function createSession(userId) {
           name: senderName,
           timestamp: msg.messageTimestamp,
           messageId: msg.key.id,
+          media_url: mediaUrl,
+          media_type: mediaType,
+          media_size: mediaSize,
         }),
       })
         .then((res) =>
@@ -392,6 +715,15 @@ app.get("/session/:userId/status", (req, res) => {
   });
 });
 
+app.get("/session/:userId/contacts", (req, res) => {
+  const session = sessions.get(req.params.userId);
+  if (!session) {
+    return res.json({ success: false, error: "Session not found" });
+  }
+  const contacts = Object.values(session.store.contacts);
+  res.json({ success: true, contacts });
+});
+
 app.post("/session/:userId/send", async (req, res) => {
   const session = sessions.get(req.params.userId);
 
@@ -484,7 +816,7 @@ app.post("/session/:userId/fetch-history", async (req, res) => {
       batch.push({
         sender: msg.key.remoteJid ?? chatJid,
         message: text,
-        name: msg.pushName || msg.key.remoteJid || chatJid,
+        name: session.resolveContactName(msg.key.remoteJid ?? chatJid, msg.pushName),
         timestamp: toUnixSeconds(msg.messageTimestamp),
         messageId: msg.key.id,
         fromMe: !!msg.key.fromMe,
@@ -497,6 +829,30 @@ app.post("/session/:userId/fetch-history", async (req, res) => {
     console.error(`[${req.params.userId}] fetch-history error:`, err);
     res.status(500).json({ success: false, error: String(err) });
   }
+});
+
+// Re-forward previously cached history batch — called by Next.js ~10s after connect
+// to catch the case where messaging-history.set fired after the connected callback
+app.post("/session/:userId/sync-history", (req, res) => {
+  const session = sessions.get(req.params.userId);
+  if (!session) {
+    return res.status(404).json({ success: false, error: "Session not found" });
+  }
+  const cached = session.cachedHistory || [];
+  console.log(`[${req.params.userId}] sync-history triggered, cached=${cached.length} messages`);
+  if (cached.length > 0) {
+    forwardHistoryBatch(req.params.userId, cached).catch(() => {});
+  }
+  res.json({ success: true, count: cached.length });
+});
+
+app.get("/session/:userId/media/:messageId", (req, res) => {
+  const { userId, messageId } = req.params;
+  const entry = mediaCache.get(`${userId}:${messageId}`);
+  if (!entry) return res.status(404).json({ error: "not found or expired" });
+  res.set("Content-Type", entry.mimeType);
+  res.set("Cache-Control", "public, max-age=3600");
+  res.send(entry.buffer);
 });
 
 app.get("/health", (req, res) => {

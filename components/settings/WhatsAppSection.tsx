@@ -82,6 +82,11 @@ export default function WhatsAppSection({
         setConnectedNumber(data.number ?? waNumber)
         setWaStep("connected")
         toast.success("WhatsApp berhasil terhubung!")
+        // Trigger history sync after delay — messaging-history.set fires async from WA
+        // and may arrive seconds after the connection.update event
+        setTimeout(() => {
+          fetch("/api/whatsapp/sync-history", { method: "POST" }).catch(() => {})
+        }, 10000)
       }
     }, 3000)
   }
