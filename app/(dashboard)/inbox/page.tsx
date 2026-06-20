@@ -734,10 +734,10 @@ export default function InboxPage() {
         )
       )
 
-      toast.success(`Kontak "${name}" berhasil ditambahkan sebagai klien`)
+      toast.success(`Kontak "${name}" berhasil ditambahkan sebagai Client`)
     } catch (err) {
       console.error('[inbox/handleMarkAsClient] error:', err)
-      toast.error('Gagal menambahkan sebagai klien')
+      toast.error('Gagal menambahkan sebagai Client')
     } finally {
       setAddingClient(false)
     }

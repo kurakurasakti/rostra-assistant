@@ -104,9 +104,9 @@ export default function ClientsPage() {
     })
 
     if (error) {
-      toast.error('Gagal menambah klien.')
+      toast.error('Gagal menambah Client.')
     } else {
-      toast.success(`Klien "${formName}" berhasil ditambahkan.`)
+      toast.success(`Client "${formName}" berhasil ditambahkan.`)
       setSheetOpen(false)
       resetForm()
       loadClients()
@@ -123,8 +123,8 @@ export default function ClientsPage() {
     <div className="p-6 lg:p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display font-bold text-2xl tracking-tight">Klien</h1>
-          <p className="text-muted-foreground text-sm mt-1">{clients.length} klien terdaftar</p>
+          <h1 className="font-display font-bold text-2xl tracking-tight">Client</h1>
+          <p className="text-muted-foreground text-sm mt-1">{clients.length} Client terdaftar</p>
         </div>
         <div className="flex items-center gap-2">
           <Link href="/import" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1.5 h-9')}>
@@ -134,12 +134,12 @@ export default function ClientsPage() {
           <Sheet open={sheetOpen} onOpenChange={open => { setSheetOpen(open); if (!open) resetForm() }}>
             <SheetTrigger className={cn(buttonVariants({ size: 'sm' }), 'gap-1.5 h-9')}>
               <Plus className="w-4 h-4" />
-              Tambah Klien
+              Tambah Client
             </SheetTrigger>
             <SheetContent className="w-full sm:max-w-md flex flex-col p-0">
               <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
-                <SheetTitle className="font-display font-semibold text-lg">Tambah Klien Baru</SheetTitle>
-                <SheetDescription>Isi data klien untuk ditambahkan ke daftar.</SheetDescription>
+                <SheetTitle className="font-display font-semibold text-lg">Tambah Client Baru</SheetTitle>
+                <SheetDescription>Isi data Client untuk ditambahkan ke daftar.</SheetDescription>
               </SheetHeader>
 
               <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -242,10 +242,10 @@ export default function ClientsPage() {
             <UserPlus className="w-8 h-8 text-muted-foreground/40" />
           </div>
           <p className="text-sm font-medium text-muted-foreground">
-            {search ? 'Klien tidak ditemukan' : 'Belum ada klien'}
+            {search ? 'Client tidak ditemukan' : 'Belum ada Client'}
           </p>
           {!search && (
-            <p className="text-xs text-muted-foreground mt-1">Klik "Tambah Klien" untuk mulai.</p>
+            <p className="text-xs text-muted-foreground mt-1">Klik "Tambah Client" untuk mulai.</p>
           )}
         </div>
       ) : (

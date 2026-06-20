@@ -25,7 +25,7 @@ export default function PrivacyPolicyPage() {
           <li><strong>Informasi akun:</strong> nama bisnis, email</li>
           <li><strong>Data bisnis:</strong> produk, jam operasional, template pesan</li>
           <li><strong>Percakapan WhatsApp:</strong> pesan masuk dan keluar yang diproses melalui platform Glim</li>
-          <li><strong>Data klien:</strong> nama, nomor WhatsApp klien bisnis kamu</li>
+          <li><strong>Data Client:</strong> nama, nomor WhatsApp Client bisnis kamu</li>
           <li><strong>Data pesanan:</strong> informasi pesanan, jadwal, pembayaran</li>
         </ul>
       </Section>
@@ -34,7 +34,7 @@ export default function PrivacyPolicyPage() {
         <ul>
           <li>Menjalankan fitur platform Glim</li>
           <li>Menghasilkan draft balasan AI berdasarkan konteks bisnis</li>
-          <li>Mengirim pengingat otomatis ke klien kamu</li>
+          <li>Mengirim pengingat otomatis ke Client kamu</li>
           <li>Meningkatkan akurasi AI dari koreksi yang kamu berikan</li>
         </ul>
       </Section>

@@ -27,7 +27,7 @@ export default function TermsPage() {
       <Section title="3. Akun dan Tanggung Jawab Pengguna">
         <ul>
           <li>Kamu bertanggung jawab atas keamanan akun</li>
-          <li>Kamu bertanggung jawab atas konten yang dikirim melalui platform ke klien kamu</li>
+          <li>Kamu bertanggung jawab atas konten yang dikirim melalui platform ke Client kamu</li>
           <li>Kamu tidak boleh menggunakan Glim untuk spam, penipuan, atau aktivitas ilegal</li>
           <li>Satu akun untuk satu bisnis</li>
         </ul>
@@ -43,8 +43,8 @@ export default function TermsPage() {
 
       <Section title="5. Data dan AI">
         <ul>
-          <li>Percakapan klien kamu diproses oleh AI untuk menghasilkan draft balasan</li>
-          <li>Kamu bertanggung jawab memastikan klien kamu mengetahui percakapan mereka diproses oleh sistem</li>
+          <li>Percakapan Client kamu diproses oleh AI untuk menghasilkan draft balasan</li>
+          <li>Kamu bertanggung jawab memastikan Client kamu mengetahui percakapan mereka diproses oleh sistem</li>
           <li>Glim tidak bertanggung jawab atas kesalahan draft AI yang dikirim tanpa review manual</li>
         </ul>
       </Section>

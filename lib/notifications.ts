@@ -34,7 +34,7 @@ export async function sendEscalationNotification(
     ? 'Percobaan manipulasi AI terdeteksi'
     : type === 'media'
       ? 'Klien mengirim media (foto/dokumen)'
-      : 'Pesan sensitif perlu perhatian'
+      : 'Pesan sensitif perlu pengecekan lebih lanjut.'
   const notifBody = `Dari ${contactName}: "${preview}"`
 
   // In-app notification (always fires)
@@ -54,8 +54,8 @@ export async function sendEscalationNotification(
     const label = type === 'injection'
       ? '⚠️ *Percobaan Manipulasi AI* terdeteksi'
       : type === 'media'
-        ? '📷 *Klien mengirim media* (AI tidak bisa membaca)'
-        : '🔔 *Pesan sensitif* perlu perhatian kamu'
+        ? '📷 *Client mengirim media* (AI tidak bisa membaca)'
+        : '🔔 *Pesan sensitif* perlu pengecekan manual dari kamu'
 
     const message = [
       label,

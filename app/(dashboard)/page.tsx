@@ -218,7 +218,7 @@ export default function DashboardPage() {
       label: "Total Klien",
       value: stats?.totalClients?.toString() ?? "0",
       icon: Users,
-      description: stats?.totalClients ? `${stats.totalClients} klien terdaftar` : "Belum ada klien",
+      description: stats?.totalClients ? `${stats.totalClients} Client terdaftar` : "Belum ada Client",
       color: "text-blue-600 dark:text-blue-400",
       bg: "bg-blue-500/10",
       trend: stats?.clientTrend,
@@ -312,7 +312,7 @@ export default function DashboardPage() {
             <div className="space-y-3">
               {[
                 { step: "01", title: "Hubungkan WhatsApp", desc: "Scan QR untuk mulai terima dan balas pesan", href: "/settings?tab=whatsapp", done: onboarding?.wa ?? false },
-                { step: "02", title: "Tambah klien pertama", desc: "Mulai kelola daftar klien kamu", href: "/clients", done: onboarding?.clients ?? false },
+                { step: "02", title: "Tambah Client pertama", desc: "Mulai kelola daftar Client kamu", href: "/clients", done: onboarding?.clients ?? false },
                 { step: "03", title: "Buat pesanan pertama", desc: "Catat pesanan dan atur tahap pembayaran", href: "/clients", done: onboarding?.orders ?? false },
               ].map(({ step, title, desc, href, done }) => (
                 <a key={step} href={href}
@@ -341,10 +341,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Perlu Perhatian */}
+        {/* Perlu Pengecekan */}
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-semibold text-sm">Perlu Perhatian</h2>
+            <h2 className="font-display font-semibold text-sm">Perlu Pengecekan</h2>
             <Clock className="w-4 h-4 text-muted-foreground" />
           </div>
           {pendingItems.length === 0 ? (
@@ -436,8 +436,8 @@ export default function DashboardPage() {
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
                 <Users className="w-5 h-5 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium text-foreground">Belum ada klien</p>
-              <p className="text-xs text-muted-foreground mt-1">Tambah klien pertama untuk mulai</p>
+              <p className="text-sm font-medium text-foreground">Belum ada Client</p>
+              <p className="text-xs text-muted-foreground mt-1">Tambah Client pertama untuk mulai</p>
             </div>
           ) : (
             <div className="space-y-1">

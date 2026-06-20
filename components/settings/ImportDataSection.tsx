@@ -125,9 +125,9 @@ export default function ImportDataSection() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="font-display font-semibold text-sm">Impor Data Klien</h2>
+        <h2 className="font-display font-semibold text-sm">Impor Data Client</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Import klien dari file Excel atau CSV.{allRows.length > 0 && (
+          Import Client dari file Excel atau CSV.{allRows.length > 0 && (
             <span className="text-foreground font-medium"> {allRows.length} baris terdeteksi.</span>
           )}
         </p>

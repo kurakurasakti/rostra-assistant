@@ -22,14 +22,14 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://glim.app'),
   title: 'Glim — Asisten Bisnis WhatsApp',
-  description: 'Kelola klien, pesanan, dan pesan WhatsApp dalam satu tempat',
+  description: 'Kelola Client, pesanan, dan pesan WhatsApp dalam satu tempat',
   icons: {
     icon: '/icon.svg',
     apple: '/apple-icon.svg',
   },
   openGraph: {
     title: 'Glim — Asisten Bisnis WhatsApp',
-    description: 'Kelola klien, pesanan, dan pesan WhatsApp dalam satu tempat',
+    description: 'Kelola Client, pesanan, dan pesan WhatsApp dalam satu tempat',
     images: ['/og-image.svg'],
   },
 }

@@ -609,7 +609,7 @@ export default function SettingsPage() {
               <DialogHeader>
                 <DialogTitle>Hapus Akun</DialogTitle>
                 <DialogDescription>
-                  Apakah kamu yakin ingin menghapus akun? Semua data bisnis, klien, pesanan, dan percakapan akan dihapus permanen dan tidak bisa dipulihkan.
+                  Apakah kamu yakin ingin menghapus akun? Semua data bisnis, Client, pesanan, dan percakapan akan dihapus permanen dan tidak bisa dipulihkan.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2">

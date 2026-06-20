@@ -25,7 +25,7 @@ test.describe("F13 — Dashboard Onboarding", () => {
 
     // All 3 steps unchecked initially
     await expect(page.locator("text=Hubungkan WhatsApp")).toBeVisible();
-    await expect(page.locator("text=Tambah klien pertama")).toBeVisible();
+    await expect(page.locator("text=Tambah Client pertama")).toBeVisible();
     await expect(page.locator("text=Buat pesanan pertama")).toBeVisible();
 
     await ctx.close();

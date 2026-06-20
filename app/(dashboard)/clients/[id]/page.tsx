@@ -122,7 +122,7 @@ export default function ClientDetailPage() {
     }).eq("id", clientId)
 
     if (error) toast.error("Gagal menyimpan.")
-    else { toast.success("Profil klien diperbarui."); loadData() }
+    else { toast.success("Profil Client diperbarui."); loadData() }
     setSavingProfile(false)
   }
 
@@ -370,10 +370,10 @@ export default function ClientDetailPage() {
             <div className="space-y-1.5 border-t border-border pt-4">
               <Label>Catatan untuk AI <span className="text-muted-foreground font-normal">(opsional)</span></Label>
               <Textarea value={editAINotes} onChange={e => setEditAINotes(e.target.value)} placeholder="Contoh: Pelanggan VIP, boleh diskon max 10%. Panggil dengan nama." rows={2} className="resize-none text-sm" />
-              <p className="text-xs text-muted-foreground">Catatan ini dibaca AI setiap kali membalas pesan klien ini.</p>
+              <p className="text-xs text-muted-foreground">Catatan ini dibaca AI setiap kali membalas pesan Client ini.</p>
             </div>
             <div className="flex justify-between items-center pt-1">
-              <p className="text-xs text-muted-foreground">Klien sejak {format(parseISO(client.created_at), "d MMM yyyy")}</p>
+              <p className="text-xs text-muted-foreground">Client sejak {format(parseISO(client.created_at), "d MMM yyyy")}</p>
               <Button type="submit" size="sm" disabled={savingProfile}>
                 {savingProfile ? "Menyimpan..." : "Simpan"}
               </Button>
@@ -469,7 +469,7 @@ export default function ClientDetailPage() {
             <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-border">
               <MessageSquare className="w-10 h-10 text-muted-foreground/40 mb-3" />
               <p className="text-sm font-medium text-muted-foreground">Belum ada riwayat pesan</p>
-              <p className="text-xs text-muted-foreground mt-1">Pesan masuk dan keluar dari klien ini akan muncul di sini</p>
+              <p className="text-xs text-muted-foreground mt-1">Pesan masuk dan keluar dari Client ini akan muncul di sini</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -567,7 +567,7 @@ export default function ClientDetailPage() {
               <Input
                 value={apptForm.location}
                 onChange={e => setApptForm(f => ({ ...f, location: e.target.value }))}
-                placeholder="Cth: Toko / Rumah klien"
+                placeholder="Cth: Toko / Rumah Client"
                 className="h-10"
               />
             </div>

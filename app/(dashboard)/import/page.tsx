@@ -128,7 +128,7 @@ export default function ImportPage() {
       <div>
         <h1 className="font-display font-bold text-2xl tracking-tight">Import Data</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Import klien dari file Excel atau CSV. {allRows.length > 0 && (
+          Import Client dari file Excel atau CSV. {allRows.length > 0 && (
             <span className="text-foreground font-medium">{allRows.length} baris terdeteksi.</span>
           )}
         </p>

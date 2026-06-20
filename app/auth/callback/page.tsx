@@ -156,7 +156,7 @@ function AuthCallbackInner() {
               senang.
             </h1>
             <p className="text-white/70 mt-4 text-base leading-relaxed max-w-xs">
-              Kelola klien, pesanan, dan pesan WhatsApp dalam satu tempat yang terorganisir.
+              Kelola Client, pesanan, dan pesan WhatsApp dalam satu tempat yang terorganisir.
             </p>
           </div>
         </div>

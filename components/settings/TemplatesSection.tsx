@@ -176,7 +176,7 @@ export default function TemplatesSection() {
     <div className="space-y-4">
       <div>
         <h3 className="font-display font-semibold text-sm">Template Pesan Otomatis</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">Edit isi pesan reminder yang dikirim otomatis ke klien.</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Edit isi pesan reminder yang dikirim otomatis ke Client.</p>
       </div>
       {templates.map(tpl => {
         const config = CONFIGS[tpl.type as TemplateKey]
