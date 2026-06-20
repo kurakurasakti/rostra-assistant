@@ -14,16 +14,9 @@ Deno.serve(async (_req) => {
       return Response.json({ error: 'WA_SERVICE_URL not set' }, { status: 500 })
     }
 
-    // Fetch due messages joined with profile wa_connected status
     const { data: messages, error } = await supabase
       .from('scheduled_messages')
-      .select(`
-        id,
-        user_id,
-        whatsapp_number,
-        message_body,
-        profiles!inner(wa_connected)
-      `)
+      .select('id, user_id, whatsapp_number, message_body')
       .eq('status', 'menunggu')
       .lte('scheduled_at', new Date().toISOString())
       .limit(BATCH_SIZE)
@@ -37,15 +30,22 @@ Deno.serve(async (_req) => {
       return Response.json({ processed: 0, sent: 0, failed: 0, skipped: 0 })
     }
 
+    // Batch-fetch wa_connected for all unique users
+    const userIds = [...new Set(messages.map(m => m.user_id))]
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, wa_connected')
+      .in('id', userIds)
+    const connectedUsers = new Set(
+      (profilesData ?? []).filter(p => p.wa_connected).map(p => p.id),
+    )
+
     let sent = 0
     let failed = 0
     let skipped = 0
 
     for (const msg of messages) {
-      const profile = msg.profiles as unknown as { wa_connected: boolean }
-
-      // Skip if WA not connected for this user
-      if (!profile?.wa_connected) {
+      if (!connectedUsers.has(msg.user_id)) {
         await supabase
           .from('scheduled_messages')
           .update({ status: 'gagal', error_message: 'WA not connected' })

@@ -317,7 +317,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+      <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6 animate-enter">
         <div className="space-y-1.5">
           <Skeleton className="h-8 w-40" />
           <Skeleton className="h-4 w-72" />
@@ -325,6 +325,8 @@ export default function SettingsPage() {
         <Skeleton className="h-10 w-full rounded-lg" />
         <Skeleton className="h-48 rounded-xl" />
         <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
       </div>
     );
   }

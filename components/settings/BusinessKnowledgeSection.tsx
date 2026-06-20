@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Sparkles,
   Loader2,
@@ -832,20 +833,19 @@ export default function BusinessKnowledgeSection({
           </div>
         </div>
         {structured.po_status && (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 flex flex-col">
             <Label className="text-xs text-muted-foreground">
               PO Tutup Tanggal
             </Label>
-            <Input
-              type="date"
+            <DatePicker
               value={structured.po_close_date ?? ""}
-              onChange={(e) =>
+              onChange={(val) =>
                 setStructured((prev) => ({
                   ...prev,
-                  po_close_date: e.target.value || null,
+                  po_close_date: val || null,
                 }))
               }
-              className="h-9 text-xs"
+              size="sm"
             />
           </div>
         )}

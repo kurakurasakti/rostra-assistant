@@ -16,14 +16,7 @@ Deno.serve(async (_req) => {
 
     const { data: items, error } = await supabase
       .from('send_queue')
-      .select(`
-        id,
-        user_id,
-        message_id,
-        to_number,
-        message,
-        profiles!inner(wa_connected)
-      `)
+      .select('id, user_id, message_id, to_number, message')
       .eq('cancelled', false)
       .eq('sent', false)
       .lte('send_at', new Date().toISOString())
@@ -38,13 +31,21 @@ Deno.serve(async (_req) => {
       return Response.json({ processed: 0, sent: 0, failed: 0 })
     }
 
+    // Batch-fetch wa_connected for all unique users
+    const userIds = [...new Set(items.map(i => i.user_id))]
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, wa_connected')
+      .in('id', userIds)
+    const connectedUsers = new Set(
+      (profilesData ?? []).filter(p => p.wa_connected).map(p => p.id),
+    )
+
     let sent = 0
     let failed = 0
 
     for (const item of items) {
-      const profile = item.profiles as unknown as { wa_connected: boolean }
-
-      if (!profile?.wa_connected) {
+      if (!connectedUsers.has(item.user_id)) {
         await supabase.from('send_queue').update({ cancelled: true }).eq('id', item.id)
         failed++
         continue

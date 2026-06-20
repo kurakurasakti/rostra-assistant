@@ -22,6 +22,7 @@ import OrderFormModal from "@/components/clients/OrderFormModal"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 
 export default function ClientDetailPage() {
   const params = useParams<{ id: string }>()
@@ -153,7 +154,7 @@ export default function ClientDetailPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setApptSaving(false); return }
 
-    const { error } = await supabase.from("appointments").insert({
+    const { data: newAppt, error } = await supabase.from("appointments").insert({
       user_id: user.id,
       client_id: clientId,
       order_id: null,
@@ -162,12 +163,22 @@ export default function ClientDetailPage() {
       location: apptForm.location.trim() || null,
       reminder_hours_before: Number(apptForm.reminder_hours_before),
       notes: apptForm.notes.trim() || null,
-    })
+    }).select().single()
 
-    if (error) {
+    if (error || !newAppt) {
       toast.error("Gagal menyimpan janji temu.")
     } else {
-      toast.success("Janji temu berhasil disimpan.")
+      let scheduledCount = 0
+      try {
+        const res = await fetch("/api/schedules/generate-appointment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appointment_id: newAppt.id }),
+        })
+        const d = await res.json()
+        scheduledCount = d.count ?? 0
+      } catch {}
+      toast.success(`Janji temu disimpan.${scheduledCount > 0 ? " Pengingat dijadwalkan." : ""}`)
       setApptModalOpen(false)
       loadData()
     }
@@ -291,9 +302,27 @@ export default function ClientDetailPage() {
   }
 
   if (loading) return (
-    <div className="p-6 lg:p-8 space-y-4">
-      <Skeleton className="h-8 w-48" />
-      <Skeleton className="h-48 rounded-xl" />
+    <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6 animate-enter">
+      {/* Header: back + name */}
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-8 w-8 rounded-md" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-3.5 w-28" />
+        </div>
+      </div>
+      {/* Tabs */}
+      <Skeleton className="h-10 w-72 rounded-lg" />
+      {/* Profile card */}
+      <Skeleton className="h-44 rounded-xl" />
+      {/* AI notes */}
+      <Skeleton className="h-28 rounded-xl" />
+      {/* Orders section header + cards */}
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-20 rounded-xl" />
+        <Skeleton className="h-20 rounded-xl" />
+      </div>
     </div>
   )
 
@@ -416,7 +445,7 @@ export default function ClientDetailPage() {
           ) : orders.length > 0 ? (
             <div className="space-y-3">
               {standaloneAppointments.length > 0 && (
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pesanan</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Orders</p>
               )}
               {orders.map(order => (
                 <OrderCard
@@ -526,14 +555,11 @@ export default function ClientDetailPage() {
                 className="h-10"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 flex flex-col">
               <Label>Waktu *</Label>
-              <Input
-                type="datetime-local"
+              <DateTimePicker
                 value={apptForm.scheduled_at}
-                onChange={e => setApptForm(f => ({ ...f, scheduled_at: e.target.value }))}
-                required
-                className="h-10"
+                onChange={val => setApptForm(f => ({ ...f, scheduled_at: val }))}
               />
             </div>
             <div className="space-y-1.5">

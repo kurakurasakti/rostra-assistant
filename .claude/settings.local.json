@@ -40,7 +40,9 @@
       "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.4\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway redeploy --service rostra-wa-service --project 7d40b2f1-1f78-4fb7-aba8-f534ea7279bf --environment production --detach)",
       "Bash(RAILWAY_CALLER=\"skill:use-railway@1.2.4\" RAILWAY_AGENT_SESSION=\"railway-skill-$\\(date +%s\\)-$$\" railway deployment list --service rostra-wa-service --project 7d40b2f1-1f78-4fb7-aba8-f534ea7279bf --environment production --json)",
       "WebFetch(domain:baileys.wiki)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__supabase__get_logs",
+      "mcp__plugin_supabase_supabase__deploy_edge_function"
     ]
   },
   "enableAllProjectMcpServers": true,

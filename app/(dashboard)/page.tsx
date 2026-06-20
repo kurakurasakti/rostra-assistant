@@ -195,7 +195,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+      <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6 animate-enter">
         <div className="mb-8">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-72 mt-2" />

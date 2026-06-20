@@ -10,6 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator"
 import { Plus, Trash2, Loader2 } from "lucide-react"
 import { formatRupiah } from "@/lib/templates"
+import { toast } from "sonner"
+import { DatePicker } from "@/components/ui/date-picker"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 import type { OrderStatus, PaymentStageForm, AppointmentForm, FullOrder } from "@/types"
 
 interface OrderFormModalProps {
@@ -90,6 +93,31 @@ export default function OrderFormModal({
     e.preventDefault()
     const totalPrice = Number(orderPrice.replace(/\D/g, ""))
     if (isNaN(totalPrice) || totalPrice <= 0) return
+
+    // Validate payment stages
+    for (const stage of stages) {
+      if (!stage.name.trim()) {
+        toast.error("Nama tahap pembayaran wajib diisi.")
+        return
+      }
+      if (!stage.due_date) {
+        toast.error("Tanggal jatuh tempo wajib diisi.")
+        return
+      }
+    }
+
+    // Validate appointments
+    for (const appt of apptList) {
+      if (!appt.title.trim()) {
+        toast.error("Judul janji temu wajib diisi.")
+        return
+      }
+      if (!appt.scheduled_at) {
+        toast.error("Tanggal & waktu janji temu wajib diisi.")
+        return
+      }
+    }
+
     setSaving(true)
     await onSave({
       description: orderDesc.trim(),
@@ -176,9 +204,9 @@ export default function OrderFormModal({
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex flex-col">
                     <Label className="text-xs">Jatuh Tempo *</Label>
-                    <Input type="date" value={stage.due_date} onChange={e => setStages(s => s.map(x => x.tempId === stage.tempId ? { ...x, due_date: e.target.value } : x))} required className="h-8 text-sm" />
+                    <DatePicker value={stage.due_date} onChange={val => setStages(s => s.map(x => x.tempId === stage.tempId ? { ...x, due_date: val } : x))} size="sm" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Ingatkan X hari sebelum</Label>
@@ -213,9 +241,9 @@ export default function OrderFormModal({
                     <Label className="text-xs">Judul *</Label>
                     <Input value={appt.title} onChange={e => setApptList(a => a.map(x => x.tempId === appt.tempId ? { ...x, title: e.target.value } : x))} placeholder="Fitting 1" required className="h-8 text-sm" />
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex flex-col">
                     <Label className="text-xs">Tanggal & Waktu *</Label>
-                    <Input type="datetime-local" value={appt.scheduled_at} onChange={e => setApptList(a => a.map(x => x.tempId === appt.tempId ? { ...x, scheduled_at: e.target.value } : x))} required className="h-8 text-sm" />
+                    <DateTimePicker value={appt.scheduled_at} onChange={val => setApptList(a => a.map(x => x.tempId === appt.tempId ? { ...x, scheduled_at: val } : x))} size="sm" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
