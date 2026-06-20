@@ -25,7 +25,22 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const publicPaths = ['/login', '/register', '/privacy-policy', '/terms', '/about', '/api/auth', '/api/webhook', '/api/whatsapp/connected', '/api/whatsapp/disconnected']
+  const publicPaths = [
+    '/login',
+    '/register',
+    '/privacy-policy',
+    '/terms',
+    '/about',
+    '/api/auth',
+    '/api/webhook',
+    '/api/whatsapp/connected',
+    '/api/whatsapp/disconnected',
+    '/assets',
+    '/favicon.ico',
+    '/icon.svg',
+    '/apple-icon.svg',
+    '/og-image.svg',
+  ]
   const isPublic = publicPaths.some(p => request.nextUrl.pathname.startsWith(p))
 
   if (!user && !isPublic) {
@@ -40,5 +55,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|assets|favicon.ico|icon.svg|apple-icon.svg|og-image.svg).*)'],
 }
