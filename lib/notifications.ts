@@ -63,7 +63,7 @@ export async function sendEscalationNotification(
       `*Dari:* ${contactName}`,
       `*Pesan:* "${preview}"`,
       '',
-      'Balas manual di Rostra Inbox.',
+      'Balas manual di Glim Inbox.',
     ].join('\n')
 
     await sendTextMessage(profile.notification_wa_number, message, userId)

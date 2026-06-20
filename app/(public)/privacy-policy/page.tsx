@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Kebijakan Privasi — Rostra',
+  title: 'Kebijakan Privasi — Glim',
 }
 
 export default function PrivacyPolicyPage() {
-  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'support@rostra.id'
+  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'support@glim.id'
   const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
 
   return (
@@ -15,7 +15,7 @@ export default function PrivacyPolicyPage() {
 
       <Section title="1. Pendahuluan">
         <p>
-          Rostra adalah platform manajemen bisnis berbasis WhatsApp untuk UMKM Indonesia.
+          Glim adalah platform manajemen bisnis berbasis WhatsApp untuk UMKM Indonesia.
           Kebijakan ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi data kamu.
         </p>
       </Section>
@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
         <ul>
           <li><strong>Informasi akun:</strong> nama bisnis, email</li>
           <li><strong>Data bisnis:</strong> produk, jam operasional, template pesan</li>
-          <li><strong>Percakapan WhatsApp:</strong> pesan masuk dan keluar yang diproses melalui platform Rostra</li>
+          <li><strong>Percakapan WhatsApp:</strong> pesan masuk dan keluar yang diproses melalui platform Glim</li>
           <li><strong>Data klien:</strong> nama, nomor WhatsApp klien bisnis kamu</li>
           <li><strong>Data pesanan:</strong> informasi pesanan, jadwal, pembayaran</li>
         </ul>
@@ -32,7 +32,7 @@ export default function PrivacyPolicyPage() {
 
       <Section title="3. Bagaimana Kami Menggunakan Data">
         <ul>
-          <li>Menjalankan fitur platform Rostra</li>
+          <li>Menjalankan fitur platform Glim</li>
           <li>Menghasilkan draft balasan AI berdasarkan konteks bisnis</li>
           <li>Mengirim pengingat otomatis ke klien kamu</li>
           <li>Meningkatkan akurasi AI dari koreksi yang kamu berikan</li>
@@ -51,7 +51,7 @@ export default function PrivacyPolicyPage() {
       <Section title="5. Layanan Pihak Ketiga">
         <ul>
           <li><strong>Supabase:</strong> penyimpanan database</li>
-          <li><strong>DeepSeek AI:</strong> pemrosesan teks untuk draft balasan (pesan dikirim ke API DeepSeek untuk diproses)</li>
+          <li><strong>OpenRouter:</strong> pemrosesan teks untuk draft balasan (pesan dikirim ke API OpenRouter untuk diproses)</li>
           <li><strong>Baileys:</strong> koneksi WhatsApp</li>
         </ul>
       </Section>

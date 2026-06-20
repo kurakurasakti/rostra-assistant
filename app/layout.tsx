@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Outfit, DM_Sans } from 'next/font/google'
+import { Outfit, DM_Sans, Space_Grotesk } from 'next/font/google'
 import { Providers } from '@/components/providers'
 import './globals.css'
 
@@ -13,9 +13,25 @@ const dmSans = DM_Sans({
   subsets: ['latin'],
 })
 
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
+  subsets: ['latin'],
+  weight: ['500', '700'],
+})
+
 export const metadata: Metadata = {
-  title: 'Rostra — Asisten Bisnis WhatsApp',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://glim.app'),
+  title: 'Glim — Asisten Bisnis WhatsApp',
   description: 'Kelola klien, pesanan, dan pesan WhatsApp dalam satu tempat',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/apple-icon.svg',
+  },
+  openGraph: {
+    title: 'Glim — Asisten Bisnis WhatsApp',
+    description: 'Kelola klien, pesanan, dan pesan WhatsApp dalam satu tempat',
+    images: ['/og-image.svg'],
+  },
 }
 
 export default function RootLayout({
@@ -27,7 +43,7 @@ export default function RootLayout({
     <html
       lang="id"
       suppressHydrationWarning
-      className={`${outfit.variable} ${dmSans.variable} h-full antialiased`}
+      className={`${outfit.variable} ${dmSans.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <Providers>{children}</Providers>

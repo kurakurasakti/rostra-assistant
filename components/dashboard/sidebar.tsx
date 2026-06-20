@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { NotificationBell } from '@/components/dashboard/notification-bell'
+import { Logo } from '@/components/logo'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -46,15 +47,13 @@ export function Sidebar() {
     <aside className="hidden md:flex w-16 lg:w-60 flex-shrink-0 border-r border-border bg-sidebar flex-col h-screen transition-all duration-200">
       {/* Logo */}
       <div className="px-3 lg:px-5 py-5 border-b border-border flex justify-center lg:justify-start">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <MessageSquare className="w-3.5 h-3.5 text-primary-foreground" />
-          </div>
-          <div className="hidden lg:block">
-            <p className="font-display font-semibold text-sm leading-none tracking-tight">Rostra</p>
-            <p className="text-[11px] text-muted-foreground leading-none mt-1">Asisten WhatsApp</p>
-          </div>
-        </div>
+        <Logo variant="mark" className="lg:hidden" height={28} />
+        <Logo
+          variant="lockup"
+          tone={mounted && resolvedTheme === 'dark' ? 'dark' : 'light'}
+          className="hidden lg:block"
+          height={26}
+        />
       </div>
 
       {/* Nav */}
@@ -74,7 +73,7 @@ export function Sidebar() {
                   : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'
               )}
             >
-              <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-accent' : '')} />
+              <Icon suppressHydrationWarning className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-accent' : '')} />
               <span className="hidden lg:inline">{label}</span>
             </Link>
           )
@@ -91,12 +90,12 @@ export function Sidebar() {
         >
           {mounted && resolvedTheme === 'dark' ? (
             <>
-              <Sun className="w-4 h-4 flex-shrink-0" />
+              <Sun suppressHydrationWarning className="w-4 h-4 flex-shrink-0" />
               <span className="hidden lg:inline">Mode Terang</span>
             </>
           ) : (
             <>
-              <Moon className="w-4 h-4 flex-shrink-0" />
+              <Moon suppressHydrationWarning className="w-4 h-4 flex-shrink-0" />
               <span className="hidden lg:inline">Mode Gelap</span>
             </>
           )}
@@ -107,7 +106,7 @@ export function Sidebar() {
           title="Keluar"
           className="flex items-center gap-3 px-2 lg:px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors justify-center lg:justify-start"
         >
-          <LogOut className="w-4 h-4 flex-shrink-0" />
+          <LogOut suppressHydrationWarning className="w-4 h-4 flex-shrink-0" />
           <span className="hidden lg:inline">Keluar</span>
         </button>
       </div>

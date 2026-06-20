@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { MessageSquare, AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
+import { Logo } from '@/components/logo'
 
 export default function AuthCallbackPage() {
   return (
@@ -144,12 +145,7 @@ function AuthCallbackInner() {
         </div>
 
         <div className="relative">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4 text-accent" />
-            </div>
-            <span className="text-white font-display font-semibold text-lg tracking-tight">Rostra</span>
-          </div>
+          <Logo variant="lockup" tone="dark" height={30} />
         </div>
 
         <div className="relative space-y-6">
@@ -166,17 +162,14 @@ function AuthCallbackInner() {
         </div>
 
         <div className="relative">
-          <p className="text-white/40 text-xs">© 2025 Rostra. Dibuat dengan ♥ untuk bisnis Indonesia.</p>
+          <p className="text-white/40 text-xs">© 2025 Glim. Dibuat dengan ♥ untuk bisnis Indonesia.</p>
         </div>
       </div>
 
       {/* Right panel */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        <div className="flex lg:hidden items-center gap-2.5 mb-10">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
-            <MessageSquare className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-display font-semibold text-xl tracking-tight">Rostra</span>
+        <div className="flex lg:hidden items-center mb-10">
+          <Logo variant="lockup" tone="light" height={30} />
         </div>
 
         <div className="w-full max-w-sm animate-fade-up">

@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Syarat & Ketentuan — Rostra',
+  title: 'Syarat & Ketentuan — Glim',
 }
 
 export default function TermsPage() {
-  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'support@rostra.id'
+  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'support@glim.id'
   const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
 
   return (
@@ -14,12 +14,12 @@ export default function TermsPage() {
       <p className="text-sm text-gray-500 mb-8">Terakhir diperbarui: {today}</p>
 
       <Section title="1. Penerimaan Syarat">
-        <p>Dengan menggunakan Rostra, kamu menyetujui syarat dan ketentuan ini.</p>
+        <p>Dengan menggunakan Glim, kamu menyetujui syarat dan ketentuan ini.</p>
       </Section>
 
-      <Section title="2. Layanan Rostra">
+      <Section title="2. Layanan Glim">
         <p>
-          Rostra menyediakan platform manajemen pesan WhatsApp berbasis AI untuk bisnis UMKM Indonesia.
+          Glim menyediakan platform manajemen pesan WhatsApp berbasis AI untuk bisnis UMKM Indonesia.
           Layanan mencakup inbox terpusat, reminder otomatis, dan draft balasan AI.
         </p>
       </Section>
@@ -28,14 +28,14 @@ export default function TermsPage() {
         <ul>
           <li>Kamu bertanggung jawab atas keamanan akun</li>
           <li>Kamu bertanggung jawab atas konten yang dikirim melalui platform ke klien kamu</li>
-          <li>Kamu tidak boleh menggunakan Rostra untuk spam, penipuan, atau aktivitas ilegal</li>
+          <li>Kamu tidak boleh menggunakan Glim untuk spam, penipuan, atau aktivitas ilegal</li>
           <li>Satu akun untuk satu bisnis</li>
         </ul>
       </Section>
 
       <Section title="4. WhatsApp dan Kebijakan Meta">
         <p>
-          Rostra menggunakan koneksi WhatsApp tidak resmi. Kami tidak bertanggung jawab jika nomor WhatsApp
+          Glim menggunakan koneksi WhatsApp tidak resmi. Kami tidak bertanggung jawab jika nomor WhatsApp
           kamu diblokir oleh Meta/WhatsApp karena penggunaan yang melanggar kebijakan WhatsApp.
           Kami menyarankan menggunakan nomor bisnis khusus, bukan nomor pribadi.
         </p>
@@ -45,21 +45,21 @@ export default function TermsPage() {
         <ul>
           <li>Percakapan klien kamu diproses oleh AI untuk menghasilkan draft balasan</li>
           <li>Kamu bertanggung jawab memastikan klien kamu mengetahui percakapan mereka diproses oleh sistem</li>
-          <li>Rostra tidak bertanggung jawab atas kesalahan draft AI yang dikirim tanpa review manual</li>
+          <li>Glim tidak bertanggung jawab atas kesalahan draft AI yang dikirim tanpa review manual</li>
         </ul>
       </Section>
 
       <Section title="6. Pembayaran dan Langganan">
         <ul>
           <li>Biaya langganan Rp 299.000/bulan per akun</li>
-          <li>Pembayaran non-refundable kecuali ada gangguan layanan dari pihak Rostra</li>
+          <li>Pembayaran non-refundable kecuali ada gangguan layanan dari pihak Glim</li>
           <li>Layanan dapat dihentikan jika pembayaran tidak dilakukan dalam 7 hari setelah jatuh tempo</li>
         </ul>
       </Section>
 
       <Section title="7. Batasan Tanggung Jawab">
         <p>
-          Rostra tidak bertanggung jawab atas kerugian bisnis yang timbul dari gangguan layanan,
+          Glim tidak bertanggung jawab atas kerugian bisnis yang timbul dari gangguan layanan,
           kesalahan AI, atau pemblokiran WhatsApp.
         </p>
       </Section>

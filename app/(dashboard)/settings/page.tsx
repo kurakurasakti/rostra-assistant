@@ -345,7 +345,7 @@ export default function SettingsPage() {
           <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Lengkapi koneksi WhatsApp</p>
-            <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5">Scan QR di tab Koneksi WhatsApp untuk mulai menggunakan Rostra.</p>
+            <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5">Scan QR di tab Koneksi WhatsApp untuk mulai menggunakan Glim.</p>
           </div>
         </div>
       )}
@@ -353,7 +353,7 @@ export default function SettingsPage() {
       {profile?.onboarding_complete && (
         <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
           <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-          <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">Rostra aktif dan siap digunakan.</p>
+          <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">Glim aktif dan siap digunakan.</p>
         </div>
       )}
 

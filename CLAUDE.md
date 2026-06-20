@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project: Rostra Assistant
+## Project: Glim Assistant
 
 WhatsApp CRM + AI auto-reply for Indonesian SMBs (fashion/tailoring niche). Multi-tenant SaaS. One business owner = one Supabase user = one WA device.
 

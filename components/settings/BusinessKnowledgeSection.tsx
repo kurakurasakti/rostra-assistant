@@ -398,7 +398,7 @@ export default function BusinessKnowledgeSection({
               <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-4 py-4">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
                 <p className="text-sm text-muted-foreground">
-                  {fileProcessing === "reading" ? "Membaca file..." : "Mengkonversi ke gambar (PDF tidak ada teks)..."}
+                  {fileProcessing === "reading" ? "Membaca file..." : "Mengonversi ke gambar (PDF tidak ada teks)..."}
                 </p>
               </div>
             )}

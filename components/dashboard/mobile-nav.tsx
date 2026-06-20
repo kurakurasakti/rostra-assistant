@@ -36,7 +36,7 @@ export function MobileNav() {
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Icon className={cn('w-5 h-5', isActive ? 'text-accent' : '')} />
+            <Icon suppressHydrationWarning className={cn('w-5 h-5', isActive ? 'text-accent' : '')} />
             <span className={cn(
               'text-[10px] font-medium leading-none',
               isActive ? 'text-primary' : ''

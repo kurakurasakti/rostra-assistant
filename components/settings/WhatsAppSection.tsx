@@ -211,7 +211,7 @@ export default function WhatsAppSection({
           <div>
             <h2 className="font-display font-semibold text-sm">Notifikasi Eskalasi</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Rostra kirim WA ke nomor ini saat ada pesan sensitif atau percobaan manipulasi AI.
+              Glim kirim WA ke nomor ini saat ada pesan sensitif atau percobaan manipulasi AI.
             </p>
           </div>
         </div>

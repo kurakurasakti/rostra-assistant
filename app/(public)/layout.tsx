@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import { ArrowLeft, MessageSquare } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { Footer } from '@/components/footer'
+import { Logo } from '@/components/logo'
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,13 +13,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Kembali ke Rostra
+            Kembali ke Glim
           </Link>
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-              <MessageSquare className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-display font-semibold text-sm tracking-tight text-gray-900">Rostra</span>
+          <Link href="/">
+            <Logo variant="lockup" tone="light" height={20} />
           </Link>
         </div>
       </div>

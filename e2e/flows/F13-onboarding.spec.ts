@@ -8,7 +8,7 @@ test.describe("F13 — Dashboard Onboarding", () => {
     const page = await ctx.newPage();
 
     // Register a brand new user
-    const email = `onboarding-${Date.now()}@rostra-test.com`;
+    const email = `onboarding-${Date.now()}@glim-test.com`;
     await page.goto("/register");
     await page.fill("#businessName", "Onboarding Test");
     await page.fill("#email", email);
@@ -21,7 +21,7 @@ test.describe("F13 — Dashboard Onboarding", () => {
     await page.goto("/");
 
     // Onboarding card should be visible
-    await expect(page.locator("text=Mulai dengan Rostra")).toBeVisible();
+    await expect(page.locator("text=Mulai dengan Glim")).toBeVisible();
 
     // All 3 steps unchecked initially
     await expect(page.locator("text=Hubungkan WhatsApp")).toBeVisible();

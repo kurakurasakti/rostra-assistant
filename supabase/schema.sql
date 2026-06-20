@@ -1,5 +1,5 @@
 -- =============================================================
--- Rostra — Supabase Schema
+-- Glim — Supabase Schema
 -- Jalankan secara berurutan di Supabase SQL Editor
 -- =============================================================
 
