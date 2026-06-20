@@ -7,7 +7,7 @@ test.describe("F1 — Authentication", () => {
 
     await page.goto("/register");
     await page.fill("#businessName", "Test Bisnis E2E");
-    await page.fill("#email", `test-${Date.now()}@rostra-test.com`);
+    await page.fill("#email", `test-${Date.now()}@glim-test.com`);
     await page.fill("#password", "TestPassword123!");
     await page.fill("#inviteCode", process.env.TEST_INVITE_CODE || "");
     await page.click('button[type="submit"]');
@@ -27,7 +27,7 @@ test.describe("F1 — Authentication", () => {
 
     await page.goto("/register");
     await page.fill("#businessName", "Test Bisnis E2E");
-    await page.fill("#email", `bad-${Date.now()}@rostra-test.com`);
+    await page.fill("#email", `bad-${Date.now()}@glim-test.com`);
     await page.fill("#password", "TestPassword123!");
     await page.fill("#inviteCode", "WRONGCODE");
     await page.click('button[type="submit"]');

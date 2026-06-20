@@ -66,7 +66,7 @@ async function callWithFallback(
         headers: {
           Authorization: `Bearer ${provider.apiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://rostra.app',
+          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://glim.app',
         },
         body: JSON.stringify({
           model: provider.model,
@@ -532,7 +532,7 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://rostra.app',
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://glim.app',
       },
       body: JSON.stringify({
         model,

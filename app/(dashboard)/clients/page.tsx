@@ -232,11 +232,12 @@ export default function ClientsPage() {
 
       {/* Table */}
       {loading ? (
-        <div className="space-y-2">
+        <div className="space-y-2 animate-enter">
+          <Skeleton className="h-12 rounded-lg" />
           {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-dashed border-border">
+        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-dashed border-border animate-enter">
           <div className="bg-muted/50 rounded-full p-3 mb-3">
             <UserPlus className="w-8 h-8 text-muted-foreground/40" />
           </div>
@@ -248,7 +249,7 @@ export default function ClientsPage() {
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
+        <div className="rounded-xl border border-border overflow-hidden animate-enter">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/40">
               <tr>

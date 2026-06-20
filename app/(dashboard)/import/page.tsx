@@ -280,7 +280,7 @@ export default function ImportPage() {
           <div>
             <h2 className="font-display font-semibold text-sm">Siap Import</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Periksa data sebelum diimport ke Rostra.
+              Periksa data sebelum diimport ke Glim.
             </p>
           </div>
 
@@ -347,7 +347,7 @@ export default function ImportPage() {
                 </>
               ) : (
                 <>
-                  Import ke Rostra
+                  Import ke Glim
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </>
               )}

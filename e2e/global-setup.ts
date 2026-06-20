@@ -8,7 +8,7 @@ const AUTH_PATH = path.resolve("e2e/.auth/user.json");
 async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use?.baseURL || "http://localhost:3000";
 
-  const email = process.env.TEST_USER_EMAIL || "test-e2e@rostra-test.com";
+  const email = process.env.TEST_USER_EMAIL || "test-e2e@glim-test.com";
   const password = process.env.TEST_USER_PASS || "TestPassword123!";
   const inviteCode = process.env.TEST_INVITE_CODE || "";
 

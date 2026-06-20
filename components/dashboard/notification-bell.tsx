@@ -148,7 +148,7 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
         title="Notifikasi"
       >
         <span className="relative flex-shrink-0">
-          <Bell className={cn(isMobile ? 'w-5 h-5' : 'w-4 h-4')} />
+          <Bell suppressHydrationWarning className={cn(isMobile ? 'w-5 h-5' : 'w-4 h-4')} />
           {unreadCount > 0 && (
             <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground px-0.5 leading-none">
               {unreadCount > 99 ? '99+' : unreadCount}
@@ -196,7 +196,7 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
                 </div>
               ) : notifications.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-10">
-                  <Bell className="w-7 h-7 text-muted-foreground/25" />
+                  <Bell suppressHydrationWarning className="w-7 h-7 text-muted-foreground/25" />
                   <p className="text-xs text-muted-foreground">Tidak ada notifikasi</p>
                 </div>
               ) : (
@@ -223,8 +223,8 @@ export function NotificationBell({ variant = 'sidebar' }: NotificationBellProps)
                           : 'bg-amber-500/15',
                       )}>
                         {notif.type === 'injection'
-                          ? <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
-                          : <MessageSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                          ? <AlertTriangle suppressHydrationWarning className="w-3.5 h-3.5 text-destructive" />
+                          : <MessageSquare suppressHydrationWarning className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                         }
                       </div>
 

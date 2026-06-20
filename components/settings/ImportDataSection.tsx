@@ -323,7 +323,7 @@ export default function ImportDataSection() {
               {importing ? (
                 <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Mengimport...</>
               ) : (
-                <>Import ke Rostra <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></>
+                <>Import ke Glim <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></>
               )}
             </Button>
           </div>

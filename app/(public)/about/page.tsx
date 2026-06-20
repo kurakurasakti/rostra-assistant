@@ -2,12 +2,12 @@ import type { Metadata } from 'next'
 import { MessageSquare, Mail } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Tentang — Rostra',
+  title: 'Tentang — Glim',
 }
 
 export default function AboutPage() {
-  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'support@rostra.id'
-  const company = process.env.NEXT_PUBLIC_COMPANY_NAME || 'Rostra'
+  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'support@glim.id'
+  const company = process.env.NEXT_PUBLIC_COMPANY_NAME || 'Glim'
 
   return (
     <article className="prose prose-sm prose-gray max-w-none">

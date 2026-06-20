@@ -1,0 +1,25 @@
+<svg width="232" height="76" viewBox="0 0 232 76" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Glim — AI Assistant">
+  <defs>
+    <radialGradient id="lockGlowD" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.5"></stop>
+      <stop offset="55%" stop-color="#f59e0b" stop-opacity="0.1"></stop>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"></stop>
+    </radialGradient>
+    <linearGradient id="lockStemD" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"></stop>
+      <stop offset="100%" stop-color="#f59e0b"></stop>
+    </linearGradient>
+    <radialGradient id="lockDotD" cx="42%" cy="38%" r="62%">
+      <stop offset="0%" stop-color="#fcd34d"></stop>
+      <stop offset="60%" stop-color="#f59e0b"></stop>
+      <stop offset="100%" stop-color="#ed8a0a"></stop>
+    </radialGradient>
+  </defs>
+  
+  <circle cx="24" cy="26" r="22" fill="url(#lockGlowD)"></circle>
+  <rect x="18" y="42" width="12" height="32" rx="6" fill="url(#lockStemD)"></rect>
+  <circle cx="24" cy="26" r="10" fill="#f59e0b"></circle>
+  
+  <text x="62" y="50" font-family="&#39;Space Grotesk&#39;, &#39;Outfit&#39;, sans-serif" font-size="46" font-weight="700" letter-spacing="-1.5" fill="#ffffff">Glim</text>
+  <text x="64" y="68" font-family="&#39;DM Sans&#39;, sans-serif" font-size="10" font-weight="500" letter-spacing="2" fill="#b9a8cc">AI ASSISTANT</text>
+</svg>

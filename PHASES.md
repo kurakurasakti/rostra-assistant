@@ -1,4 +1,4 @@
-# Rostra — Build Phases v2
+# Glim — Build Phases v2
 
 Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 

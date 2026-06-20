@@ -1,4 +1,4 @@
-# Rostra — Technical Requirements v2 (MVP)
+# Glim — Technical Requirements v2 (MVP)
 
 > Built for Claude Code. Read this entire document before writing any code.
 > Updated: api.co.id as WhatsApp BSP, dynamic payment stages, dynamic appointments.

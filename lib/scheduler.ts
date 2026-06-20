@@ -55,10 +55,10 @@ export function generateScheduledMessages(
     templates.find(t => t.type === type)
 
   const baseVars = {
-    nama_klien: client.name,
-    nama_bisnis: profile.business_name,
-    deskripsi_pesanan: order.description,
-    total_harga: formatRupiah(order.total_price),
+    client_name: client.name,
+    business_name: profile.business_name,
+    order_description: order.description,
+    total_price: formatRupiah(order.total_price),
   }
 
   // 1. Konfirmasi pesanan — now + 5 min
@@ -89,9 +89,9 @@ export function generateScheduledMessages(
 
       const vars = {
         ...baseVars,
-        nama_tahap: stage.name,
-        jumlah: formatRupiah(stage.amount),
-        jatuh_tempo: format(new Date(stage.due_date + 'T00:00:00'), 'd MMM yyyy'),
+        stage_name: stage.name,
+        amount: formatRupiah(stage.amount),
+        due_date: format(new Date(stage.due_date + 'T00:00:00'), 'd MMM yyyy'),
       }
 
       result.push({
@@ -121,9 +121,9 @@ export function generateScheduledMessages(
 
       const vars = {
         ...baseVars,
-        judul_janji: appt.title,
-        waktu_janji: formatWIB(apptTime),
-        lokasi_janji: appt.location ?? '',
+        appointment_title: appt.title,
+        scheduled_date: formatWIB(apptTime),
+        location: appt.location ?? '',
       }
 
       result.push({

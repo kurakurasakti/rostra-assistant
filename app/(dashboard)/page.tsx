@@ -195,7 +195,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+      <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6 animate-enter">
         <div className="mb-8">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-72 mt-2" />
@@ -260,7 +260,7 @@ export default function DashboardPage() {
     <div className="p-6 lg:p-8 max-w-5xl mx-auto animate-enter">
       <div className="mb-8">
         <h1 className="font-display font-bold text-2xl tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">Selamat datang di Rostra. Pantau bisnis kamu dari sini.</p>
+        <p className="text-muted-foreground text-sm mt-1">Selamat datang di Glim. Pantau bisnis kamu dari sini.</p>
       </div>
 
       {/* Stats grid */}
@@ -302,7 +302,7 @@ export default function DashboardPage() {
         {!(onboarding?.wa && onboarding?.clients && onboarding?.orders) && (
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display font-semibold text-sm">Mulai dengan Rostra</h2>
+              <h2 className="font-display font-semibold text-sm">Mulai dengan Glim</h2>
               <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                 {onboarding
                   ? `${[onboarding.wa, onboarding.clients, onboarding.orders].filter(Boolean).length}/3 selesai`

@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 export function Footer() {
   const year = new Date().getFullYear()
-  const company = process.env.NEXT_PUBLIC_COMPANY_NAME || 'Rostra'
+  const company = process.env.NEXT_PUBLIC_COMPANY_NAME || 'Glim'
 
   return (
     <footer className="border-t border-gray-100 bg-white">
