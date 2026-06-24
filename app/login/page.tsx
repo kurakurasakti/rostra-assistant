@@ -9,6 +9,15 @@ import { Label } from '@/components/ui/label'
 import { AlertCircle } from 'lucide-react'
 import { Logo } from '@/components/logo'
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ])
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -21,26 +30,42 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const supabase = createClient()
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        10000,
+        'signInWithPassword'
+      )
 
-    if (error) {
-      setError('Email atau password salah. Coba lagi.')
+      if (error) {
+        console.error('[login] signInWithPassword failed:', error)
+        setError(`Email atau password salah. (${error.message})`)
+        setLoading(false)
+        return
+      }
+
+      const { data: profile, error: profileError } = await withTimeout(
+        supabase.from('profiles').select('onboarding_complete').single(),
+        10000,
+        'profile fetch'
+      )
+
+      if (profileError) {
+        console.error('[login] profile fetch failed:', profileError)
+      }
+
+      if (profile && !profile.onboarding_complete) {
+        router.push('/settings')
+      } else {
+        router.push('/')
+      }
+      router.refresh()
+    } catch (err) {
+      console.error('[login] unexpected error:', err)
+      setError(`Login gagal: ${err instanceof Error ? err.message : 'unknown error'}`)
       setLoading(false)
-      return
     }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('onboarding_complete')
-      .single()
-
-    if (profile && !profile.onboarding_complete) {
-      router.push('/settings')
-    } else {
-      router.push('/')
-    }
-    router.refresh()
   }
 
   return (

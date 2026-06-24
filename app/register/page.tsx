@@ -9,6 +9,15 @@ import { Label } from '@/components/ui/label'
 import { AlertCircle, MailCheck } from 'lucide-react'
 import { Logo } from '@/components/logo'
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ])
+}
+
 export default function RegisterPage() {
   const router = useRouter()
   const [businessName, setBusinessName] = useState('')
@@ -25,73 +34,104 @@ export default function RegisterPage() {
     setLoading(true)
     setError('')
 
-    if (!termsAccepted) {
-      setError('Kamu harus menyetujui Syarat & Ketentuan untuk mendaftar.')
+    try {
+      if (!termsAccepted) {
+        setError('Kamu harus menyetujui Syarat & Ketentuan untuk mendaftar.')
+        setLoading(false)
+        return
+      }
+
+      console.log('[register] step 1 — checking invite code')
+      const checkRes = await withTimeout(
+        fetch('/api/auth/check-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: inviteCode }),
+        }),
+        10000,
+        'check-invite fetch'
+      )
+
+      if (!checkRes.ok) {
+        console.error('[register] check-invite returned', checkRes.status)
+        setError(`Gagal memeriksa kode: HTTP ${checkRes.status}`)
+        setLoading(false)
+        return
+      }
+
+      const checkData = await checkRes.json()
+      console.log('[register] invite check result:', checkData)
+
+      if (!checkData.valid) {
+        setError('Kode undangan tidak valid. Hubungi kami untuk mendapatkan akses.')
+        setLoading(false)
+        return
+      }
+
+      console.log('[register] step 2 — calling supabase.auth.signUp')
+      const supabase = createClient()
+      const { data: signUpData, error: signUpError } = await withTimeout(
+        supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { business_name: businessName },
+          },
+        }),
+        10000,
+        'signUp'
+      )
+
+      console.log('[register] signUp result:', {
+        userId: signUpData?.user?.id,
+        hasSession: !!signUpData?.session,
+        emailConfirmedAt: signUpData?.user?.email_confirmed_at,
+        error: signUpError?.message,
+        errorCode: signUpError?.code,
+      })
+
+      if (signUpError) {
+        console.error('[register] signUp failed:', signUpError)
+        setError(`Gagal mendaftar: ${signUpError.message}`)
+        setLoading(false)
+        return
+      }
+
+      // Supabase email confirmation is ON → session is null until user confirms email
+      if (!signUpData.session) {
+        console.log('[register] no session — email confirmation required')
+        setNeedsConfirmation(true)
+        setLoading(false)
+        return
+      }
+
+      console.log('[register] step 3 — session active, saving terms consent')
+      const userId = signUpData.user?.id
+      if (userId) {
+        const { error: updateError } = await withTimeout(
+          supabase
+            .from('profiles')
+            .update({
+              terms_agreed_at: new Date().toISOString(),
+              terms_version: process.env.NEXT_PUBLIC_TERMS_VERSION || '1.0',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', userId),
+          10000,
+          'profile update'
+        )
+        if (updateError) {
+          console.error('[register] profile update failed:', updateError)
+        }
+      }
+
+      router.push('/settings')
+      router.refresh()
+    } catch (err) {
+      console.error('[register] unexpected error:', err)
+      setError(`Pendaftaran gagal: ${err instanceof Error ? err.message : 'unknown error'}`)
       setLoading(false)
-      return
     }
-
-    console.log('[register] step 1 — checking invite code')
-    const checkRes = await fetch('/api/auth/check-invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: inviteCode }),
-    })
-    const checkData = await checkRes.json()
-    console.log('[register] invite check result:', checkData)
-
-    if (!checkData.valid) {
-      setError('Kode undangan tidak valid. Hubungi kami untuk mendapatkan akses.')
-      setLoading(false)
-      return
-    }
-
-    console.log('[register] step 2 — calling supabase.auth.signUp')
-    const supabase = createClient()
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { business_name: businessName },
-      },
-    })
-    console.log('[register] signUp result:', {
-      userId: signUpData?.user?.id,
-      hasSession: !!signUpData?.session,
-      emailConfirmedAt: signUpData?.user?.email_confirmed_at,
-      error: signUpError?.message,
-      errorCode: signUpError?.code,
-    })
-
-    if (signUpError) {
-      setError(`Gagal mendaftar: ${signUpError.message}`)
-      setLoading(false)
-      return
-    }
-
-    // Supabase email confirmation is ON → session is null until user confirms email
-    if (!signUpData.session) {
-      console.log('[register] no session — email confirmation required')
-      setNeedsConfirmation(true)
-      setLoading(false)
-      return
-    }
-
-    console.log('[register] step 3 — session active, saving terms consent')
-    const userId = signUpData.user?.id
-    if (userId) {
-      await supabase
-        .from('profiles')
-        .update({
-          terms_agreed_at: new Date().toISOString(),
-          terms_version: process.env.NEXT_PUBLIC_TERMS_VERSION || '1.0',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId)
-    }
-
-    router.push('/settings')
-    router.refresh()
   }
 
   return (

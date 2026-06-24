@@ -75,7 +75,8 @@
       "mcp__plugin_railway_railway__list_variables",
       "mcp__plugin_railway_railway__get_logs",
       "mcp__plugin_supabase_supabase__get_logs",
-      "mcp__plugin_supabase_supabase__get_edge_function"
+      "mcp__plugin_supabase_supabase__get_edge_function",
+      "Bash(npm list *)"
     ]
   },
   "enableAllProjectMcpServers": true,
