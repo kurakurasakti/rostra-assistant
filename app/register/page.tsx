@@ -109,14 +109,16 @@ export default function RegisterPage() {
       const userId = signUpData.user?.id
       if (userId) {
         const { error: updateError } = await withTimeout(
-          supabase
-            .from('profiles')
-            .update({
-              terms_agreed_at: new Date().toISOString(),
-              terms_version: process.env.NEXT_PUBLIC_TERMS_VERSION || '1.0',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', userId),
+          Promise.resolve(
+            supabase
+              .from('profiles')
+              .update({
+                terms_agreed_at: new Date().toISOString(),
+                terms_version: process.env.NEXT_PUBLIC_TERMS_VERSION || '1.0',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', userId)
+          ),
           10000,
           'profile update'
         )

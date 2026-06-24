@@ -76,7 +76,10 @@
       "mcp__plugin_railway_railway__get_logs",
       "mcp__plugin_supabase_supabase__get_logs",
       "mcp__plugin_supabase_supabase__get_edge_function",
-      "Bash(npm list *)"
+      "Bash(npm list *)",
+      "Bash(rg -P --no-ignore -g '*.js' -g '*.mjs' -l 'static\\\\s*\\\\{' /Users/roytjandra/Documents/Rostra/rostra-assistant/node_modules)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(rg -P -l 'static\\\\s*\\\\{' .next/static)"
     ]
   },
   "enableAllProjectMcpServers": true,

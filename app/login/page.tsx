@@ -46,7 +46,7 @@ export default function LoginPage() {
       }
 
       const { data: profile, error: profileError } = await withTimeout(
-        supabase.from('profiles').select('onboarding_complete').single(),
+        Promise.resolve(supabase.from('profiles').select('onboarding_complete').single()),
         10000,
         'profile fetch'
       )
