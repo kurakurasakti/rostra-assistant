@@ -235,7 +235,7 @@ export default function DashboardPage() {
       trendLabel: "30 hari",
     },
     {
-      label: "Menunggu Bayar",
+      label: "Menunggu Pembayaran",
       value: stats ? `Rp ${stats.totalUnpaid.toLocaleString("id-ID")}` : "Rp 0",
       icon: CreditCard,
       description: stats?.unpaidOrderCount ? `${stats.unpaidOrderCount} pembayaran tertunda` : "Semua pembayaran lunas",
@@ -289,7 +289,7 @@ export default function DashboardPage() {
               {trend !== undefined && trend === 0 && (
                 <p className="text-xs text-muted-foreground mt-0.5">Tidak ada perubahan</p>
               )}
-              {label === "Menunggu Bayar" && (
+              {label === "Menunggu Pembayaran" && (
                 <p className="text-xs text-muted-foreground mt-0.5">{trendLabel}</p>
               )}
             </div>

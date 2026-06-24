@@ -69,7 +69,13 @@
       "Bash(grep *)",
       "Bash(pnpm lint *)",
       "Bash(npx next *)",
-      "Bash(npx biome *)"
+      "Bash(npx biome *)",
+      "mcp__plugin_railway_railway__list_projects",
+      "mcp__plugin_railway_railway__list_services",
+      "mcp__plugin_railway_railway__list_variables",
+      "mcp__plugin_railway_railway__get_logs",
+      "mcp__plugin_supabase_supabase__get_logs",
+      "mcp__plugin_supabase_supabase__get_edge_function"
     ]
   },
   "enableAllProjectMcpServers": true,

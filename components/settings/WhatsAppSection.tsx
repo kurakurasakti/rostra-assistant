@@ -24,6 +24,7 @@ export default function WhatsAppSection({
   const [connectedNumber, setConnectedNumber] = useState("")
   const [notificationNumber, setNotificationNumber] = useState(initialNotificationNumber ?? "")
   const [savingNotif, setSavingNotif] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopPolling = useCallback(() => {
@@ -93,6 +94,7 @@ export default function WhatsAppSection({
 
   async function handleDisconnect() {
     stopPolling()
+    setDisconnecting(true)
     const res = await fetch("/api/whatsapp/disconnect", { method: "POST" })
     if (res.ok) {
       setWaStep("idle")
@@ -102,6 +104,7 @@ export default function WhatsAppSection({
     } else {
       toast.error("Gagal memutus koneksi.")
     }
+    setDisconnecting(false)
   }
 
   async function handleSaveNotification() {
@@ -197,7 +200,8 @@ export default function WhatsAppSection({
               <CheckCircle2 className="w-4 h-4" />
               WhatsApp terhubung{connectedNumber ? `: +${connectedNumber.slice(0, 2)} ${connectedNumber.slice(2, 6)} ${connectedNumber.slice(6, 9)} ${connectedNumber.slice(9)}` : ""}
             </div>
-            <Button type="button" variant="outline" size="sm" className="h-8 text-xs text-destructive hover:text-destructive" onClick={handleDisconnect}>
+            <Button type="button" variant="outline" size="sm" disabled={disconnecting} className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive" onClick={handleDisconnect}>
+              {disconnecting && <Loader2 className="w-3 h-3 animate-spin" />}
               Putuskan Koneksi
             </Button>
           </div>

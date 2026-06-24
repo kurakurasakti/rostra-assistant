@@ -199,6 +199,7 @@ export default function InboxPage() {
   const [originalAiDraft, setOriginalAiDraft] = useState<string | null>(null)
   const [loadingDraft, setLoadingDraft] = useState(false)
   const [sending, setSending] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
   const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set())
   const [userId, setUserId] = useState<string | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'thread'>('list')
@@ -925,6 +926,7 @@ export default function InboxPage() {
       toast.error('Tidak ada pesan baru untuk diperbarui')
       return
     }
+    setUpdatingStatus(true)
     const { error } = await supabase
       .from('inbox_messages')
       .update({ status })
@@ -934,6 +936,7 @@ export default function InboxPage() {
     } else {
       toast.success(status === 'diabaikan' ? 'Pesan diabaikan' : 'Pesan dieskalasi ke manusia')
     }
+    setUpdatingStatus(false)
   }
 
   return (
@@ -1333,18 +1336,20 @@ export default function InboxPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleUpdateStatus('dieskalasi')}
+                    disabled={updatingStatus}
                     className="h-7 text-[11px] gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 transition-transform duration-100 active:scale-95"
                   >
-                    <AlertTriangle className="w-3 h-3" />
+                    {updatingStatus ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
                     Eskalasi
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleUpdateStatus('diabaikan')}
+                    disabled={updatingStatus}
                     className="h-7 text-[11px] gap-1 text-muted-foreground transition-transform duration-100 active:scale-95"
                   >
-                    <EyeOff className="w-3 h-3" />
+                    {updatingStatus ? <Loader2 className="w-3 h-3 animate-spin" /> : <EyeOff className="w-3 h-3" />}
                     Abaikan
                   </Button>
                 </div>

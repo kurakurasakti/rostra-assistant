@@ -146,12 +146,12 @@ export default function LoginPage() {
               className="w-full h-10 font-medium font-display"
               disabled={loading}
             >
-              {loading ? 'Sedang masuk...' : 'Masuk'}
+              {loading ? 'Logging in...' : 'Login'}
             </Button>
           </form>
 
           <p className="text-center text-xs text-muted-foreground mt-8">
-            Belum punya akun?{' '}
+            Don't have an account?{' '}
             <span className="text-foreground">Hubungi kami untuk mendapat kode undangan.</span>
           </p>
         </div>
