@@ -251,7 +251,7 @@ export default function RegisterPage() {
             <Button
               type="submit"
               className="w-full h-10 font-medium font-display"
-              disabled={!termsAccepted}
+              // disabled={!termsAccepted}
             >
               {loading ? 'Mendaftar...' : 'Daftar'}
             </Button>
