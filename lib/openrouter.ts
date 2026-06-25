@@ -221,7 +221,7 @@ export function buildBusinessContext(profile: Profile): string {
 const CATEGORY_ORDER: QACategory[] = ['harga', 'jadwal', 'ketersediaan', 'status', 'pembayaran', 'umum']
 
 const EXAMPLE_KEYWORDS: Record<QACategory, string[]> = {
-  harga:        ['harga', 'berapa', 'budget', 'biaya', 'cost', 'mahal', 'murah', 'tarif'],
+  harga:        ['harga', 'budget', 'biaya', 'cost', 'mahal', 'murah', 'tarif'],
   ketersediaan: ['bisa', 'masih ada', 'tersedia', 'ready', 'stok', 'ada'],
   jadwal:       ['kapan', 'jadwal', 'fitting', 'ambil', 'tanggal', 'waktu', 'jam'],
   status:       ['sudah', 'progress', 'gimana', 'selesai', 'jadi', 'sampai mana', 'update'],
@@ -260,7 +260,30 @@ function buildExamplesSection(examples: ConversationExample[] | null | undefined
 
   return `=== CONTOH BALASAN NYATA BISNIS INI ===
 Gunakan contoh berikut sebagai referensi gaya dan isi balasan.
-Jangan copy persis — sesuaikan dengan konteks pesan yang masuk.
+Jika pertanyaan pelanggan mirip salah satu contoh, ikuti isi jawabannya — jangan hanya tiru gaya lalu balik ke jawaban lama yang sudah pernah dikoreksi admin.
+
+${body}`
+}
+
+// Per-message, not cached: surfaces the corrections most relevant to THIS incoming
+// message front-and-center, since buildExamplesSection above buries them in a fixed
+// category order shared across all messages.
+function buildRelevantExamplesSection(
+  examples: ConversationExample[] | null | undefined,
+  message: string,
+): string {
+  if (!examples?.length) return ''
+
+  const relevantCat = classifyMessageCategory(message)
+  const top = getPrioritizedExamples(examples, message)
+    .filter(e => e.category === relevantCat)
+    .slice(0, 3)
+  if (!top.length) return ''
+
+  const body = top.map(e => `Pelanggan: "${e.customer}"\nAdmin: "${e.admin}"`).join('\n\n')
+
+  return `=== CONTOH PALING RELEVAN UNTUK PESAN INI ===
+Pesan pelanggan saat ini termasuk kategori "${relevantCat}". Jika sama atau sangat serupa dengan contoh berikut, gunakan jawaban yang sama — boleh sesuaikan sapaan/nama saja, JANGAN ubah informasi inti (harga/tanggal/status).
 
 ${body}`
 }
@@ -283,11 +306,16 @@ ${buildBusinessContext(profile)}`
   return [businessSection, examplesSection].filter(Boolean).join('\n\n').trim()
 }
 
-// Level 3 — changes per client. Cache hits within one conversation thread.
-function buildLevel3(client: Client | null, orderSummary?: string): string {
+// Level 3 — changes per client/message. Cache miss is expected here.
+function buildLevel3(
+  client: Client | null,
+  orderSummary?: string,
+  relevantExamples?: string,
+): string {
   const parts: string[] = []
   if (client?.ai_notes) parts.push(`=== KONTEKS KLIEN ===\n${client.ai_notes}`)
   if (orderSummary) parts.push(`=== PESANAN AKTIF KLIEN INI ===\n${orderSummary}`)
+  if (relevantExamples) parts.push(relevantExamples)
   return parts.join('\n\n')
 }
 
@@ -340,18 +368,27 @@ export function buildSecurePrompt(
   _businessContext: string,
   _brandVoice: string,
   orderSummary?: string,
+  message?: string,
 ): string {
-  return [LEVEL1_RULES, buildLevel2(profile), buildLevel3(client, orderSummary)]
+  const relevantExamples = message
+    ? buildRelevantExamplesSection(profile.conversation_examples, message)
+    : ''
+  return [LEVEL1_RULES, buildLevel2(profile), buildLevel3(client, orderSummary, relevantExamples)]
     .filter(Boolean)
     .join('\n\n')
 }
 
-export async function buildAIContext(profile: Profile, client: Client | null, userId?: string): Promise<string> {
+export async function buildAIContext(
+  profile: Profile,
+  client: Client | null,
+  userId?: string,
+  message?: string,
+): Promise<string> {
   let orderSummary = ''
   if (userId && client?.id) {
     orderSummary = await getClientOrderSummary(userId, client.id)
   }
-  return buildSecurePrompt(profile, client, '', '', orderSummary)
+  return buildSecurePrompt(profile, client, '', '', orderSummary, message)
 }
 
 // ── AI CALLERS ────────────────────────────────────────────────────────────────
@@ -777,7 +814,7 @@ export async function classifyAndDraft(
       history = (recent ?? []).reverse()
     }
 
-    const securePrompt = buildSecurePrompt(profile, null, '', '')
+    const securePrompt = buildSecurePrompt(profile, null, '', '', undefined, messageBody)
     const { text: rawDraft } = await callDraftOnly(messageBody, securePrompt, history)
 
     let safeDraft: string | null = rawDraft || null

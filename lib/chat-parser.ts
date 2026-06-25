@@ -97,7 +97,7 @@ export function extractConversationContext(
 // ── FEW-SHOT QA EXTRACTION ────────────────────────────────────────────────────
 
 const CATEGORY_KEYWORDS: Record<QACategory, string[]> = {
-  harga:         ['harga', 'berapa', 'budget', 'biaya', 'cost', 'mahal', 'murah', 'tarif'],
+  harga:         ['harga', 'budget', 'biaya', 'cost', 'mahal', 'murah', 'tarif'],
   ketersediaan:  ['bisa', 'masih ada', 'tersedia', 'ready', 'stok', 'ada'],
   jadwal:        ['kapan', 'jadwal', 'fitting', 'ambil', 'tanggal', 'waktu', 'jam', 'hari'],
   status:        ['sudah', 'progress', 'gimana', 'selesai', 'jadi', 'sampai mana', 'update'],
