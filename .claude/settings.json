@@ -4,6 +4,16 @@
     "vercel@claude-plugins-official": true,
     "ecc@ecc": true,
     "railway@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true
+    "superpowers@claude-plugins-official": true,
+    "nextlevelbuilder-ui-ux-pro-max-skill-2@cascade-content-creation-misc-1": true,
+    "marketing-skills@marketingskills": true
+  },
+  "extraKnownMarketplaces": {
+    "cascade-content-creation-misc-1": {
+      "source": {
+        "source": "github",
+        "repo": "joshuarweaver/cascade-content-creation-misc-1"
+      }
+    }
   }
 }

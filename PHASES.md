@@ -938,60 +938,73 @@ ALTER TABLE profiles
 
 **Goal:** Convert visitors → signups. Marketing site live.
 
-### 6A. Landing Page Design & Build
+> Branch: `feat/landing-page` — in progress, not merged to main yet.
 
-- [ ] Buat `/app/landing` route untuk public pages (outside dashboard)
-- [ ] Hero section:
-      - Headline: "WhatsApp CRM untuk Bisnis Fashion & Tailoring Indonesia"
-      - Subheading: "AI otomatis balas pesan, kelola pesanan, terima pembayaran"
-      - CTA: "Mulai Gratis — Tidak Perlu Kartu Kredit"
-      - Background video/image of fashion business
-- [ ] Features section (3 kolom):
-      - 🤖 AI Auto-Reply — Balas otomatis dengan gaya bisnis Anda
-      - 📋 Order Management — Track pembayaran, jadwal, appointment
-      - 📲 WhatsApp Native — Langsung dari WhatsApp, no app switching
-- [ ] How It Works section (4 steps):
-      1. Connect WhatsApp device via QR
-      2. Upload chat history → AI pelajari gaya Anda
-      3. Add clients + create orders
-      4. AI auto-replies, you review & approve
-- [ ] Pricing section:
-      - Tier 1 (free): 1 device, manual review mode, 50 messages/day
-      - Tier 2 (Rp 199k/bulan): unlimited devices, semi-auto mode, 10k messages/month
-      - Tier 3 (Rp 499k/bulan): full auto mode, priority support, custom templates
-- [ ] FAQ section — common questions
-- [ ] Footer — links, social, copyright
-- [ ] Responsive design (mobile-first)
+---
 
-### 6B. Landing Page Content
+### 6A. Landing Page Build ✅ SELESAI
 
-- [ ] Buat `/content/landing-copy.ts` — semua copy/tekst
-      Titles, descriptions, CTA text, FAQ answers
-- [ ] Buat `/content/case-studies.ts` — 3 case studies:
-      "Butik Kirana: Hemat 5 jam kerja/minggu"
-      "Jahitan Ibu Siti: Revenue +40% dengan AI"
-      "Tailor Budi: Klien sabar karena ada konfirmasi otomatis"
+> Design spec: `docs/landingPage.md`
+> Route: `app/page.tsx` (public root)
+> Dashboard moved to `/dashboard` — own layout at `app/dashboard/layout.tsx`
+
+- [x] Route restructure — `app/(dashboard)/page.tsx` → redirect `/dashboard`
+- [x] `app/dashboard/layout.tsx` — auth guard + sidebar untuk `/dashboard`
+- [x] `app/page.tsx` — landing page 9 sections:
+      - Navbar sticky (logo + CTA)
+      - Hero + WA chat mockup animasi (pure CSS, no JS)
+      - Problem section — 3 pain points
+      - Features — 3 card (AI reply, order management, escalation)
+      - How it works — 4 steps
+      - Pricing — Rp 299.000/bulan
+      - "Kenapa kami buat ini" — dark purple section
+      - FAQ accordion
+      - Final CTA
+- [x] `components/landing/faq-accordion.tsx` — 5 FAQ
+- [x] `app/globals.css` — 3 keyframes (chat-bubble-in, ai-draft-in, amber-pulse)
+- [x] Responsive mobile-first
+- [x] Auth check — logged-in user redirect `/dashboard`
+- [x] `app/login/page.tsx` + `app/auth/callback/page.tsx` — redirect `/dashboard`
+
+### 6B. Image Assets [~] IN PROGRESS
+
+> fal.ai budget: $10 total. Max $3 testing. Spent: ~$1.002 so far.
+> Models: GPT Image 2 ($1/image) untuk OG. FLUX schnell ($0.003/MP) untuk texture.
+
+- [x] OG image generated — `openai/gpt-image-2` quality:low
+      URL: `https://v3b.fal.media/files/b/0aa07874/kC_0WIAWhHMY5AeEtlBZo_VtULS8r3.png`
+- [x] Dark section BG texture — `fal-ai/flux/schnell`
+      URL: `https://v3b.fal.media/files/b/0aa07878/v0wZYBoMO2X0Z8t0EC98m.jpg`
+- [ ] **Wire OG image ke `app/layout.tsx` metadata** (`og:image`, `twitter:image`)
+- [ ] **Apply texture ke section "Kenapa kami buat ini"** di `app/page.tsx`
+- [ ] Review OG image — jika layout/teks kurang, regenerate ($1)
+
+### 6C. SEO Metadata
+
+- [ ] `app/layout.tsx` — OG metadata lengkap (`og:title`, `og:description`, `og:image`, `og:url`)
+- [ ] `app/sitemap.ts` — Next.js sitemap
+- [ ] `public/robots.txt`
+- [ ] Vercel Analytics (built-in, tidak perlu GA4)
+
+### 6D. Content Polish (post-beta — butuh real data)
+
 - [ ] Testimonials — 5-6 quotes dari beta users
-- [ ] Trust badges — "✓ 500+ users" atau "✓ Trusted by..."
+- [ ] Trust badges — angka real users
+- [ ] Case studies — data dari beta
 
-### 6C. SEO & Analytics
+### 6E. Email Capture (post-beta)
 
-- [ ] Setup metadata:
-      - `og:title`, `og:description`, `og:image`
-      - Meta tags untuk semua pages
-      - Sitemap + robots.txt
-- [ ] Setup Google Analytics 4
-- [ ] Setup Vercel Analytics untuk performance monitoring
-- [ ] Create sitemap untuk SEO
-
-### 6D. Email Capture
-
-- [ ] Newsletter signup di footer
-      Email → simpan ke `newsletter_signups` table
+- [ ] Newsletter signup di footer — `newsletter_signups` table
 - [ ] Thank you email via Resend/SendGrid
-- [ ] Broadcast feature (untuk nanti: email campaign ke newsletter subs)
 
-**Done when:** Landing page live, Google indexable, visitors dapat lihat product value tanpa login.
+---
+
+**Done when:** Landing page live di root `/`, OG image tampil di social share, visitors bisa lihat product value tanpa login.
+
+**Next steps (prioritized):**
+1. Wire OG image + texture → `app/layout.tsx` + `app/page.tsx`
+2. Add SEO metadata di `app/layout.tsx`
+3. Merge `feat/landing-page` → `main` + deploy Vercel
 
 ---
 
