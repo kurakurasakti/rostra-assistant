@@ -58,7 +58,7 @@ export default function LoginPage() {
       if (profile && !profile.onboarding_complete) {
         router.push('/settings')
       } else {
-        router.push('/')
+        router.push('/dashboard')
       }
       router.refresh()
     } catch (err) {
