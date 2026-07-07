@@ -77,7 +77,12 @@ export async function POST() {
       for (const client of existingClients) {
         existingNumbers.add(client.whatsapp_number)
         const newName = uniqueContactsMap.get(client.whatsapp_number)
-        if (newName && client.name !== newName) {
+        // Only overwrite names that look auto-generated (JID / bare number) —
+        // a human-entered name (e.g. renamed via inbox) must win over the WA phonebook,
+        // otherwise every inbox load reverts manual renames
+        const isAutoName =
+          !client.name || client.name.includes('@') || /^\+?[\d\s\-]+$/.test(client.name)
+        if (newName && isAutoName && client.name !== newName) {
           existingClientsToUpdate.push({ id: client.id, name: newName })
         }
       }

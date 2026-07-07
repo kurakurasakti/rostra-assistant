@@ -80,7 +80,7 @@
       "Bash(rg -P --no-ignore -g '*.js' -g '*.mjs' -l 'static\\\\s*\\\\{' /Users/roytjandra/Documents/Rostra/rostra-assistant/node_modules)",
       "Bash(echo \"exit:$?\")",
       "Bash(rg -P -l 'static\\\\s*\\\\{' .next/static)",
-      "Bash(npx claudepluginhub *)"
+      "PowerShell(pnpm lint *)"
     ]
   },
   "enableAllProjectMcpServers": true,
