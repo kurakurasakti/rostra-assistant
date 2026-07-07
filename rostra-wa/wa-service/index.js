@@ -609,7 +609,10 @@ async function loadExistingSessions() {
   const userIds = fs
     .readdirSync(authDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+    .map((entry) => entry.name)
+    // Only restore real Baileys sessions — the volume root also contains
+    // filesystem dirs like lost+found that must not become sessions
+    .filter((name) => fs.existsSync(path.join(authDir, name, "creds.json")));
   console.log(`[startup] Loading ${userIds.length} existing sessions...`);
 
   for (const userId of userIds) {
