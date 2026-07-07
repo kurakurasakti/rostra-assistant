@@ -202,6 +202,8 @@ export default function InboxPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set())
   const [userId, setUserId] = useState<string | null>(null)
+  // Bumped when the realtime channel errors out — retriggers the subscription effect
+  const [realtimeNonce, setRealtimeNonce] = useState(0)
   const [mobileView, setMobileView] = useState<'list' | 'thread'>('list')
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   // Level 2 queue state
@@ -297,10 +299,13 @@ export default function InboxPage() {
       setClients(clientsData)
     }
 
+    // Newest first + explicit limit — supabase caps at 1000 rows, and ascending
+    // order would return the oldest rows, dropping recent conversations
     const { data, error } = await supabase
       .from('inbox_messages')
       .select('*')
-      .order('received_at', { ascending: true })
+      .order('received_at', { ascending: false })
+      .limit(1000)
     if (!error && data) setMessages(data)
     setLoadingMessages(false)
   }, [])
@@ -469,6 +474,7 @@ export default function InboxPage() {
 
     let channel: any = null
     let clientsChannel: any = null
+    let cancelled = false
 
     // Get current session to authenticate realtime connection before subscribing
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -529,7 +535,16 @@ export default function InboxPage() {
             }
           },
         )
-        .subscribe()
+        .subscribe((status: string) => {
+          // Channel can die silently after a network blip or laptop sleep —
+          // resubscribe so live updates keep flowing without a manual refresh
+          if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !cancelled) {
+            console.warn('[inbox/realtime] channel', status, '— resubscribing in 3s')
+            setTimeout(() => {
+              if (!cancelled) setRealtimeNonce(n => n + 1)
+            }, 3000)
+          }
+        })
 
       clientsChannel = supabase
         .channel(`clients-realtime-${userId}`)
@@ -562,11 +577,49 @@ export default function InboxPage() {
     )
 
     return () => {
+      cancelled = true
       if (channel) supabase.removeChannel(channel)
       if (clientsChannel) supabase.removeChannel(clientsChannel)
       authSub.unsubscribe()
     }
-  }, [userId])
+  }, [userId, realtimeNonce]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refetch on tab focus — safety net for anything realtime missed while inactive
+  useEffect(() => {
+    const refresh = () => {
+      loadMessages()
+      const waNumber = selectedNumberRef.current
+      if (!waNumber) return
+      supabase
+        .from('inbox_messages')
+        .select('*')
+        .eq('whatsapp_number', waNumber)
+        .order('received_at', { ascending: false })
+        .limit(PAGE_SIZE)
+        .then(({ data, error }) => {
+          if (error || !data || data.length === 0) return
+          const latest = [...data].reverse() as InboxMessage[]
+          setThreadMessages(prev => {
+            if (prev.length === 0) return latest
+            const byId = new Map(latest.map(m => [m.id, m]))
+            const merged = prev.map(m => byId.get(m.id) ?? m)
+            const existingIds = new Set(prev.map(m => m.id))
+            const newer = latest.filter(m => !existingIds.has(m.id))
+            if (newer.length > 0) pendingScrollBottomRef.current = true
+            return [...merged, ...newer]
+          })
+        })
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [loadMessages]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const conversations = buildConversations(messages, clients)
   const selectedConversation = selectedNumber

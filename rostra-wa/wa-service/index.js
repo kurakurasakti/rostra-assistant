@@ -613,7 +613,11 @@ async function loadExistingSessions() {
   console.log(`[startup] Loading ${userIds.length} existing sessions...`);
 
   for (const userId of userIds) {
-    await createSession(userId);
+    try {
+      await createSession(userId);
+    } catch (err) {
+      console.error(`[startup] failed to restore session ${userId}:`, err);
+    }
   }
 }
 
@@ -866,9 +870,21 @@ app.get("/health", (req, res) => {
   });
 });
 
-loadExistingSessions().then(() => {
-  app.listen(PORT, () => {
-    console.log(`WA Service running at http://localhost:${PORT}`);
-    console.log(`   Health: http://localhost:${PORT}/health`);
-  });
+// Baileys emits async errors outside request handlers — without these guards a
+// single socket error kills every session until someone manually restarts the process
+process.on("uncaughtException", (err) => {
+  console.error("[fatal] uncaughtException:", err);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("[fatal] unhandledRejection:", err);
+});
+
+// Listen first so the API is reachable even if session restore is slow or fails
+app.listen(PORT, () => {
+  console.log(`WA Service running at http://localhost:${PORT}`);
+  console.log(`   Health: http://localhost:${PORT}/health`);
+});
+
+loadExistingSessions().catch((err) => {
+  console.error("[startup] loadExistingSessions failed:", err);
 });
