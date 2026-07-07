@@ -20,17 +20,21 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://glim.app'),
+  // `||` not `??` — NEXT_PUBLIC_APP_URL may be set to empty string, which `??` lets through
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://glim.app'),
   title: 'Glim — Asisten Bisnis WhatsApp',
   description: 'Kelola Client, pesanan, dan pesan WhatsApp dalam satu tempat',
   icons: {
     icon: '/icon.svg',
     apple: '/apple-icon.svg',
   },
+  // og:image comes from app/opengraph-image.tsx (PNG — WhatsApp/FB don't render SVG previews)
   openGraph: {
     title: 'Glim — Asisten Bisnis WhatsApp',
     description: 'Kelola Client, pesanan, dan pesan WhatsApp dalam satu tempat',
-    images: ['/og-image.svg'],
+    siteName: 'Glim',
+    locale: 'id_ID',
+    type: 'website',
   },
 }
 

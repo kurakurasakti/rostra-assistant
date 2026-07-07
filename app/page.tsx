@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { Logo } from '@/components/logo'
 import { Footer } from '@/components/footer'
 import { FaqAccordion } from '@/components/landing/faq-accordion'
+import { faqs } from '@/components/landing/faq-data'
 import {
   MessageSquare,
   Bell,
@@ -16,19 +15,43 @@ import {
   Zap,
 } from 'lucide-react'
 
+const pageTitle = 'Glim — AI Assistant WhatsApp untuk Bisnis Indonesia'
+const pageDescription =
+  'Balas pesan pelanggan dengan gaya bicaramu sendiri. Pengingat pembayaran otomatis. Kelola pesanan dalam satu tempat. Khusus untuk bisnis jasa Indonesia.'
+
 export const metadata: Metadata = {
-  title: 'Glim — AI Assistant WhatsApp untuk Bisnis Indonesia',
-  description:
-    'Balas pesan pelanggan dengan gaya bicaramu sendiri. Pengingat pembayaran otomatis. Kelola pesanan dalam satu tempat. Khusus untuk bisnis jasa Indonesia.',
+  title: pageTitle,
+  description: pageDescription,
+  openGraph: {
+    title: pageTitle,
+    description: pageDescription,
+    url: '/',
+    siteName: 'Glim',
+    locale: 'id_ID',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: pageTitle,
+    description: pageDescription,
+  },
+  alternates: {
+    canonical: '/',
+  },
 }
 
-export default async function LandingPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (user) redirect('/dashboard')
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(({ q, a }) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  })),
+}
 
+// Static page — logged-in users are redirected to /dashboard by proxy.ts
+export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F8F6F2', color: '#1A1A18' }}>
       {/* ── Navbar ── */}
@@ -204,7 +227,7 @@ export default async function LandingPage() {
       </section>
 
       {/* ── How it works ── */}
-      <section id="cara-kerja" className="py-20 px-4 sm:px-6 bg-white">
+      <section id="cara-kerja" className="scroll-mt-16 py-20 px-4 sm:px-6 bg-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <span
@@ -396,6 +419,10 @@ export default async function LandingPage() {
           </div>
           <FaqAccordion />
         </div>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
       </section>
 
       {/* ── Final CTA ── */}
@@ -431,7 +458,9 @@ export default async function LandingPage() {
 
 function WaMockup() {
   return (
+    // Decorative product mockup — hidden from assistive tech, no focusable controls inside
     <div
+      aria-hidden="true"
       className="rounded-2xl shadow-xl overflow-hidden border w-full"
       style={{ maxWidth: '340px', borderColor: '#E8E4DC', backgroundColor: '#ECE5DD' }}
     >
@@ -462,11 +491,8 @@ function WaMockup() {
       <div className="p-3 space-y-2 min-h-[200px]">
         {/* Incoming message 1 */}
         <div
-          className="rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]"
-          style={{
-            backgroundColor: '#fff',
-            animation: 'chat-bubble-in 0.4s cubic-bezier(0.22,1,0.36,1) 0.3s both',
-          }}
+          className="animate-chat-bubble-1 rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]"
+          style={{ backgroundColor: '#fff' }}
         >
           <p className="text-xs leading-relaxed" style={{ color: '#1A1A18' }}>
             Halo kak, mau tanya soal kebaya custom dong, ada nggak? 🙏
@@ -478,11 +504,8 @@ function WaMockup() {
 
         {/* Incoming message 2 */}
         <div
-          className="rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]"
-          style={{
-            backgroundColor: '#fff',
-            animation: 'chat-bubble-in 0.4s cubic-bezier(0.22,1,0.36,1) 0.75s both',
-          }}
+          className="animate-chat-bubble-2 rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]"
+          style={{ backgroundColor: '#fff' }}
         >
           <p className="text-xs leading-relaxed" style={{ color: '#1A1A18' }}>
             Berapa harga mulai dari untuk size M?
@@ -494,20 +517,13 @@ function WaMockup() {
 
         {/* AI draft card */}
         <div
-          className="rounded-xl border-2 p-3 mt-3"
-          style={{
-            backgroundColor: '#FFFBF3',
-            borderColor: '#E8A33D',
-            animation: 'ai-draft-in 0.6s cubic-bezier(0.22,1,0.36,1) 1.3s both',
-          }}
+          className="animate-ai-draft rounded-xl border-2 p-3 mt-3"
+          style={{ backgroundColor: '#FFFBF3', borderColor: '#E8A33D' }}
         >
           <div className="flex items-center gap-1.5 mb-2">
             <Sparkles
-              className="w-3 h-3"
-              style={{
-                color: '#E8A33D',
-                animation: 'amber-pulse 2s ease-in-out 1.9s infinite',
-              }}
+              className="animate-amber-pulse w-3 h-3"
+              style={{ color: '#E8A33D' }}
             />
             <span className="text-[10px] font-semibold" style={{ color: '#B8720A' }}>
               Draft AI
@@ -519,18 +535,18 @@ function WaMockup() {
             dulu soal desain dan bahan...
           </p>
           <div className="flex gap-2">
-            <button
-              className="flex-1 text-[10px] font-medium py-1.5 rounded-lg border transition-colors"
+            <div
+              className="flex-1 text-center text-[10px] font-medium py-1.5 rounded-lg border"
               style={{ borderColor: '#C9C3BB', color: '#6B6862', backgroundColor: 'transparent' }}
             >
               Ubah
-            </button>
-            <button
-              className="flex-1 text-[10px] font-semibold py-1.5 rounded-lg"
+            </div>
+            <div
+              className="flex-1 text-center text-[10px] font-semibold py-1.5 rounded-lg"
               style={{ backgroundColor: '#703c8b', color: '#fff' }}
             >
               ✓ Kirim
-            </button>
+            </div>
           </div>
         </div>
       </div>

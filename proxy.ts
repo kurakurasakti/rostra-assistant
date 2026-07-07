@@ -40,15 +40,17 @@ export async function proxy(request: NextRequest) {
     '/icon.svg',
     '/apple-icon.svg',
     '/og-image.svg',
+    '/opengraph-image',
   ]
-  const isPublic = publicPaths.some(p => request.nextUrl.pathname.startsWith(p))
+  const pathname = request.nextUrl.pathname
+  const isPublic = pathname === '/' || publicPaths.some(p => pathname.startsWith(p))
 
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
-    return NextResponse.redirect(new URL('/', request.url))
+  if (user && (pathname === '/' || pathname === '/login' || pathname === '/register')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return supabaseResponse
