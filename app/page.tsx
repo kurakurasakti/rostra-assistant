@@ -81,8 +81,28 @@ export default function LandingPage() {
       </header>
 
       {/* ── Hero ── */}
-      <section style={{ backgroundColor: '#F8F6F2' }} className="pt-16 pb-20 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto">
+      <section style={{ backgroundColor: '#F8F6F2' }} className="relative overflow-hidden pt-16 pb-20 px-4 sm:px-6">
+        {/* Batik parang texture — decorative, fades out toward the content below */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+              `<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56'><g fill='none' stroke='#DDD5C7' stroke-width='1.4' stroke-linecap='round'><path d='M8 20c6-8 14-8 20 0'/><path d='M4 44c6-8 14-8 20 0'/><path d='M32 48c6-8 14-8 20 0'/><path d='M36 12c6-8 14-8 20 0'/></g></svg>`
+            )}")`,
+            backgroundSize: '56px 56px',
+            opacity: 0.55,
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to bottom, rgba(248,246,242,0.35) 0%, rgba(248,246,242,0.75) 55%, #F8F6F2 100%)',
+          }}
+        />
+        <div className="relative max-w-5xl mx-auto">
           <div className="grid md:grid-cols-2 gap-10 items-center">
             {/* Left — copy */}
             <div className="animate-fade-up">
@@ -372,10 +392,26 @@ export default function LandingPage() {
 
       {/* ── Why we built this ── */}
       <section
-        className="py-20 px-4 sm:px-6"
-        style={{ background: 'linear-gradient(135deg, #2D1445 0%, #4a2560 60%, #5c3070 100%)' }}
+        className="relative overflow-hidden py-24 px-4 sm:px-6"
+        style={{ backgroundColor: '#2D1445' }}
       >
-        <div className="max-w-2xl mx-auto text-center">
+        {/* Atelier photo — kebaya fitting on a dress form, tinted to the brand aubergine */}
+        <img
+          src="/landing/atelier.jpg"
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(45,20,69,0.82) 0%, rgba(74,37,96,0.6) 55%, rgba(45,20,69,0.8) 100%)',
+          }}
+        />
+        <div className="relative max-w-2xl mx-auto text-center">
           <span
             className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-6"
             style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}

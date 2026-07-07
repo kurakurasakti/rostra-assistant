@@ -36,6 +36,7 @@ export async function proxy(request: NextRequest) {
     '/api/whatsapp/connected',
     '/api/whatsapp/disconnected',
     '/assets',
+    '/landing',
     '/favicon.ico',
     '/icon.svg',
     '/apple-icon.svg',
@@ -57,5 +58,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|assets|favicon.ico|icon.svg|apple-icon.svg|og-image.svg).*)'],
+  matcher: ['/((?!_next/static|_next/image|assets|landing|favicon.ico|icon.svg|apple-icon.svg|og-image.svg).*)'],
 }
