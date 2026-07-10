@@ -41,10 +41,10 @@ interface InlineEditCardProps {
 - Children: the existing `<Input id="businessName" .../>` moved inside — no separate save action, still submits via the form's existing "Simpan Profil" button at the bottom. Pass `onCollapseRequest={lastSavedAt}` where `lastSavedAt` is a timestamp state set inside `handleSaveProfile` on success.
 
 **Usage — WhatsApp**:
-- `defaultExpanded={!profile?.onboarding_complete}`
-- `summary={profile?.onboarding_complete ? 'Terhubung ✓' : 'Belum terhubung'}`
-- Children: `<WhatsAppSection .../>` unchanged, mounted only when expanded (lazy-mount avoids the component's internal `/api/whatsapp/status` fetch firing until the user opens it).
-- No `onCollapseRequest` — WhatsAppSection manages its own internal state; user manually re-collapses by navigating away or the card simply stays expanded until page reload. (No auto-collapse needed here since there's no single "save" moment — connecting is multi-step with QR scanning.)
+- `defaultExpanded={!profile?.wa_connected}` — **uses `wa_connected`, not `onboarding_complete`**. Verified via grep across every write path (`/api/whatsapp/connected`, `/api/whatsapp/disconnect`, `/api/whatsapp/status`, `/api/whatsapp/disconnected`): `onboarding_complete` is only reset to `false` in the manual `/api/whatsapp/disconnect` route. Both the poll-detected disconnect (`/api/whatsapp/status`) and the external webhook (`/api/whatsapp/disconnected`) reset `wa_connected` to `false` but leave `onboarding_complete: true`. Keying the card on `onboarding_complete` would show a stale "Terhubung ✓" after a phone-side logout or session expiry. `wa_connected` is the field kept correctly in sync across all four paths.
+- `summary={profile?.wa_connected ? 'Terhubung ✓' : 'Belum terhubung'}`
+- Children: `<WhatsAppSection onConnected={...} .../>` unchanged otherwise, mounted only when expanded (lazy-mount avoids the component's internal `/api/whatsapp/status` fetch firing until the user opens it).
+- `onConnected` (new): `WhatsAppSection` gets one new optional prop `onConnected?: () => void`, called once inside `startPolling`'s interval at the exact point `data.connected` becomes true (`components/settings/WhatsAppSection.tsx`, right where `setWaStep("connected")` currently fires — one line added, nothing else in that file changes). The parent wires this to bump the same `lastSavedAt`-style timestamp state that `InlineEditCard` watches, so the card auto-collapses immediately on successful connect instead of requiring a page reload.
 
 ### 2. `components/settings/TonePresetPicker.tsx` (new)
 
@@ -86,9 +86,19 @@ const TONE_PRESETS = [
 ] as const
 ```
 
-Selection logic: a preset card is visually "selected" (highlighted border) if `value === preset.template`. The **Custom** card (always rendered 4th, not in the array above since it has no template) is selected whenever `value` doesn't exactly match any preset template — this covers empty string, manually-typed text, and AI-analyzed brand voice from the "Analisa dari Chat WA" flow.
+Selection state is **local UI state, not purely derived from `value`** — this is a fix from the original draft, which derived selection 100% from `value === preset.template` and made Custom a dead end: once a fixed preset was clicked, there was no click target left to get back to the textarea, since Custom's handler never called `onSelect` and nothing else could change `activeCardId` away from a matched preset.
 
-Clicking a fixed preset card calls `onSelect(preset.template)`, which the parent wires to `setBrandVoice(template)`. Clicking Custom does nothing itself (it's already "selected" by not matching) — it just controls whether `customSlot` renders below the card grid.
+```tsx
+const deriveFromValue = (v: string) =>
+  TONE_PRESETS.find((p) => p.template === v)?.id ?? 'custom'
+
+const [activeCardId, setActiveCardId] = useState(() => deriveFromValue(value))
+```
+
+- Clicking a fixed preset card: `setActiveCardId(preset.id)` **and** `onSelect(preset.template)` (parent sets `brandVoice`).
+- Clicking Custom: `setActiveCardId('custom')` **only** — does not touch `value`. This is what makes Custom reachable again after a preset was selected: the user can always click back into Custom to see/edit whatever text is currently in `brandVoice` (the preset template they just picked, or older AI-analyzed text still sitting in state).
+- `customSlot` renders when `activeCardId === 'custom'`.
+- Card highlight (`border-primary bg-primary/5`) is driven by `activeCardId`, not by re-deriving from `value` on every render — so the two don't fight each other once the user starts clicking around.
 
 Layout: `grid grid-cols-2 gap-2` (2x2 on desktop, matches existing `max-w-[640px]` column width), each card `rounded-lg border p-3` with selected state `border-primary bg-primary/5`.
 
@@ -123,17 +133,37 @@ Replace with a single conditional banner rendered **above** the `<h1>Pengaturan<
 
 When `profile.onboarding_complete` is true, nothing renders — the collapsed WhatsApp `InlineEditCard` summary ("Terhubung ✓") already communicates connected status, so the old green success box is redundant and removed outright.
 
+**Verified against `app/(dashboard)/layout.tsx`**: no sticky header exists in the layout (`<main className="flex-1 overflow-y-auto pb-16 md:pb-0">` is a plain scroll container) — `top-0 z-10` on the banner has nothing to conflict with. The `-mx-6 lg:-mx-8` / `px-6 lg:px-8` values are confirmed correct: they cancel the outer grid div's own `p-6 lg:p-8` (`page.tsx:335`), and nothing sits between the banner and that padded ancestor to interfere.
+
+**Scope caveat**: the settings page's outer grid uses `lg:justify-center` with a `minmax(0,640px)` content column, so the banner bleeds only to the edge of that 640px column — not full app width past the sidebar like the Intercom reference (which spans a wider shell). Achieving true edge-to-edge would require restructuring the page container, out of scope for this pass. This is a cosmetic reduction, not a bug — still a valid thin banner, just capped at content width.
+
+## Verification notes (from spec review, 2026-07-10)
+
+Six items were checked against the live codebase before implementation:
+
+1. **`InlineEditCard` mount-timing** — `page.tsx:318-332` gates the entire settings UI behind `if (loading) return <Skeleton/>`. Profile is client-fetched but fully resolved before any `InlineEditCard` mounts, so `defaultExpanded` (evaluated once via `useState`) sees real data on its actual first render. No fix needed.
+2. **WhatsApp auto-collapse on connect** — added, see `onConnected` prop above.
+3. **Banner layout conflicts** — checked, see caveat above.
+4. **Anchor nav + collapsed cards** — decision: `SettingsAnchorNav` only scrolls, never auto-expands a collapsed card, applied consistently to both the Nama Bisnis and WhatsApp targets. Rationale: the nav is a standalone component with no access to page-level expand state; wiring a lifted-state bridge just for this is disproportionate to the benefit, and the Ghost reference this pattern is based on doesn't auto-expand either. User lands on the section and clicks Edit — one extra click, consistent everywhere.
+5. **`onboarding_complete` / `wa_connected` sync** — **real divergence found**, not introduced by this redesign but directly relevant to it. Every write path was grepped: `/api/whatsapp/connected` and the manual `/api/whatsapp/disconnect` route keep both fields in lockstep, but the poll-detected disconnect (`/api/whatsapp/status`) and the external webhook (`/api/whatsapp/disconnected`) reset `wa_connected: false` while leaving `onboarding_complete: true`. Fixed in this spec by keying the WhatsApp card's `defaultExpanded`/`summary` on `wa_connected` (see above) instead of `onboarding_complete`. The banner correctly keeps using `onboarding_complete`, since it represents "completed first-time setup" and shouldn't reappear on a transient reconnect blip.
+
 ## Out of scope
 
-- No changes to `WhatsAppSection`, `BusinessKnowledgeSection`, `AIRulesSection`, `TemplatesSection`, `ImportDataSection` internals.
+- No changes to `WhatsAppSection` beyond the one-line `onConnected` callback addition, `BusinessKnowledgeSection`, `AIRulesSection`, `TemplatesSection`, `ImportDataSection` internals.
 - No new API routes — `handleSaveProfile` still does one PATCH with `business_name` + `brand_voice` + `escalation_keywords`.
 - No billing/paywall feature (confirmed out of scope — Glim has no payment tiers, `auto_reply_level` unlocks via `feedback_count` threshold, not payment).
 - No e2e test added (none exist for settings page today).
+- No fix for the pre-existing `onboarding_complete`/`wa_connected` divergence at its source (the `/api/whatsapp/status` and `/api/whatsapp/disconnected` routes) — worked around at the UI layer per item 5 above; flagging the source-level fix as a separate, future concern.
 
 ## Testing
 
 - `pnpm build` passes
 - Manual, fresh account (onboarding incomplete): banner visible, CTA scrolls to `#whatsapp`, WhatsApp card default-expanded, Nama Bisnis card default-expanded (empty)
 - Manual, existing connected account: banner hidden, WhatsApp card collapsed showing "Terhubung ✓", Nama Bisnis card collapsed showing saved name with Edit button
-- Manual: click each tone preset card → textarea preview updates (visible once Custom selected) → selected card highlights correctly; switching between an AI-analyzed brand voice and back to a preset doesn't lose the analyzed text until a preset is explicitly clicked
+- Manual, simulated divergence (`wa_connected: false` with `onboarding_complete: true` via direct DB edit): banner stays hidden (correct, first-time setup already done) but WhatsApp card still defaults to expanded showing "Belum terhubung" (correct, reflects live connection state)
+- Manual: click each tone preset card → textarea preview updates (visible once Custom selected) → selected card highlights correctly; switching between an AI-analyzed brand voice and back to a preset doesn't lose the analyzed text until a preset is explicitly clicked; after selecting a fixed preset, clicking Custom successfully reveals the textarea again with the preset's text still editable (Bug 1 regression check)
 - Manual: Simpan Profil still saves correctly, `lastSavedAt` bump collapses Nama Bisnis card back after save
+- Manual: successful QR scan auto-collapses the WhatsApp card immediately (no reload needed) via `onConnected`
+- Keyboard navigation: tab order through the 4 `TonePresetPicker` cards and both `InlineEditCard` "Edit" buttons is logical; Enter/Space activates a focused preset card or Edit button
+- Mobile viewport (< 640px): `TonePresetPicker`'s `grid-cols-2` layout doesn't overflow or clip card text at narrow widths
+- `handleSaveProfile` network failure: mock/force a failed PATCH — the Nama Bisnis `InlineEditCard` stays expanded (does not fire `onCollapseRequest` on failure) and the existing `toast.error("Gagal menyimpan. Coba lagi.")` is visible to the user
