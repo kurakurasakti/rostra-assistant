@@ -3,13 +3,13 @@ import Link from 'next/link'
 import { Logo } from '@/components/logo'
 import { Footer } from '@/components/footer'
 import { FaqAccordion } from '@/components/landing/faq-accordion'
+import { PricingSection } from '@/components/landing/pricing-section'
 import { faqs } from '@/components/landing/faq-data'
 import {
   MessageSquare,
   Bell,
   ShieldCheck,
   ArrowRight,
-  Check,
   Sparkles,
   ClipboardList,
   Zap,
@@ -300,75 +300,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ── */}
-      <section className="py-20 px-4 sm:px-6" style={{ backgroundColor: '#F8F6F2' }}>
-        <div className="max-w-sm mx-auto">
-          <div className="text-center mb-8">
-            <span
-              className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-4"
-              style={{ backgroundColor: '#EDE0F5', color: '#4a2560' }}
-            >
-              Harga jelas, tanpa kejutan
-            </span>
-            <h2
-              className="font-display font-bold text-3xl tracking-tight"
-              style={{ color: '#1A1A18' }}
-            >
-              Satu paket, semua fitur.
-            </h2>
-          </div>
-
-          <div
-            className="rounded-2xl border-2 p-8 shadow-lg"
-            style={{ backgroundColor: '#fff', borderColor: '#703c8b' }}
-          >
-            <p className="font-display font-bold text-sm mb-1" style={{ color: '#703c8b' }}>
-              Glim
-            </p>
-            <div className="flex items-end gap-1 mb-1">
-              <span
-                className="font-bold text-4xl tabular-nums tracking-tight"
-                style={{ fontFamily: 'ui-monospace, monospace', color: '#1A1A18' }}
-              >
-                Rp 299.000
-              </span>
-            </div>
-            <p className="text-sm mb-6" style={{ color: '#9B9590' }}>
-              per bulan · coba gratis 14 hari
-            </p>
-
-            <ul className="space-y-2.5 mb-8">
-              {[
-                'Nomor WhatsApp bisnis terhubung',
-                'AI belajar gaya bicara dari chat kamu',
-                'Pengingat pembayaran & jadwal otomatis',
-                'Inbox terpusat untuk semua percakapan',
-                'Import data klien dari Excel',
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2.5 text-sm" style={{ color: '#1A1A18' }}>
-                  <span
-                    className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ backgroundColor: '#EDE0F5' }}
-                  >
-                    <Check className="w-2.5 h-2.5" style={{ color: '#703c8b' }} />
-                  </span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-
-            <Link
-              href="/register"
-              className="block w-full text-center text-sm font-semibold px-6 py-3.5 rounded-xl transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#703c8b]"
-              style={{ backgroundColor: '#703c8b', color: '#fff' }}
-            >
-              Mulai Trial 14 Hari
-            </Link>
-            <p className="text-center text-xs mt-3" style={{ color: '#9B9590' }}>
-              Tidak perlu kartu kredit · Cancel kapan saja
-            </p>
-          </div>
-        </div>
-      </section>
+      <PricingSection />
 
       {/* ── Why we built this ── */}
       <section
