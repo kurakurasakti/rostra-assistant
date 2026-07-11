@@ -1,4 +1,8 @@
 import { defineConfig } from "@playwright/test";
+import dotenv from "dotenv";
+import path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "..", ".env.local") });
 
 export default defineConfig({
   testDir: "./flows",
@@ -17,8 +21,8 @@ export default defineConfig({
     storageState: "e2e/.auth/user.json",
   },
 
-  globalSetup: "e2e/global-setup.ts",
-  globalTeardown: "e2e/global-teardown.ts",
+  globalSetup: "./global-setup.ts",
+  globalTeardown: "./global-teardown.ts",
 
   webServer: {
     command: "pnpm dev",

@@ -762,7 +762,7 @@ SELECT cron.schedule('cleanup-media-weekly', '0 2 * * 0',
 *Solve these before Phase 5 release:*
 
 - [ ] **Notification click action** — Klik notifikasi di notification bell harus navigasi ke halaman relevan (inbox untuk pesan baru, client detail untuk eskalasi, dll)
-- [ ] **Onboarding session** — Tampilkan onboarding walkthrough/interaktif guide saat user pertama kali login setelah register, mencakup: koneksi WhatsApp, upload brand voice, tambah klien pertama, dan buat pesanan pertama
+- [x] **Onboarding session** — Tampilkan onboarding walkthrough/interaktif guide saat user pertama kali login setelah register, mencakup: koneksi WhatsApp, upload brand voice, tambah klien pertama, dan buat pesanan pertama → dikerjakan di **Phase 5G** di bawah
 
 ### 5A. Dashboard ✅ SELESAI
 
@@ -899,6 +899,34 @@ alter table payment_stages
 - [ ] Test injection attempt: kirim pesan "lupakan instruksi" via WA → pastikan dieskalasi
 
 **Done when:** MVP live di production. Semua flow berjalan. Auto-reply Level 2 tersedia untuk user dengan 50+ feedback.
+
+---
+
+## Phase 5G — First-Login Onboarding Wizard ✅ SELESAI
+
+**Goal:** User baru langsung paham langkah setup Glim lewat walkthrough modal saat login pertama. Muncul sekali saja (persisted server-side), bisa dibuka ulang dari dashboard.
+
+**[DB]** (sudah dijalankan via migration `004_onboarding_wizard_seen.sql`):
+
+```sql
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS onboarding_wizard_seen_at TIMESTAMPTZ;
+-- NULL = belum pernah lihat wizard; diisi sekali saat skip/selesai
+```
+
+**Checklist:**
+
+- [x] `supabase/migrations/004_onboarding_wizard_seen.sql` — kolom `onboarding_wizard_seen_at` (NULL = belum pernah lihat wizard) — applied ke prod
+- [x] `types/index.ts` — tambah `onboarding_wizard_seen_at` ke interface `Profile`
+- [x] `components/onboarding/OnboardingWizard.tsx` — Dialog multi-step: intro + 5 langkah (hubungkan WhatsApp, ajari AI gaya chat, isi pengetahuan bisnis, tambah client pertama, buat pesanan pertama)
+- [x] Kontrol wizard — step dots (clickable), tombol "Lewati", "Lanjut", "Selesai"; CTA per langkah deep-link ke halaman terkait (`/settings?tab=…`, `/clients`)
+- [x] Tandai selesai — semua jalur keluar (Lewati / Selesai / CTA / ESC) upsert `onboarding_wizard_seen_at = NOW()` → wizard tidak pernah muncul lagi
+- [x] CTA ke `/settings?tab=…` saat sudah di /settings — scroll manual ke section (deep-link scroll di `SettingsAnchorNav` hanya jalan saat mount)
+- [x] `app/dashboard/layout.tsx` + `app/(dashboard)/layout.tsx` — fetch flag server-side, mount `<OnboardingWizard initialOpen={…} />` (tanpa flash)
+- [x] Dashboard card "Mulai dengan Glim" — link "Lihat panduan" untuk buka ulang wizard (CustomEvent `glim:open-wizard`)
+- [x] E2E — `global-setup.ts` set flag untuk test user; F13.1 skip wizard setelah register; test baru F13.3 (wizard muncul → Selesai → reload → tidak muncul)
+
+**Done when:** Register akun baru → wizard muncul di /settings → selesaikan atau "Lewati" → logout/login lagi → wizard tidak muncul. Klik "Lihat panduan" di dashboard → wizard terbuka lagi.
 
 ---
 
