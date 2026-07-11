@@ -14,9 +14,11 @@ type WaStep = "checking" | "idle" | "generating" | "scanning" | "connected"
 export default function WhatsAppSection({
   initialNotificationNumber,
   onNotificationSaved,
+  onConnected,
 }: {
   initialNotificationNumber?: string | null
   onNotificationSaved?: (number: string | null) => void
+  onConnected?: () => void
 }) {
   const [waStep, setWaStep] = useState<WaStep>("checking")
   const [waNumber, setWaNumber] = useState("")
@@ -82,6 +84,7 @@ export default function WhatsAppSection({
         stopPolling()
         setConnectedNumber(data.number ?? waNumber)
         setWaStep("connected")
+        onConnected?.()
         toast.success("WhatsApp berhasil terhubung!")
         // Trigger history sync after delay — messaging-history.set fires async from WA
         // and may arrive seconds after the connection.update event

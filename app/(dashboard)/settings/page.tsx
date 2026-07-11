@@ -37,6 +37,8 @@ import WhatsAppSection from "@/components/settings/WhatsAppSection";
 import AIRulesSection from "@/components/settings/AIRulesSection";
 import ImportDataSection from "@/components/settings/ImportDataSection";
 import TemplatesSection from "@/components/settings/TemplatesSection";
+import InlineEditCard from "@/components/settings/InlineEditCard";
+import TonePresetPicker from "@/components/settings/TonePresetPicker";
 
 type AnalyzeStep = "idle" | "building" | "analyzing" | "preview";
 
@@ -50,6 +52,8 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | undefined>(undefined);
+  const [waConnectedAt, setWaConnectedAt] = useState<number | undefined>(undefined);
 
   // Section A state
   const [businessName, setBusinessName] = useState("");
@@ -185,6 +189,7 @@ export default function SettingsPage() {
     } else {
       console.log("[handleSaveProfile] Profile saved successfully in DB");
       toast.success("Pengaturan berhasil disimpan.");
+      setLastSavedAt(Date.now());
     }
     setSaving(false);
   }
@@ -358,193 +363,210 @@ export default function SettingsPage() {
       )}
 
       <section id="profile" className="scroll-mt-24">
-        <form id="business-form" onSubmit={handleSaveProfile} className="rounded-xl border border-border bg-card p-5 space-y-5">
-          <div>
-            <h2 className="font-display font-semibold text-sm">Profil Bisnis</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Nama bisnis dan gaya komunikasi AI.</p>
-          </div>
+        <form id="business-form" onSubmit={handleSaveProfile} className="space-y-6">
+          <InlineEditCard
+            title="Nama Bisnis"
+            subtitle="Nama yang akan digunakan AI untuk menyebut bisnis Anda."
+            summary={businessName || "Belum diisi"}
+            defaultExpanded={!businessName}
+            onCollapseRequest={lastSavedAt}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="businessName" className="text-sm font-medium">Nama Bisnis</Label>
+              <Input id="businessName" placeholder="Contoh: Studio Foto Melati" value={businessName} onChange={(e) => setBusinessName(e.target.value)} required className="h-10" />
+            </div>
+          </InlineEditCard>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="businessName" className="text-sm font-medium">Nama Bisnis</Label>
-            <Input id="businessName" placeholder="Contoh: Studio Foto Melati" value={businessName} onChange={(e) => setBusinessName(e.target.value)} required className="h-10" />
-          </div>
-
-          {/* Brand voice subsection */}
-          <div className="space-y-3">
+          <div className="rounded-xl border border-border bg-card p-5 space-y-5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="brandVoice" className="text-sm font-medium">
-                Gaya Komunikasi AI <span className="text-muted-foreground font-normal">(opsional)</span>
-              </Label>
-              {analyzeStep === "idle" && (
-                <label className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors">
-                  <Sparkles className="w-3 h-3" />
-                  Analisa dari Chat WA
-                  <input type="file" accept=".txt" multiple className="hidden" onChange={handleAddFiles} />
-                </label>
-              )}
+              <div>
+                <h2 className="font-display font-semibold text-sm">Gaya Komunikasi AI</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Pilih preset atau buat gaya komunikasi kustom Anda.</p>
+              </div>
             </div>
 
-            <Textarea id="brandVoice" placeholder="Contoh: Selalu sapa dengan 'Halo Kak 😊'. Pesan singkat 1-2 kalimat. Gunakan emoji 🙏 di akhir pesan." value={brandVoice} onChange={(e) => setBrandVoice(e.target.value)} rows={3} className="resize-none text-sm" />
-
-            {/* Analyze flow */}
-            {analyzeStep === "building" && (
-              <div className="rounded-lg border border-border p-4 space-y-4">
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">File chat ({uploadedFiles.length})</p>
-                  <div className="flex flex-wrap gap-2">
-                    {uploadedFiles.map((f) => (
-                      <div key={f.name} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs">
-                        <span className="max-w-[160px] truncate">{f.name}</span>
-                        <button type="button" onClick={() => handleRemoveFile(f.name)} className="text-muted-foreground hover:text-foreground transition-colors">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                    <label className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted/40 cursor-pointer transition-colors">
-                      {analyzeLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                      {analyzeLoading ? "Membaca..." : "Tambah File"}
-                      <input ref={addFileInputRef} type="file" accept=".txt" multiple className="hidden" onChange={handleAddFiles} disabled={analyzeLoading} />
-                    </label>
-                  </div>
-                </div>
-
-                {uploadedFiles.length > 0 && allSenders.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-muted-foreground">Siapa nama admin bisnis kamu di chat ini?</p>
-                    <Select value={selectedSender} onValueChange={(v) => { if (v) setSelectedSender(v); }}>
-                      <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Pilih nama admin..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allSenders.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">AI akan mempelajari gaya balas pesan dari nama yang kamu pilih.</p>
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-1">
-                  <Button type="button" size="sm" className="h-8 text-xs" onClick={handleAnalyzeVoice} disabled={!selectedSender || uploadedFiles.length === 0 || analyzeLoading}>
-                    <Sparkles className="w-3 h-3 mr-1.5" /> Analisa Gaya Chat
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setAnalyzeStep("idle"); setUploadedFiles([]); setSelectedSender(""); }}>
-                    Batal
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {analyzeStep === "analyzing" && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> AI sedang mempelajari gaya chat kamu...
-              </div>
-            )}
-
-            {analyzeStep === "preview" && (
-              <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/30">
-                <p className="text-xs font-medium">Hasil analisa:</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">{brandVoicePreview}</p>
-
-                {examplesCount > 0 && (
-                  <div className="rounded-lg border border-border bg-background p-3 space-y-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
-                      <p className="text-xs font-medium">AI berhasil mempelajari {examplesCount} contoh percakapan nyata</p>
-                    </div>
-                    <div className="space-y-1">
-                      {Object.entries(examplesByCategory).map(([cat, count]) => {
-                        const labels: Record<string, string> = {
-                          harga: "Pertanyaan harga",
-                          jadwal: "Jadwal & fitting",
-                          status: "Status pesanan",
-                          pembayaran: "Pembayaran",
-                          ketersediaan: "Ketersediaan",
-                          umum: "Umum",
-                        };
-                        const maxCount = Math.max(...Object.values(examplesByCategory));
-                        const barWidth = Math.round((count / maxCount) * 100);
-                        return (
-                          <div key={cat} className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground w-36 shrink-0">{labels[cat] ?? cat}</span>
-                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-primary/60 rounded-full" style={{ width: `${barWidth}%` }} />
-                            </div>
-                            <span className="text-xs text-muted-foreground w-14 text-right">{count} contoh</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="text-xs text-muted-foreground italic">AI akan lebih akurat menjawab pertanyaan spesifik bisnis kamu</p>
-                  </div>
-                )}
-
-                <div className="flex gap-2 flex-wrap">
-                  <Button type="button" size="sm" className="h-8 text-xs" onClick={handleUseVoice}>Gunakan Gaya Ini</Button>
-                  <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAnalyzeStep("building")}><RefreshCcw className="w-3 h-3 mr-1" /> Analisa Ulang</Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setBrandVoice(brandVoicePreview); setAnalyzeStep("idle"); }}>Edit Manual</Button>
-                </div>
-              </div>
-            )}
-
-            {brandVoice && analyzeStep === "idle" && (
-              <>
-                <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
-                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> Coba Draft AI</p>
-                  <div className="flex gap-2">
-                    <Input placeholder="kak mau tanya harga baju seragam 50 pcs" value={testMessage} onChange={(e) => setTestMessage(e.target.value)} className="h-8 text-xs flex-1"
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleTestDraft(); } }} />
-                    <Button type="button" variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={handleTestDraft} disabled={draftLoading || !testMessage.trim()}>
-                      {draftLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Coba"}
-                    </Button>
-                  </div>
-                  {draftResult && <div className="text-xs p-2 rounded bg-background border border-border text-foreground leading-relaxed">{draftResult}</div>}
-                </div>
-
-                {conversationExamples.length > 0 && (
-                  <div className="rounded-lg border border-border bg-muted/10">
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={() => setShowExamples((v) => !v)}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <BookOpen className="w-3 h-3" />
-                        Lihat contoh percakapan yang dipelajari AI ({conversationExamples.length} contoh)
-                      </span>
-                      {showExamples ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    </button>
-                    {showExamples && (
-                      <div className="px-3 pb-3 space-y-2 border-t border-border pt-2">
-                        {conversationExamples.map((ex, i) => {
-                          const categoryLabels: Record<string, string> = {
-                            harga: "harga", jadwal: "jadwal", status: "status",
-                            pembayaran: "bayar", ketersediaan: "stok", umum: "umum",
-                          };
-                          return (
-                            <div key={i} className="text-xs space-y-0.5">
-                              <span className="inline-block rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-medium">
-                                {categoryLabels[ex.category] ?? ex.category}
-                              </span>
-                              <p className="text-muted-foreground line-clamp-1">
-                                <span className="font-medium">Pelanggan:</span> {ex.customer}
-                              </p>
-                              <p className="line-clamp-1">
-                                <span className="font-medium">Admin:</span> {ex.admin}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
+            <TonePresetPicker
+              value={brandVoice}
+              onSelect={(template) => setBrandVoice(template)}
+              customSlot={
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="brandVoice" className="text-xs font-medium text-muted-foreground">
+                      Gaya Komunikasi AI <span className="text-muted-foreground font-normal">(opsional)</span>
+                    </Label>
+                    {analyzeStep === "idle" && (
+                      <label className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors border border-border">
+                        <Sparkles className="w-3 h-3" />
+                        Analisa dari Chat WA
+                        <input type="file" accept=".txt" multiple className="hidden" onChange={handleAddFiles} />
+                      </label>
                     )}
                   </div>
-                )}
-              </>
-            )}
+
+                  <Textarea id="brandVoice" placeholder="Contoh: Selalu sapa dengan 'Halo Kak 😊'. Pesan singkat 1-2 kalimat. Gunakan emoji 🙏 di akhir pesan." value={brandVoice} onChange={(e) => setBrandVoice(e.target.value)} rows={3} className="resize-none text-sm" />
+
+                  {/* Analyze flow */}
+                  {analyzeStep === "building" && (
+                    <div className="rounded-lg border border-border p-4 space-y-4 bg-background">
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">File chat ({uploadedFiles.length})</p>
+                        <div className="flex flex-wrap gap-2">
+                          {uploadedFiles.map((f) => (
+                            <div key={f.name} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs">
+                              <span className="max-w-[160px] truncate">{f.name}</span>
+                              <button type="button" onClick={() => handleRemoveFile(f.name)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                          <label className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted/40 cursor-pointer transition-colors">
+                            {analyzeLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                            {analyzeLoading ? "Membaca..." : "Tambah File"}
+                            <input ref={addFileInputRef} type="file" accept=".txt" multiple className="hidden" onChange={handleAddFiles} disabled={analyzeLoading} />
+                          </label>
+                        </div>
+                      </div>
+
+                      {uploadedFiles.length > 0 && allSenders.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">Siapa nama admin bisnis kamu di chat ini?</p>
+                          <Select value={selectedSender} onValueChange={(v) => { if (v) setSelectedSender(v); }}>
+                            <SelectTrigger className="h-9 text-sm">
+                              <SelectValue placeholder="Pilih nama admin..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allSenders.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">AI akan mempelajari gaya balas pesan dari nama yang kamu pilih.</p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-1">
+                        <Button type="button" size="sm" className="h-8 text-xs" onClick={handleAnalyzeVoice} disabled={!selectedSender || uploadedFiles.length === 0 || analyzeLoading}>
+                          <Sparkles className="w-3 h-3 mr-1.5" /> Analisa Gaya Chat
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setAnalyzeStep("idle"); setUploadedFiles([]); setSelectedSender(""); }}>
+                          Batal
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {analyzeStep === "analyzing" && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                      <Loader2 className="w-4 h-4 animate-spin" /> AI sedang mempelajari gaya chat kamu...
+                    </div>
+                  )}
+
+                  {analyzeStep === "preview" && (
+                    <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/30">
+                      <p className="text-xs font-medium">Hasil analisa:</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{brandVoicePreview}</p>
+
+                      {examplesCount > 0 && (
+                        <div className="rounded-lg border border-border bg-background p-3 space-y-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                            <p className="text-xs font-medium">AI berhasil mempelajari {examplesCount} contoh percakapan nyata</p>
+                          </div>
+                          <div className="space-y-1">
+                            {Object.entries(examplesByCategory).map(([cat, count]) => {
+                              const labels: Record<string, string> = {
+                                harga: "Pertanyaan harga",
+                                jadwal: "Jadwal & fitting",
+                                status: "Status pesanan",
+                                pembayaran: "Pembayaran",
+                                ketersediaan: "Ketersediaan",
+                                umum: "Umum",
+                              };
+                              const maxCount = Math.max(...Object.values(examplesByCategory));
+                              const barWidth = Math.round((count / maxCount) * 100);
+                              return (
+                                <div key={cat} className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground w-36 shrink-0">{labels[cat] ?? cat}</span>
+                                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-full bg-primary/60 rounded-full" style={{ width: `${barWidth}%` }} />
+                                  </div>
+                                  <span className="text-xs text-muted-foreground w-14 text-right">{count} contoh</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <p className="text-xs text-muted-foreground italic">AI akan lebih akurat menjawab pertanyaan spesifik bisnis kamu</p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 flex-wrap">
+                        <Button type="button" size="sm" className="h-8 text-xs" onClick={handleUseVoice}>Gunakan Gaya Ini</Button>
+                        <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAnalyzeStep("building")}><RefreshCcw className="w-3 h-3 mr-1" /> Analisa Ulang</Button>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setBrandVoice(brandVoicePreview); setAnalyzeStep("idle"); }}>Edit Manual</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {brandVoice && analyzeStep === "idle" && (
+                    <>
+                      <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> Coba Draft AI</p>
+                        <div className="flex gap-2">
+                          <Input placeholder="kak mau tanya harga baju seragam 50 pcs" value={testMessage} onChange={(e) => setTestMessage(e.target.value)} className="h-8 text-xs flex-1"
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleTestDraft(); } }} />
+                          <Button type="button" variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={handleTestDraft} disabled={draftLoading || !testMessage.trim()}>
+                            {draftLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Coba"}
+                          </Button>
+                        </div>
+                        {draftResult && <div className="text-xs p-2 rounded bg-background border border-border text-foreground leading-relaxed">{draftResult}</div>}
+                      </div>
+
+                      {conversationExamples.length > 0 && (
+                        <div className="rounded-lg border border-border bg-muted/10">
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-between px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => setShowExamples((v) => !v)}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                              Lihat contoh percakapan yang dipelajari AI ({conversationExamples.length} contoh)
+                            </span>
+                            {showExamples ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </button>
+                          {showExamples && (
+                            <div className="px-3 pb-3 space-y-2 border-t border-border pt-2">
+                              {conversationExamples.map((ex, i) => {
+                                const categoryLabels: Record<string, string> = {
+                                  harga: "harga", jadwal: "jadwal", status: "status",
+                                  pembayaran: "bayar", ketersediaan: "stok", umum: "umum",
+                                };
+                                return (
+                                  <div key={i} className="text-xs space-y-0.5">
+                                    <span className="inline-block rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-medium">
+                                      {categoryLabels[ex.category] ?? ex.category}
+                                    </span>
+                                    <p className="text-muted-foreground line-clamp-1">
+                                      <span className="font-medium">Pelanggan:</span> {ex.customer}
+                                    </p>
+                                    <p className="line-clamp-1">
+                                      <span className="font-medium">Admin:</span> {ex.admin}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              }
+            />
           </div>
 
-          <div className="flex justify-end pt-1 border-t border-border">
+          <div className="flex justify-end pt-1">
             <Button type="submit" className="font-display font-medium" disabled={saving}>
               {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : "Simpan Profil"}
             </Button>
@@ -553,12 +575,19 @@ export default function SettingsPage() {
       </section>
 
       <section id="whatsapp" className="scroll-mt-24">
-        <div className="rounded-xl border border-border bg-card p-5">
+        <InlineEditCard
+          title="Sambungan WhatsApp"
+          subtitle="Hubungkan nomor WhatsApp bisnis Anda untuk mulai membalas pesan secara otomatis."
+          summary={profile?.wa_connected ? "Terhubung ✓" : "Belum terhubung"}
+          defaultExpanded={!profile?.wa_connected}
+          onCollapseRequest={waConnectedAt}
+        >
           <WhatsAppSection
             initialNotificationNumber={profile?.notification_wa_number}
             onNotificationSaved={(number) => setProfile((prev) => prev ? { ...prev, notification_wa_number: number } : prev)}
+            onConnected={() => setWaConnectedAt(Date.now())}
           />
-        </div>
+        </InlineEditCard>
       </section>
 
       <section id="business" className="scroll-mt-24">

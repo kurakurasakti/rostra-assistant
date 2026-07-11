@@ -4,6 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 const AUTH_PATH = path.resolve("e2e/.auth/user.json");
+if (!fs.existsSync(path.dirname(AUTH_PATH))) {
+  fs.mkdirSync(path.dirname(AUTH_PATH), { recursive: true });
+}
 
 async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use?.baseURL || "http://localhost:3000";
@@ -24,36 +27,40 @@ async function globalSetup(config: FullConfig) {
     const existing = users?.users.find((u) => u.email === email);
 
     if (!existing) {
-      // Register via browser
-      const browser = await chromium.launch();
-      const page = await browser.newPage();
-      await page.goto(`${baseURL}/register`);
-      await page.fill("#businessName", "Test Bisnis");
-      await page.fill("#email", email);
-      await page.fill("#password", password);
-      await page.fill("#inviteCode", inviteCode);
-      await page.click('button[type="submit"]');
-      await page.waitForURL("**/settings**", { timeout: 15_000 });
-      await page.context().storageState({ path: AUTH_PATH });
-      await browser.close();
-    } else {
-      // Login
-      const browser = await chromium.launch();
-      const page = await browser.newPage();
-      await page.goto(`${baseURL}/login`);
-      await page.fill("#email", email);
-      await page.fill("#password", password);
-      await page.click('button[type="submit"]');
-      await page.waitForURL(/^\/(\?|settings|$)/, { timeout: 15_000 });
-      await page.context().storageState({ path: AUTH_PATH });
-      await browser.close();
+      // Create user via admin API with email auto-confirmed
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { business_name: "Test Bisnis" }
+      });
+      if (createError) {
+        throw new Error(`Failed to create test user: ${createError.message}`);
+      }
     }
+
+    // Login via browser
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    await page.goto(`${baseURL}/login`);
+    await page.fill("#email", email);
+    await page.fill("#password", password);
+    await page.click('button[type="submit"]');
+    await page.waitForURL(url => url.pathname.includes('/settings') || url.pathname.includes('/dashboard') || url.pathname === '/', { timeout: 15_000 });
+    await page.context().storageState({ path: AUTH_PATH });
+    await browser.close();
 
     // Store user ID
     const { data: userData } = await supabase.auth.admin.listUsers();
     const user = userData?.users.find((u) => u.email === email);
     if (user) {
       process.env.TEST_USER_ID = user.id;
+
+      // Mark onboarding wizard as seen so shared-storageState specs stay wizard-free
+      await supabase
+        .from("profiles")
+        .update({ onboarding_wizard_seen_at: new Date().toISOString() })
+        .eq("id", user.id);
     }
   } else {
     // No Supabase admin key — try login via browser only
@@ -63,7 +70,7 @@ async function globalSetup(config: FullConfig) {
     await page.fill("#email", email);
     await page.fill("#password", password);
     await page.click('button[type="submit"]');
-    await page.waitForURL(/^\/(\?|settings|$)/, { timeout: 15_000 });
+    await page.waitForURL(url => url.pathname.includes('/settings') || url.pathname.includes('/dashboard') || url.pathname === '/', { timeout: 15_000 });
     await page.context().storageState({ path: AUTH_PATH });
     await browser.close();
   }

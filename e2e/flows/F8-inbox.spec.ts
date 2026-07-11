@@ -11,7 +11,7 @@ test.describe("F8 — WhatsApp Inbox", () => {
 
     // Send test message via webhook
     const res = await sendTestMessage(request, BASE_URL, {
-      userId,
+      userId: userId!,
       sender: "6281234567890",
       message: "kak mau tanya harga kebaya untuk wisuda dong",
       name: "Siti Nurhaliza",
@@ -37,16 +37,38 @@ test.describe("F8 — WhatsApp Inbox", () => {
     const userId = process.env.TEST_USER_ID;
     if (!userId) test.skip();
 
+    // Log browser console
+    page.on("console", msg => console.log("BROWSER LOG:", msg.text()));
+    page.on("request", req => console.log("REQUEST:", req.method(), req.url()));
+    page.on("response", res => console.log("RESPONSE:", res.status(), res.url()));
+
+    // Mock AI draft API response to avoid external LLM dependencies/limits
+    await page.route(/\/api\/messages\/draft/, async (route) => {
+      console.log("MOCKING DRAFT API CALL");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          draft: "Ini adalah draft balasan AI otomatis untuk Kak Siti.",
+        }),
+      });
+    });
+
     await page.goto("/inbox");
     await page.click("text=Siti Nurhaliza");
 
+    // Wait for the message thread to load by checking for full message text in the active chat container (not truncated sidebar preview)
+    await expect(page.locator("div.px-5.py-4 >> text=kak mau tanya harga kebaya untuk wisuda dong")).toBeVisible({
+      timeout: 10_000,
+    });
+
     // Look for AI draft button
-    await expect(page.locator('button:has-text("Muat Draft AI")')).toBeVisible({
+    await expect(page.locator('button:has-text("Muat Draft AI")').last()).toBeVisible({
       timeout: 10_000,
     });
 
     // Click to load draft
-    await page.click('button:has-text("Muat Draft AI")');
+    await page.locator('button:has-text("Muat Draft AI")').last().click();
 
     // AI draft should appear in textarea
     await expect(page.locator("textarea")).not.toBeEmpty({ timeout: 15_000 });
@@ -80,7 +102,7 @@ test.describe("F8 — WhatsApp Inbox", () => {
 
     // Send another webhook message
     const res = await sendTestMessage(request, BASE_URL, {
-      userId,
+      userId: userId!,
       sender: "6281234567890",
       message: "testing realtime update",
       name: "Siti Nurhaliza",

@@ -25,6 +25,7 @@ import {
   User,
   Pencil,
   UserPlus,
+  Search,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -174,7 +175,16 @@ export default function InboxPage() {
   // Sidebar state — drives conversation list
   const [messages, setMessages] = useState<InboxMessage[]>([])
   const [loadingMessages, setLoadingMessages] = useState(true)
-  const [clients, setClients] = useState<{ whatsapp_number: string; name: string }[]>([])
+  const [clients, setClients] = useState<{ id: string; whatsapp_number: string; name: string; email?: string | null; notes?: string | null }[]>([])
+
+  // Search & Filter state
+  const [activeTab, setActiveTab] = useState<'semua' | 'perlu_balasan' | 'dieskalasi'>('semua')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Client Detail Sidebar state
+  const [showClientDetail, setShowClientDetail] = useState(false)
+  const [clientEmail, setClientEmail] = useState('')
+  const [clientNotes, setClientNotes] = useState('')
 
   // Rename contact state
   const [isEditingName, setIsEditingName] = useState(false)
@@ -293,7 +303,7 @@ export default function InboxPage() {
     // 2. Fetch clients
     const { data: clientsData } = await supabase
       .from('clients')
-      .select('whatsapp_number, name')
+      .select('id, whatsapp_number, name, email, notes')
     console.log(`[inbox/loadMessages] fetched ${clientsData?.length ?? 0} clients:`, clientsData)
     if (clientsData) {
       setClients(clientsData)
@@ -559,7 +569,7 @@ export default function InboxPage() {
           () => {
             supabase
               .from('clients')
-              .select('whatsapp_number, name')
+              .select('id, whatsapp_number, name, email, notes')
               .then(({ data }) => {
                 if (data) setClients(data)
               })
@@ -625,6 +635,49 @@ export default function InboxPage() {
   const selectedConversation = selectedNumber
     ? conversations.find(c => c.whatsapp_number === selectedNumber)
     : null
+
+  const activeClient = selectedConversation
+    ? clients.find(c => c.whatsapp_number === selectedConversation.whatsapp_number)
+    : null
+
+  // Sync client email & notes state when activeClient changes
+  useEffect(() => {
+    if (activeClient) {
+      setClientEmail(activeClient.email || '')
+      setClientNotes(activeClient.notes || '')
+    } else {
+      setClientEmail('')
+      setClientNotes('')
+    }
+  }, [activeClient])
+
+  // Count conversations matching each filter tab
+  const needReplyCount = conversations.filter(
+    c => c.last_message.status === 'baru' || c.last_message.status === 'antri'
+  ).length
+
+  const escalatedCount = conversations.filter(
+    c => c.last_message.status === 'dieskalasi'
+  ).length
+
+  // Filter and search conversation list
+  const filteredConversations = conversations.filter(c => {
+    if (activeTab === 'perlu_balasan') {
+      if (c.last_message.status !== 'baru' && c.last_message.status !== 'antri') return false
+    } else if (activeTab === 'dieskalasi') {
+      if (c.last_message.status !== 'dieskalasi') return false
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      return (
+        c.contact_name.toLowerCase().includes(q) ||
+        c.whatsapp_number.includes(q) ||
+        c.last_message.message_body.toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
+
   const thread = threadMessages
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread_count, 0)
 
@@ -685,7 +738,7 @@ export default function InboxPage() {
           updated[idx] = { ...updated[idx], name: newName.trim() }
           return updated
         } else {
-          return [...prev, { whatsapp_number: selectedConversation.whatsapp_number, name: newName.trim() }]
+          return [...prev, { id: clientId!, whatsapp_number: selectedConversation.whatsapp_number, name: newName.trim() }]
         }
       })
 
@@ -769,7 +822,7 @@ export default function InboxPage() {
       // Update local clients list
       setClients(prev => {
         if (prev.some(c => c.whatsapp_number === waNumber)) return prev
-        return [...prev, { whatsapp_number: waNumber, name }]
+        return [...prev, { id: clientId!, whatsapp_number: waNumber, name }]
       })
 
       // Update local messages and thread messages
@@ -1000,7 +1053,7 @@ export default function InboxPage() {
         'w-full md:w-[240px] lg:w-[300px]',
         mobileView === 'thread' ? 'hidden md:flex' : 'flex',
       )}>
-        <div className="px-4 py-4 border-b border-border flex-shrink-0">
+        <div className="px-4 py-3 border-b border-border flex-shrink-0 flex flex-col gap-2 bg-background">
           <div className="flex items-center justify-between">
             <h1 className="font-semibold text-sm">Kotak Masuk</h1>
             <div className="flex items-center gap-2">
@@ -1017,6 +1070,76 @@ export default function InboxPage() {
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+
+          {/* Search bar input with icon */}
+          <div className="relative">
+            <Input
+              placeholder="Cari kontak..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="h-8 pl-8 text-xs placeholder:text-muted-foreground bg-muted/40 border-border/60 focus:bg-background"
+            />
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Option B: Segmented Tab Toggles Grid */}
+          <div className="grid grid-cols-3 gap-0.5 border border-border p-0.5 bg-muted/30 rounded-lg text-center text-[10px]">
+            <button
+              type="button"
+              onClick={() => setActiveTab('semua')}
+              className={cn(
+                "py-1 rounded-md font-medium transition-all",
+                activeTab === 'semua'
+                  ? "bg-background text-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Semua
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('perlu_balasan')}
+              className={cn(
+                "py-1 rounded-md font-medium transition-all flex items-center justify-center gap-1",
+                activeTab === 'perlu_balasan'
+                  ? "bg-background text-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Balas
+              {needReplyCount > 0 && (
+                <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-1 rounded-full text-[8px] min-w-[12px] h-3.5 flex items-center justify-center shrink-0">
+                  {needReplyCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('dieskalasi')}
+              className={cn(
+                "py-1 rounded-md font-medium transition-all flex items-center justify-center gap-1",
+                activeTab === 'dieskalasi'
+                  ? "bg-background text-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Eskalasi
+              {escalatedCount > 0 && (
+                <span className="bg-red-500/10 text-red-600 dark:text-red-400 font-bold px-1 rounded-full text-[8px] min-w-[12px] h-3.5 flex items-center justify-center shrink-0">
+                  {escalatedCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -1035,13 +1158,17 @@ export default function InboxPage() {
                 </div>
               ))}
             </div>
-          ) : conversations.length === 0 ? (
+          ) : filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
               <MessageSquare className="w-8 h-8 opacity-20" />
-              <p className="text-xs text-center">Belum ada pesan masuk</p>
+              <p className="text-xs text-center">
+                {conversations.length === 0
+                  ? 'Belum ada pesan masuk'
+                  : 'Tidak ada percakapan yang cocok'}
+              </p>
             </div>
           ) : (
-            conversations.map((conv, i) => (
+            filteredConversations.map((conv, i) => (
               <button
                 key={conv.whatsapp_number}
                 style={{ '--stagger-i': i } as CSSProperties}
@@ -1175,6 +1302,17 @@ export default function InboxPage() {
               </Button>
             )}
             <ClassificationBadge value={selectedConversation.last_message.classification} />
+            <button
+              type="button"
+              onClick={() => setShowClientDetail(prev => !prev)}
+              className={cn(
+                "p-1.5 border border-border hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground",
+                showClientDetail && "bg-muted text-foreground"
+              )}
+              title="Detail Klien"
+            >
+              <User className="w-4 h-4" />
+            </button>
           </div>  
 
           {/* Messages */}
@@ -1455,6 +1593,131 @@ export default function InboxPage() {
             <div>
               <p className="text-sm font-medium">Pilih percakapan</p>
               <p className="text-xs mt-1 opacity-70">Pesan masuk via WhatsApp muncul di sini</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Client Details Sidebar */}
+      {selectedConversation && showClientDetail && (
+        <div className={cn(
+          'w-full md:w-[260px] lg:w-[300px] border-l border-border bg-card flex flex-col shrink-0 transition-all duration-300',
+          mobileView === 'list' ? 'hidden' : 'flex'
+        )}>
+          {/* Header */}
+          <div className="h-[53px] px-4 border-b border-border flex items-center justify-between shrink-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Detail Klien</span>
+            <button
+              onClick={() => setShowClientDetail(false)}
+              className="p-1 hover:bg-muted rounded transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-5 scrollbar-thin">
+            {/* Avatar / Profile Info */}
+            <div className="text-center pb-4 border-b border-border/40">
+              <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg mx-auto shadow-sm">
+                {getInitials(selectedConversation.contact_name)}
+              </div>
+              <h4 className="font-semibold text-sm mt-3 truncate">{selectedConversation.contact_name}</h4>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{formatPhoneNumber(selectedConversation.whatsapp_number)}</p>
+              
+              {activeClient ? (
+                <span className="inline-block text-[10px] mt-2.5 px-2 py-0.5 font-medium rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  Client Terdaftar
+                </span>
+              ) : (
+                <div className="mt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[10px] gap-1 px-2.5"
+                    onClick={handleMarkAsClient}
+                    disabled={addingClient}
+                  >
+                    {addingClient ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <UserPlus className="w-3 h-3" />
+                    )}
+                    Jadikan Client
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Editable Email and Notes for Client */}
+            {activeClient && (
+              <form onSubmit={async (e) => {
+                e.preventDefault()
+                // Save client email & notes
+                if (activeClient) {
+                  const { data: { user } } = await supabase.auth.getUser()
+                  if (!user) return
+                  const { error } = await supabase
+                    .from('clients')
+                    .update({
+                      email: clientEmail.trim() || null,
+                      notes: clientNotes.trim() || null,
+                    })
+                    .eq('user_id', user.id)
+                    .eq('whatsapp_number', selectedConversation.whatsapp_number)
+
+                  if (error) {
+                    toast.error('Gagal menyimpan detail')
+                  } else {
+                    toast.success('Detail klien disimpan')
+                    // Update state locally
+                    setClients(prev => prev.map(c => c.whatsapp_number === selectedConversation.whatsapp_number ? { ...c, email: clientEmail, notes: clientNotes } : c))
+                  }
+                }
+              }} className="space-y-4 text-xs">
+                <div className="space-y-1">
+                  <label className="text-muted-foreground font-medium text-[10px] uppercase tracking-wider">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="nama@email.com"
+                    value={clientEmail}
+                    onChange={e => setClientEmail(e.target.value)}
+                    className="h-8 text-xs bg-muted/20"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-muted-foreground font-medium text-[10px] uppercase tracking-wider">Catatan Staf</label>
+                  <Textarea
+                    placeholder="Tambahkan catatan internal mengenai klien ini..."
+                    value={clientNotes}
+                    onChange={e => setClientNotes(e.target.value)}
+                    className="text-xs bg-muted/20 resize-none min-h-[80px]"
+                    rows={4}
+                  />
+                </div>
+
+                <Button type="submit" size="sm" className="w-full h-8 text-xs">
+                  Simpan Detail Klien
+                </Button>
+              </form>
+            )}
+
+            {/* Classification & Metadata Info */}
+            <div className="border-t border-border/40 pt-4 space-y-2.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Kategori Chat</span>
+                <span className="font-medium capitalize">{selectedConversation.last_message.classification || 'Umum'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Status Pesan</span>
+                <span className="font-medium capitalize">{selectedConversation.last_message.status}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Pesan Terakhir</span>
+                <span className="font-medium text-muted-foreground">{format(new Date(selectedConversation.last_message.received_at), 'dd MMM yyyy')}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -298,11 +298,20 @@ export default function DashboardPage() {
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display font-semibold text-sm">Mulai dengan Glim</h2>
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                {onboarding
-                  ? `${[onboarding.wa, onboarding.clients, onboarding.orders].filter(Boolean).length}/3 selesai`
-                  : "3 langkah"}
-              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent("glim:open-wizard"))}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Lihat panduan
+                </button>
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {onboarding
+                    ? `${[onboarding.wa, onboarding.clients, onboarding.orders].filter(Boolean).length}/3 selesai`
+                    : "3 langkah"}
+                </span>
+              </div>
             </div>
             <div className="space-y-3">
               {[

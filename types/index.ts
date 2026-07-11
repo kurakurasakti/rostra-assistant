@@ -65,6 +65,7 @@ export interface Profile {
   conversation_examples?: ConversationExample[] | null
   terms_agreed_at?: string | null
   terms_version?: string | null
+  onboarding_wizard_seen_at?: string | null
 }
 
 export interface Client {

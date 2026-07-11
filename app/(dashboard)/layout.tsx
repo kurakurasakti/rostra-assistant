@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { MobileNav } from '@/components/dashboard/mobile-nav'
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Toaster } from '@/components/ui/sonner'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
@@ -14,6 +15,14 @@ export default async function DashboardLayout({
 
   if (!user) redirect('/login')
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('onboarding_wizard_seen_at')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const showWizard = !profile?.onboarding_wizard_seen_at
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
@@ -22,6 +31,7 @@ export default async function DashboardLayout({
       </main>
       <MobileNav />
       <Toaster />
+      <OnboardingWizard initialOpen={showWizard} />
     </div>
   )
 }

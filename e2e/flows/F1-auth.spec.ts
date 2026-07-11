@@ -10,6 +10,7 @@ test.describe("F1 — Authentication", () => {
     await page.fill("#email", `test-${Date.now()}@glim-test.com`);
     await page.fill("#password", "TestPassword123!");
     await page.fill("#inviteCode", process.env.TEST_INVITE_CODE || "");
+    await page.check("#terms");
     await page.click('button[type="submit"]');
 
     // After successful registration, user is redirected
@@ -30,6 +31,7 @@ test.describe("F1 — Authentication", () => {
     await page.fill("#email", `bad-${Date.now()}@glim-test.com`);
     await page.fill("#password", "TestPassword123!");
     await page.fill("#inviteCode", "WRONGCODE");
+    await page.check("#terms");
     await page.click('button[type="submit"]');
 
     // Should stay on register page with error
