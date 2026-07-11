@@ -269,3 +269,43 @@
     background: hsl(var(--primary) / 0.55);
   }
 }
+
+/* ── Scroll-driven animations ── */
+@keyframes scroll-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scroll-scale-in {
+  from {
+    opacity: 0.4;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports ((animation-timeline: view()) and (animation-range: entry)) {
+    .scroll-reveal-up {
+      animation: scroll-fade-up auto linear both;
+      animation-timeline: view();
+      animation-range: entry 5% cover 30%;
+    }
+    
+    .scroll-reveal-scale {
+      animation: scroll-scale-in auto linear both;
+      animation-timeline: view();
+      animation-range: entry 5% cover 35%;
+    }
+  }
+}
+
