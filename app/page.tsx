@@ -132,7 +132,7 @@ export default function LandingPage() {
             </div>
 
             {/* Right — WA mockup */}
-            <div className="flex justify-center animate-fade-up" style={{ animationDelay: '0.15s' }}>
+            <div className="flex justify-center animate-fade-up scroll-reveal-scale" style={{ animationDelay: '0.15s' }}>
               <WaMockup />
             </div>
           </div>
@@ -140,7 +140,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Problem ── */}
-      <section className="py-20 px-4 sm:px-6 bg-white">
+      <section className="py-20 px-4 sm:px-6 bg-white scroll-reveal-up">
         <div className="max-w-2xl mx-auto text-center">
           <span
             className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-4"
@@ -203,7 +203,7 @@ export default function LandingPage() {
             ].map((feat, i) => (
               <div
                 key={i}
-                className="rounded-2xl p-6 border"
+                className="rounded-2xl p-6 border scroll-reveal-up"
                 style={{ backgroundColor: '#fff', borderColor: '#E8E4DC' }}
               >
                 <div
@@ -272,7 +272,7 @@ export default function LandingPage() {
                 body: 'Setiap pesan masuk, AI siapkan draft balasan. Kamu review, kamu kirim.',
               },
             ].map((step, i) => (
-              <div key={i}>
+              <div key={i} className="scroll-reveal-up">
                 <div
                   className="font-display font-bold text-4xl mb-4 tabular-nums"
                   style={{ color: '#E8E4DC' }}
@@ -319,7 +319,7 @@ export default function LandingPage() {
           </div>
 
           <div
-            className="rounded-2xl border-2 p-8 shadow-lg"
+            className="rounded-2xl border-2 p-8 shadow-lg scroll-reveal-up"
             style={{ backgroundColor: '#fff', borderColor: '#703c8b' }}
           >
             <p className="font-display font-bold text-sm mb-1" style={{ color: '#703c8b' }}>
@@ -373,7 +373,7 @@ export default function LandingPage() {
 
       {/* ── Why we built this ── */}
       <section
-        className="py-20 px-4 sm:px-6"
+        className="py-20 px-4 sm:px-6 scroll-reveal-up"
         style={{ background: 'linear-gradient(135deg, #2D1445 0%, #4a2560 60%, #5c3070 100%)' }}
       >
         <div className="max-w-2xl mx-auto text-center">
@@ -402,7 +402,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-20 px-4 sm:px-6 bg-white">
+      <section className="py-20 px-4 sm:px-6 bg-white scroll-reveal-up">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-10">
             <span
@@ -428,7 +428,7 @@ export default function LandingPage() {
 
       {/* ── Final CTA ── */}
       <section
-        className="py-20 px-4 sm:px-6"
+        className="py-20 px-4 sm:px-6 scroll-reveal-up"
         style={{ background: 'linear-gradient(135deg, #4a2560 0%, #703c8b 50%, #8b5aa3 100%)' }}
       >
         <div className="max-w-xl mx-auto text-center">
