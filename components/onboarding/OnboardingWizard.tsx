@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
 import { ArrowRight } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 
@@ -82,10 +82,12 @@ export function OnboardingWizard({ initialOpen }: { initialOpen: boolean }) {
     } = await supabase.auth.getUser()
     if (!user) return
     // Upsert: profile row may not exist yet right after signup
-    await supabase.from("profiles").upsert(
-      { id: user.id, onboarding_wizard_seen_at: new Date().toISOString() },
-      { onConflict: "id" }
-    )
+    await supabase
+      .from("profiles")
+      .upsert(
+        { id: user.id, onboarding_wizard_seen_at: new Date().toISOString() },
+        { onConflict: "id" },
+      )
   }
 
   function handleClose() {
@@ -101,7 +103,8 @@ export function OnboardingWizard({ initialOpen }: { initialOpen: boolean }) {
       const tab = new URL(href, window.location.origin).searchParams.get("tab")
       router.replace(href)
       requestAnimationFrame(() => {
-        if (tab) document.getElementById(tab)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        if (tab)
+          document.getElementById(tab)?.scrollIntoView({ behavior: "smooth", block: "start" })
       })
     } else {
       router.push(href)
@@ -112,7 +115,12 @@ export function OnboardingWizard({ initialOpen }: { initialOpen: boolean }) {
   const isLast = step === STEPS.length - 1
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) handleClose()
+      }}
+    >
       <DialogContent data-testid="onboarding-wizard" className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{current.title}</DialogTitle>
@@ -141,7 +149,7 @@ export function OnboardingWizard({ initialOpen }: { initialOpen: boolean }) {
                 onClick={() => setStep(i)}
                 className={cn(
                   "h-2 w-2 rounded-full transition-colors",
-                  i === step ? "bg-primary" : "bg-muted hover:bg-muted-foreground/30"
+                  i === step ? "bg-primary" : "bg-muted hover:bg-muted-foreground/30",
                 )}
               />
             ))}

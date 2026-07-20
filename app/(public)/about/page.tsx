@@ -1,13 +1,13 @@
-import type { Metadata } from 'next'
-import { MessageSquare, Mail } from 'lucide-react'
+import { Mail, MessageSquare } from "lucide-react"
+import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: 'Tentang — Glim',
+  title: "Tentang — Glim",
 }
 
 export default function AboutPage() {
-  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'support@glim.id'
-  const company = process.env.NEXT_PUBLIC_COMPANY_NAME || 'Glim'
+  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "support@glim.id"
+  const company = process.env.NEXT_PUBLIC_COMPANY_NAME || "Glim"
 
   return (
     <article className="prose prose-sm prose-gray max-w-none">
@@ -21,9 +21,9 @@ export default function AboutPage() {
       </div>
 
       <p className="text-sm text-gray-600 leading-relaxed mb-6">
-        Platform manajemen pesan WhatsApp berbasis AI khusus untuk bisnis UMKM Indonesia.
-        Dirancang untuk bisnis fashion, tailor, bakery, fotografer, dan jasa lainnya
-        yang komunikasi utamanya via WA.
+        Platform manajemen pesan WhatsApp berbasis AI khusus untuk bisnis UMKM Indonesia. Dirancang
+        untuk bisnis fashion, tailor, bakery, fotografer, dan jasa lainnya yang komunikasi utamanya
+        via WA.
       </p>
 
       <p className="text-sm text-gray-600 leading-relaxed mb-6">
@@ -32,15 +32,17 @@ export default function AboutPage() {
       </p>
 
       <p className="text-sm text-gray-600 leading-relaxed mb-8">
-        Dibuat oleh developer Indonesia untuk bisnis Indonesia. AI dilatih memahami
-        gaya komunikasi Bahasa Indonesia yang natural.
+        Dibuat oleh developer Indonesia untuk bisnis Indonesia. AI dilatih memahami gaya komunikasi
+        Bahasa Indonesia yang natural.
       </p>
 
       <div className="border-t border-gray-100 pt-6 space-y-3">
         <h2 className="font-display font-semibold text-sm tracking-tight">Kontak</h2>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Mail className="w-4 h-4 text-gray-400" />
-          <a href={`mailto:${email}`} className="text-primary font-medium hover:underline">{email}</a>
+          <a href={`mailto:${email}`} className="text-primary font-medium hover:underline">
+            {email}
+          </a>
         </div>
       </div>
     </article>

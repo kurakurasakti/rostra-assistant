@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
 const sections = [
@@ -55,7 +55,7 @@ export function SettingsAnchorNav() {
           }
         }
       },
-      { rootMargin: "-20% 0px -65% 0px" }
+      { rootMargin: "-20% 0px -65% 0px" },
     )
     els.forEach((el) => observer.observe(el))
 
@@ -105,7 +105,7 @@ export function SettingsAnchorNav() {
                   : "border-primary text-primary font-semibold"
                 : isDanger
                   ? "border-border text-red-600/70 hover:text-red-600 font-normal"
-                  : "border-border text-muted-foreground hover:text-foreground font-normal"
+                  : "border-border text-muted-foreground hover:text-foreground font-normal",
             )}
           >
             {label}

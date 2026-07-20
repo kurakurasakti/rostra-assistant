@@ -1,9 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-export const db = createClient(supabaseUrl, supabaseKey);
+export const db = createClient(supabaseUrl, supabaseKey)
 
 export async function getScheduledMessages(userId: string) {
   const { data, error } = await db
@@ -11,10 +11,10 @@ export async function getScheduledMessages(userId: string) {
     .select("type, scheduled_at, status")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(5)
 
-  if (error) throw error;
-  return data;
+  if (error) throw error
+  return data
 }
 
 export async function getInboxMessage(userId: string, whatsappNumber: string) {
@@ -24,10 +24,10 @@ export async function getInboxMessage(userId: string, whatsappNumber: string) {
     .eq("user_id", userId)
     .eq("whatsapp_number", whatsappNumber)
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(1)
 
-  if (error) throw error;
-  return data?.[0] ?? null;
+  if (error) throw error
+  return data?.[0] ?? null
 }
 
 export async function getSecurityLog(userId: string) {
@@ -36,10 +36,10 @@ export async function getSecurityLog(userId: string) {
     .select("threat_type, whatsapp_number")
     .eq("user_id", userId)
     .order("detected_at", { ascending: false })
-    .limit(1);
+    .limit(1)
 
-  if (error) throw error;
-  return data?.[0] ?? null;
+  if (error) throw error
+  return data?.[0] ?? null
 }
 
 export async function getNotification(userId: string) {
@@ -48,10 +48,10 @@ export async function getNotification(userId: string) {
     .select("type, title")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(1)
 
-  if (error) throw error;
-  return data?.[0] ?? null;
+  if (error) throw error
+  return data?.[0] ?? null
 }
 
 export async function getAIFeedback(userId: string) {
@@ -60,10 +60,10 @@ export async function getAIFeedback(userId: string) {
     .select("original, corrected")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(1)
 
-  if (error) throw error;
-  return data?.[0] ?? null;
+  if (error) throw error
+  return data?.[0] ?? null
 }
 
 export async function getProfile(userId: string) {
@@ -71,10 +71,10 @@ export async function getProfile(userId: string) {
     .from("profiles")
     .select("feedback_count")
     .eq("id", userId)
-    .single();
+    .single()
 
-  if (error) throw error;
-  return data;
+  if (error) throw error
+  return data
 }
 
 export async function getClientByPhone(whatsappNumber: string) {
@@ -82,20 +82,20 @@ export async function getClientByPhone(whatsappNumber: string) {
     .from("clients")
     .select("user_id")
     .eq("whatsapp_number", whatsappNumber)
-    .maybeSingle();
+    .maybeSingle()
 
-  if (error) throw error;
-  return data;
+  if (error) throw error
+  return data
 }
 
 export async function deleteTestUser(userId: string) {
-  await db.from("scheduled_messages").delete().eq("user_id", userId);
-  await db.from("inbox_messages").delete().eq("user_id", userId);
-  await db.from("security_logs").delete().eq("user_id", userId);
-  await db.from("notifications").delete().eq("user_id", userId);
-  await db.from("ai_feedback").delete().eq("user_id", userId);
-  await db.from("orders").delete().eq("user_id", userId);
-  await db.from("clients").delete().eq("user_id", userId);
-  await db.from("profiles").delete().eq("id", userId);
-  await db.auth.admin.deleteUser(userId);
+  await db.from("scheduled_messages").delete().eq("user_id", userId)
+  await db.from("inbox_messages").delete().eq("user_id", userId)
+  await db.from("security_logs").delete().eq("user_id", userId)
+  await db.from("notifications").delete().eq("user_id", userId)
+  await db.from("ai_feedback").delete().eq("user_id", userId)
+  await db.from("orders").delete().eq("user_id", userId)
+  await db.from("clients").delete().eq("user_id", userId)
+  await db.from("profiles").delete().eq("id", userId)
+  await db.auth.admin.deleteUser(userId)
 }

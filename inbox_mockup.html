@@ -386,7 +386,7 @@
     }
 
     // Close dropdown on clicking elsewhere
-    window.addEventListener('click', function(e) {
+    window.addEventListener('click', (e) => {
       const dropdownBtn = document.getElementById('dropdownBtn');
       const menu = document.getElementById('dropdownMenu');
       if (dropdownBtn && !dropdownBtn.contains(e.target) && !menu.contains(e.target)) {
@@ -404,7 +404,7 @@
       
       // Update checkmarks in UI
       const buttons = menu.children;
-      for (let btn of buttons) {
+      for (const btn of buttons) {
         const textSpan = btn.querySelector('span');
         const checkSpan = btn.querySelector('.text-violet-600');
         if (textSpan.textContent.includes(filterName)) {
@@ -425,7 +425,7 @@
     // Segment Selector Logic
     function setSegmentActive(element) {
       const buttons = element.parentElement.children;
-      for (let btn of buttons) {
+      for (const btn of buttons) {
         btn.className = "py-1 rounded-md text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 transition-all duration-150 flex items-center justify-center gap-1";
       }
       element.className = "py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 shadow-sm transition-all duration-150 flex items-center justify-center gap-1";

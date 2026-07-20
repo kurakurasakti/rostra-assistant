@@ -1,12 +1,16 @@
-import type { Metadata } from 'next'
+import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: 'Kebijakan Privasi — Glim',
+  title: "Kebijakan Privasi — Glim",
 }
 
 export default function PrivacyPolicyPage() {
-  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'support@glim.id'
-  const today = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
+  const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "support@glim.id"
+  const today = new Date().toLocaleDateString("id-ID", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })
 
   return (
     <article className="prose prose-sm prose-gray max-w-none">
@@ -15,18 +19,29 @@ export default function PrivacyPolicyPage() {
 
       <Section title="1. Pendahuluan">
         <p>
-          Glim adalah platform manajemen bisnis berbasis WhatsApp untuk UMKM Indonesia.
-          Kebijakan ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi data kamu.
+          Glim adalah platform manajemen bisnis berbasis WhatsApp untuk UMKM Indonesia. Kebijakan
+          ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi data kamu.
         </p>
       </Section>
 
       <Section title="2. Data yang Kami Kumpulkan">
         <ul>
-          <li><strong>Informasi akun:</strong> nama bisnis, email</li>
-          <li><strong>Data bisnis:</strong> produk, jam operasional, template pesan</li>
-          <li><strong>Percakapan WhatsApp:</strong> pesan masuk dan keluar yang diproses melalui platform Glim</li>
-          <li><strong>Data Client:</strong> nama, nomor WhatsApp Client bisnis kamu</li>
-          <li><strong>Data pesanan:</strong> informasi pesanan, jadwal, pembayaran</li>
+          <li>
+            <strong>Informasi akun:</strong> nama bisnis, email
+          </li>
+          <li>
+            <strong>Data bisnis:</strong> produk, jam operasional, template pesan
+          </li>
+          <li>
+            <strong>Percakapan WhatsApp:</strong> pesan masuk dan keluar yang diproses melalui
+            platform Glim
+          </li>
+          <li>
+            <strong>Data Client:</strong> nama, nomor WhatsApp Client bisnis kamu
+          </li>
+          <li>
+            <strong>Data pesanan:</strong> informasi pesanan, jadwal, pembayaran
+          </li>
         </ul>
       </Section>
 
@@ -50,9 +65,16 @@ export default function PrivacyPolicyPage() {
 
       <Section title="5. Layanan Pihak Ketiga">
         <ul>
-          <li><strong>Supabase:</strong> penyimpanan database</li>
-          <li><strong>OpenRouter:</strong> pemrosesan teks untuk draft balasan (pesan dikirim ke API OpenRouter untuk diproses)</li>
-          <li><strong>Baileys:</strong> koneksi WhatsApp</li>
+          <li>
+            <strong>Supabase:</strong> penyimpanan database
+          </li>
+          <li>
+            <strong>OpenRouter:</strong> pemrosesan teks untuk draft balasan (pesan dikirim ke API
+            OpenRouter untuk diproses)
+          </li>
+          <li>
+            <strong>Baileys:</strong> koneksi WhatsApp
+          </li>
         </ul>
       </Section>
 
@@ -64,21 +86,23 @@ export default function PrivacyPolicyPage() {
           <li>Meminta penghapusan akun dan seluruh data kamu</li>
         </ul>
         <p>
-          Untuk permintaan penghapusan data, kirim email ke:{' '}
-          <a href={`mailto:${email}`} className="text-primary font-medium">{email}</a>
+          Untuk permintaan penghapusan data, kirim email ke:{" "}
+          <a href={`mailto:${email}`} className="text-primary font-medium">
+            {email}
+          </a>
         </p>
       </Section>
 
       <Section title="7. Perubahan Kebijakan">
-        <p>
-          Kami akan memberitahu perubahan kebijakan melalui email atau notifikasi di platform.
-        </p>
+        <p>Kami akan memberitahu perubahan kebijakan melalui email atau notifikasi di platform.</p>
       </Section>
 
       <Section title="8. Kontak">
         <p>
-          Pertanyaan tentang privasi:{' '}
-          <a href={`mailto:${email}`} className="text-primary font-medium">{email}</a>
+          Pertanyaan tentang privasi:{" "}
+          <a href={`mailto:${email}`} className="text-primary font-medium">
+            {email}
+          </a>
         </p>
         <p className="text-sm text-gray-500 mt-1">Tanggal berlaku: {today}</p>
       </Section>

@@ -1,15 +1,15 @@
-"use client";
+"use client"
 
-import { ReactNode, useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { type ReactNode, useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 
 interface InlineEditCardProps {
-  title: string;
-  subtitle?: string;
-  summary: ReactNode;          // shown when collapsed
-  defaultExpanded: boolean;
-  onCollapseRequest?: number;   // bump this number to force-collapse after save (e.g. Date.now())
-  children: ReactNode;          // the real form/content, rendered only when expanded
+  title: string
+  subtitle?: string
+  summary: ReactNode // shown when collapsed
+  defaultExpanded: boolean
+  onCollapseRequest?: number // bump this number to force-collapse after save (e.g. Date.now())
+  children: ReactNode // the real form/content, rendered only when expanded
 }
 
 export default function InlineEditCard({
@@ -20,13 +20,13 @@ export default function InlineEditCard({
   onCollapseRequest,
   children,
 }: InlineEditCardProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(defaultExpanded)
 
   useEffect(() => {
     if (onCollapseRequest) {
-      setExpanded(false);
+      setExpanded(false)
     }
-  }, [onCollapseRequest]);
+  }, [onCollapseRequest])
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -59,5 +59,5 @@ export default function InlineEditCard({
         </div>
       )}
     </div>
-  );
+  )
 }

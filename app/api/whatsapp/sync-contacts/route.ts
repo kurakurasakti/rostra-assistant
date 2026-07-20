@@ -1,18 +1,20 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
-import { normalizeWANumber } from '@/lib/whatsapp'
+import { NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
+import { normalizeWANumber } from "@/lib/whatsapp"
 
 export async function POST() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const WA_SERVICE_URL = process.env.WA_SERVICE_URL?.replace(/\/$/, '')
+  const WA_SERVICE_URL = process.env.WA_SERVICE_URL?.replace(/\/$/, "")
   if (!WA_SERVICE_URL) {
-    return NextResponse.json({ error: 'WA service URL not configured' }, { status: 500 })
+    return NextResponse.json({ error: "WA service URL not configured" }, { status: 500 })
   }
 
   try {
@@ -20,10 +22,13 @@ export async function POST() {
     const res = await fetch(`${WA_SERVICE_URL}/session/${user.id}/contacts`)
     if (!res.ok) {
       if (res.status === 404) {
-        return NextResponse.json({ success: true, count: 0, message: 'No active session' })
+        return NextResponse.json({ success: true, count: 0, message: "No active session" })
       }
       const errText = await res.text()
-      return NextResponse.json({ error: `WA service returned ${res.status}: ${errText}` }, { status: 500 })
+      return NextResponse.json(
+        { error: `WA service returned ${res.status}: ${errText}` },
+        { status: 500 },
+      )
     }
 
     const data = await res.json()
@@ -37,15 +42,15 @@ export async function POST() {
 
     // 2. Normalize and filter
     const validContacts = rawContacts
-      .map(c => {
+      .map((c) => {
         const jidVal = c.jid || (c as any).id || (c as any).phoneNumber || (c as any).lid
         const nameVal = c.name || (c as any).notify
-        const normalized = normalizeWANumber(jidVal ?? '')
-        const name = String(nameVal ?? '').trim()
-        
+        const normalized = normalizeWANumber(jidVal ?? "")
+        const name = String(nameVal ?? "").trim()
+
         // Ignore names that look like number/jid
-        const isInvalidName = !name || name.includes('@') || /^\+?\d+$/.test(name)
-        
+        const isInvalidName = !name || name.includes("@") || /^\+?\d+$/.test(name)
+
         if (!normalized || isInvalidName) return null
         return { whatsapp_number: normalized, name }
       })
@@ -65,10 +70,10 @@ export async function POST() {
 
     // 3. Fetch existing clients
     const { data: existingClients } = await supabase
-      .from('clients')
-      .select('id, whatsapp_number, name')
-      .eq('user_id', user.id)
-      .in('whatsapp_number', uniqueNumbers)
+      .from("clients")
+      .select("id, whatsapp_number, name")
+      .eq("user_id", user.id)
+      .in("whatsapp_number", uniqueNumbers)
 
     const existingNumbers = new Set<string>()
     const existingClientsToUpdate: { id: string; name: string }[] = []
@@ -81,7 +86,7 @@ export async function POST() {
         // a human-entered name (e.g. renamed via inbox) must win over the WA phonebook,
         // otherwise every inbox load reverts manual renames
         const isAutoName =
-          !client.name || client.name.includes('@') || /^\+?[\d\s\-]+$/.test(client.name)
+          !client.name || client.name.includes("@") || /^\+?[\d\s-]+$/.test(client.name)
         if (newName && isAutoName && client.name !== newName) {
           existingClientsToUpdate.push({ id: client.id, name: newName })
         }
@@ -91,19 +96,16 @@ export async function POST() {
     // 4. Update changed client names
     if (existingClientsToUpdate.length > 0) {
       for (const update of existingClientsToUpdate) {
-        await supabase
-          .from('clients')
-          .update({ name: update.name })
-          .eq('id', update.id)
+        await supabase.from("clients").update({ name: update.name }).eq("id", update.id)
       }
     }
 
     // 5. Update inbox messages sender names and link to existing clients (do not auto-create new clients)
     const { data: allClients } = await supabase
-      .from('clients')
-      .select('id, whatsapp_number, name')
-      .eq('user_id', user.id)
-      .in('whatsapp_number', uniqueNumbers)
+      .from("clients")
+      .select("id, whatsapp_number, name")
+      .eq("user_id", user.id)
+      .in("whatsapp_number", uniqueNumbers)
 
     const clientMap = new Map<string, { id: string; name: string }>()
     if (allClients) {
@@ -115,18 +117,18 @@ export async function POST() {
     for (const [number, name] of uniqueContactsMap.entries()) {
       const client = clientMap.get(number)
       await supabase
-        .from('inbox_messages')
+        .from("inbox_messages")
         .update({
           sender_name: client ? client.name : name,
-          client_id: client ? client.id : null
+          client_id: client ? client.id : null,
         })
-        .eq('user_id', user.id)
-        .eq('whatsapp_number', number)
+        .eq("user_id", user.id)
+        .eq("whatsapp_number", number)
     }
 
     return NextResponse.json({ success: true, count: uniqueNumbers.length })
   } catch (err: any) {
-    console.error('[sync-contacts] error:', err)
+    console.error("[sync-contacts] error:", err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }

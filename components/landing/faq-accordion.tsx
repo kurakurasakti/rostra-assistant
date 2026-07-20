@@ -1,8 +1,8 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { faqs } from './faq-data'
+import { ChevronDown } from "lucide-react"
+import { useState } from "react"
+import { faqs } from "./faq-data"
 
 export function FaqAccordion() {
   const [open, setOpen] = useState<number | null>(null)
@@ -18,14 +18,14 @@ export function FaqAccordion() {
           >
             <span className="font-medium text-[#1A1A18] text-sm leading-snug pr-4">{faq.q}</span>
             <ChevronDown
-              className={`w-4 h-4 text-[#6B6862] transition-transform duration-200 flex-shrink-0 ${open === i ? 'rotate-180' : ''}`}
+              className={`w-4 h-4 text-[#6B6862] transition-transform duration-200 flex-shrink-0 ${open === i ? "rotate-180" : ""}`}
               aria-hidden="true"
             />
           </button>
           {/* Answers stay in the DOM (crawlable); grid-rows animates the collapse */}
           <div
             className={`grid transition-[grid-template-rows] duration-200 ease-out ${
-              open === i ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+              open === i ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
             }`}
           >
             <div className="overflow-hidden">

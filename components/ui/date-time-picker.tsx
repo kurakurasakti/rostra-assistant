@@ -1,18 +1,13 @@
 "use client"
 
-import * as React from "react"
-import { CalendarIcon, ClockIcon } from "lucide-react"
 import { format } from "date-fns"
 import { id } from "date-fns/locale"
-
-import { cn } from "@/lib/utils"
+import { CalendarIcon, ClockIcon } from "lucide-react"
+import * as React from "react"
 import { buttonVariants } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
 interface DateTimePickerProps {
   value?: string // YYYY-MM-DDTHH:mm or ISO string
@@ -101,10 +96,12 @@ export function DateTimePicker({
           "w-full justify-start text-left font-normal h-10 px-3",
           size === "sm" && "h-8 text-xs px-2",
           !value && "text-muted-foreground",
-          className
+          className,
         )}
       >
-        <CalendarIcon className={cn("mr-2 h-4 w-4 shrink-0", size === "sm" && "mr-1 h-3.5 w-3.5")} />
+        <CalendarIcon
+          className={cn("mr-2 h-4 w-4 shrink-0", size === "sm" && "mr-1 h-3.5 w-3.5")}
+        />
         {dateValue ? (
           format(dateValue, "d MMMM yyyy, HH:mm", { locale: id })
         ) : (
