@@ -1,12 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
-import { sendTextMessage } from '@/lib/whatsapp'
-import { categorizeQAPair } from '@/lib/chat-parser'
-import { LEVEL2_THRESHOLD } from '@/lib/config'
-import type { ConversationExample, QACategory } from '@/types'
+import { NextResponse } from "next/server"
+import { categorizeQAPair } from "@/lib/chat-parser"
+import { LEVEL2_THRESHOLD } from "@/lib/config"
+import { createClient } from "@/lib/supabase/server"
+import { sendTextMessage } from "@/lib/whatsapp"
+import type { ConversationExample, QACategory } from "@/types"
 
 const CATEGORY_QUOTA: Record<QACategory, number> = {
-  harga: 3, jadwal: 3, ketersediaan: 2, status: 2, pembayaran: 2, umum: 2,
+  harga: 3,
+  jadwal: 3,
+  ketersediaan: 2,
+  status: 2,
+  pembayaran: 2,
+  umum: 2,
 }
 
 async function updateConversationExamples(
@@ -17,9 +22,9 @@ async function updateConversationExamples(
   correctedReply: string,
 ): Promise<void> {
   const { data: profile } = await supabase
-    .from('profiles')
-    .select('conversation_examples')
-    .eq('id', userId)
+    .from("profiles")
+    .select("conversation_examples")
+    .eq("id", userId)
     .single()
 
   const examples: ConversationExample[] = Array.isArray(profile?.conversation_examples)
@@ -31,12 +36,12 @@ async function updateConversationExamples(
     category,
     customer: customerMessage,
     admin: correctedReply,
-    source: 'correction',
+    source: "correction",
     used_count: 0,
     created_at: new Date().toISOString(),
   }
 
-  const categoryExamples = examples.filter(e => e.category === category)
+  const categoryExamples = examples.filter((e) => e.category === category)
   const quota = CATEGORY_QUOTA[category]
 
   let updated: ConversationExample[]
@@ -44,63 +49,68 @@ async function updateConversationExamples(
     updated = [...examples, newExample]
   } else {
     // Replace example with lowest used_count in this category
-    const minUsed = Math.min(...categoryExamples.map(e => e.used_count))
+    const minUsed = Math.min(...categoryExamples.map((e) => e.used_count))
     const replaceIdx = examples.findIndex(
-      e => e.category === category && e.used_count === minUsed,
+      (e) => e.category === category && e.used_count === minUsed,
     )
     updated = [...examples]
     updated[replaceIdx] = newExample
   }
 
   const { error } = await supabase
-    .from('profiles')
+    .from("profiles")
     .update({ conversation_examples: updated })
-    .eq('id', userId)
+    .eq("id", userId)
   if (error) {
-    console.error('[updateConversationExamples] error:', error)
+    console.error("[updateConversationExamples] error:", error)
   }
 }
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const body = await request.json() as {
+  const body = (await request.json()) as {
     whatsapp_number: string
     message: string
     reply_to_id?: string
-    force_send?: boolean  // bypass queue when user clicks "Kirim Sekarang"
+    force_send?: boolean // bypass queue when user clicks "Kirim Sekarang"
   }
 
   if (!body.whatsapp_number || !body.message) {
-    return NextResponse.json({ error: 'whatsapp_number and message required' }, { status: 400 })
+    return NextResponse.json({ error: "whatsapp_number and message required" }, { status: 400 })
   }
 
   const { data: profile } = await supabase
-    .from('profiles')
-    .select('wa_connected, auto_reply_level, feedback_count, conversation_examples')
-    .eq('id', user.id)
+    .from("profiles")
+    .select("wa_connected, auto_reply_level, feedback_count, conversation_examples")
+    .eq("id", user.id)
     .single()
 
   if (!profile?.wa_connected) {
-    return NextResponse.json({ error: 'WhatsApp belum terhubung' }, { status: 400 })
+    return NextResponse.json({ error: "WhatsApp belum terhubung" }, { status: 400 })
   }
 
   // Level 2 semi-auto: queue rutin messages with 5-min delay unless force_send=true
-  const hasExamples = Array.isArray(profile.conversation_examples) && profile.conversation_examples.length > 0
-  const isLevel2 = (profile.auto_reply_level ?? 1) >= 2 && ((profile.feedback_count ?? 0) >= LEVEL2_THRESHOLD || hasExamples)
+  const hasExamples =
+    Array.isArray(profile.conversation_examples) && profile.conversation_examples.length > 0
+  const isLevel2 =
+    (profile.auto_reply_level ?? 1) >= 2 &&
+    ((profile.feedback_count ?? 0) >= LEVEL2_THRESHOLD || hasExamples)
   if (isLevel2 && !body.force_send && body.reply_to_id) {
     const { data: incoming } = await supabase
-      .from('inbox_messages')
-      .select('classification')
-      .eq('id', body.reply_to_id)
+      .from("inbox_messages")
+      .select("classification")
+      .eq("id", body.reply_to_id)
       .single()
 
-    if (incoming?.classification === 'rutin') {
+    if (incoming?.classification === "rutin") {
       const sendAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
       const { data: queued } = await supabase
-        .from('send_queue')
+        .from("send_queue")
         .insert({
           user_id: user.id,
           message_id: body.reply_to_id,
@@ -108,14 +118,14 @@ export async function POST(request: Request) {
           message: body.message,
           send_at: sendAt,
         })
-        .select('id')
+        .select("id")
         .single()
 
       await supabase
-        .from('inbox_messages')
-        .update({ status: 'antri', ai_draft_reply: body.message })
-        .eq('id', body.reply_to_id)
-        .eq('user_id', user.id)
+        .from("inbox_messages")
+        .update({ status: "antri", ai_draft_reply: body.message })
+        .eq("id", body.reply_to_id)
+        .eq("user_id", user.id)
 
       return NextResponse.json({ queued: true, send_at: sendAt, queue_id: queued?.id })
     }
@@ -124,49 +134,49 @@ export async function POST(request: Request) {
   try {
     await sendTextMessage(body.whatsapp_number, body.message, user.id)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'WA service error'
+    const msg = err instanceof Error ? err.message : "WA service error"
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 
   // Save outgoing message to inbox
-  await supabase.from('inbox_messages').insert({
+  await supabase.from("inbox_messages").insert({
     user_id: user.id,
-    direction: 'keluar',
+    direction: "keluar",
     whatsapp_number: body.whatsapp_number,
     message_body: body.message,
-    classification: 'rutin',
-    status: 'dibalas',
+    classification: "rutin",
+    status: "dibalas",
   })
 
   // Mark incoming message as replied
   if (body.reply_to_id) {
     await supabase
-      .from('inbox_messages')
-      .update({ status: 'dibalas', replied_at: new Date().toISOString() })
-      .eq('id', body.reply_to_id)
-      .eq('user_id', user.id)
+      .from("inbox_messages")
+      .update({ status: "dibalas", replied_at: new Date().toISOString() })
+      .eq("id", body.reply_to_id)
+      .eq("user_id", user.id)
 
     // Feedback loop: if sent text differs from ai_draft_reply → record correction
     const { data: original } = await supabase
-      .from('inbox_messages')
-      .select('ai_draft_reply, message_body')
-      .eq('id', body.reply_to_id)
-      .eq('user_id', user.id)
+      .from("inbox_messages")
+      .select("ai_draft_reply, message_body")
+      .eq("id", body.reply_to_id)
+      .eq("user_id", user.id)
       .single()
 
     const originalDraft = original?.ai_draft_reply
-    const originalIncoming = original?.message_body ?? ''
+    const originalIncoming = original?.message_body ?? ""
     const sentMessage = body.message.trim()
 
     if (originalDraft && originalDraft.trim() !== sentMessage) {
       await Promise.all([
-        supabase.from('ai_feedback').insert({
+        supabase.from("ai_feedback").insert({
           user_id: user.id,
           message_id: body.reply_to_id,
           original: originalDraft,
           corrected: sentMessage,
         }),
-        supabase.rpc('increment_feedback_count', { uid: user.id }),
+        supabase.rpc("increment_feedback_count", { uid: user.id }),
       ])
 
       // Update conversation_examples with this correction (fire-and-forget)
@@ -176,9 +186,9 @@ export async function POST(request: Request) {
 
       // Every 10 corrections → re-analyze brand voice from feedback patterns (fire-and-forget)
       const { data: updatedProfile } = await supabase
-        .from('profiles')
-        .select('feedback_count')
-        .eq('id', user.id)
+        .from("profiles")
+        .select("feedback_count")
+        .eq("id", user.id)
         .single()
 
       if (
@@ -188,9 +198,11 @@ export async function POST(request: Request) {
           updatedProfile.feedback_count === 6 ||
           updatedProfile.feedback_count % 10 === 0)
       ) {
-        import('@/lib/openrouter').then(({ reanalyzeBrandVoice }) => {
-          reanalyzeBrandVoice(user.id).catch(() => {})
-        }).catch(() => {})
+        import("@/lib/openrouter")
+          .then(({ reanalyzeBrandVoice }) => {
+            reanalyzeBrandVoice(user.id).catch(() => {})
+          })
+          .catch(() => {})
       }
     }
   }

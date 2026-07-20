@@ -1,17 +1,21 @@
-export type OrderStatus = 'aktif' | 'selesai' | 'dibatalkan'
-export type MessageStatus = 'menunggu' | 'terkirim' | 'gagal' | 'dibatalkan'
-export type InboxDirection = 'masuk' | 'keluar'
-export type InboxStatus = 'baru' | 'antri' | 'dibalas' | 'diabaikan' | 'dieskalasi'
-export type MessageClassification = 'rutin' | 'sensitif' | 'tidak_diketahui' | 'injection_attempt'
-export type TemplateType = 'konfirmasi_pesanan' | 'pengingat_pembayaran' | 'pengingat_janji_temu' | 'custom'
+export type OrderStatus = "aktif" | "selesai" | "dibatalkan"
+export type MessageStatus = "menunggu" | "terkirim" | "gagal" | "dibatalkan"
+export type InboxDirection = "masuk" | "keluar"
+export type InboxStatus = "baru" | "antri" | "dibalas" | "diabaikan" | "dieskalasi"
+export type MessageClassification = "rutin" | "sensitif" | "tidak_diketahui" | "injection_attempt"
+export type TemplateType =
+  | "konfirmasi_pesanan"
+  | "pengingat_pembayaran"
+  | "pengingat_janji_temu"
+  | "custom"
 
-export type QACategory = 'harga' | 'ketersediaan' | 'jadwal' | 'status' | 'pembayaran' | 'umum'
+export type QACategory = "harga" | "ketersediaan" | "jadwal" | "status" | "pembayaran" | "umum"
 
 export interface ConversationExample {
   category: QACategory
   customer: string
   admin: string
-  source: 'upload' | 'correction'
+  source: "upload" | "correction"
   used_count: number
   created_at: string
 }
@@ -157,7 +161,7 @@ export interface InboxMessage {
   wa_message_id: string | null
   received_at: string
   media_url: string | null
-  media_type: 'image' | 'document' | 'audio' | null
+  media_type: "image" | "document" | "audio" | null
   media_size: number | null
 }
 

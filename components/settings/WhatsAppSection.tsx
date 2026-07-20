@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { Bell, CheckCircle2, Link2, Link2Off, Loader2, QrCode } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { toast } from "sonner"
-import { CheckCircle2, Loader2, Link2, Link2Off, QrCode, Bell } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 import { Skeleton } from "@/components/ui/skeleton"
+import { createClient } from "@/lib/supabase/client"
 
 type WaStep = "checking" | "idle" | "generating" | "scanning" | "connected"
 
@@ -113,8 +113,13 @@ export default function WhatsAppSection({
   async function handleSaveNotification() {
     setSavingNotif(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSavingNotif(false); return }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setSavingNotif(false)
+      return
+    }
 
     const { error } = await supabase
       .from("profiles")
@@ -136,7 +141,9 @@ export default function WhatsAppSection({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display font-semibold text-sm">Koneksi WhatsApp</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Hubungkan nomor WhatsApp bisnis via QR scan.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Hubungkan nomor WhatsApp bisnis via QR scan.
+            </p>
           </div>
           {waStep === "connected" ? (
             <Link2 className="w-4 h-4 text-emerald-500" />
@@ -157,8 +164,15 @@ export default function WhatsAppSection({
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Nomor WhatsApp Bisnis</Label>
-              <Input placeholder="628123456789" value={waNumber} onChange={(e) => setWaNumber(e.target.value)} className="h-10" />
-              <p className="text-xs text-muted-foreground">Format internasional tanpa +, contoh: 628123456789</p>
+              <Input
+                placeholder="628123456789"
+                value={waNumber}
+                onChange={(e) => setWaNumber(e.target.value)}
+                className="h-10"
+              />
+              <p className="text-xs text-muted-foreground">
+                Format internasional tanpa +, contoh: 628123456789
+              </p>
             </div>
             <Button onClick={handleGenerateQR} disabled={!waNumber.trim()} className="gap-2">
               <QrCode className="w-4 h-4" />
@@ -182,14 +196,32 @@ export default function WhatsAppSection({
             <div className="flex items-start gap-4">
               <div className="rounded-lg border border-border bg-white p-2 inline-block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrBase64?.startsWith("http") || qrBase64?.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`} alt="QR Code WhatsApp" className="w-48 h-48" />
+                <img
+                  src={
+                    qrBase64?.startsWith("http") || qrBase64?.startsWith("data:")
+                      ? qrBase64
+                      : `data:image/png;base64,${qrBase64}`
+                  }
+                  alt="QR Code WhatsApp"
+                  className="w-48 h-48"
+                />
               </div>
               <div className="space-y-2 pt-1">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Menunggu scan...
                 </div>
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { stopPolling(); setWaStep("idle"); setQrBase64("") }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    stopPolling()
+                    setWaStep("idle")
+                    setQrBase64("")
+                  }}
+                >
                   Batal
                 </Button>
               </div>
@@ -201,9 +233,19 @@ export default function WhatsAppSection({
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
               <CheckCircle2 className="w-4 h-4" />
-              WhatsApp terhubung{connectedNumber ? `: +${connectedNumber.slice(0, 2)} ${connectedNumber.slice(2, 6)} ${connectedNumber.slice(6, 9)} ${connectedNumber.slice(9)}` : ""}
+              WhatsApp terhubung
+              {connectedNumber
+                ? `: +${connectedNumber.slice(0, 2)} ${connectedNumber.slice(2, 6)} ${connectedNumber.slice(6, 9)} ${connectedNumber.slice(9)}`
+                : ""}
             </div>
-            <Button type="button" variant="outline" size="sm" disabled={disconnecting} className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive" onClick={handleDisconnect}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disconnecting}
+              className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive"
+              onClick={handleDisconnect}
+            >
               {disconnecting && <Loader2 className="w-3 h-3 animate-spin" />}
               Putuskan Koneksi
             </Button>
@@ -244,7 +286,11 @@ export default function WhatsAppSection({
           disabled={savingNotif}
           className="h-8 text-xs gap-1.5"
         >
-          {savingNotif ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3 h-3" />}
+          {savingNotif ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Bell className="w-3 h-3" />
+          )}
           Simpan Nomor Notifikasi
         </Button>
       </div>

@@ -42,12 +42,12 @@ export function scanForInjection(message: string): {
 } {
   for (const pattern of INJECTION_PATTERNS) {
     if (pattern.test(message)) {
-      return { isSuspicious: true, reason: 'pattern_match' }
+      return { isSuspicious: true, reason: "pattern_match" }
     }
   }
   // Pesan sangat panjang tanpa newline = suspicious
-  if (message.length > 500 && !message.includes('\n')) {
-    return { isSuspicious: true, reason: 'unusual_length' }
+  if (message.length > 500 && !message.includes("\n")) {
+    return { isSuspicious: true, reason: "unusual_length" }
   }
   return { isSuspicious: false }
 }
@@ -56,20 +56,16 @@ export function validateAIOutput(response: string): {
   safe: boolean
   reason?: string
 } {
-  if (response.length > 600)
-    return { safe: false, reason: 'too_long' }
-  if (/\b\d{10,16}\b/.test(response))
-    return { safe: false, reason: 'contains_number_sequence' }
-  if (/https?:\/\/(?!wa\.me)/i.test(response))
-    return { safe: false, reason: 'contains_url' }
+  if (response.length > 600) return { safe: false, reason: "too_long" }
+  if (/\b\d{10,16}\b/.test(response)) return { safe: false, reason: "contains_number_sequence" }
+  if (/https?:\/\/(?!wa\.me)/i.test(response)) return { safe: false, reason: "contains_url" }
   const jailbreakConfirm = [
     /saya (sekarang|kini) adalah/i,
     /instruksi (baru|telah) diterima/i,
     /mode .* (aktif|diaktifkan)/i,
   ]
   for (const pattern of jailbreakConfirm) {
-    if (pattern.test(response))
-      return { safe: false, reason: 'possible_jailbreak' }
+    if (pattern.test(response)) return { safe: false, reason: "possible_jailbreak" }
   }
   return { safe: true }
 }

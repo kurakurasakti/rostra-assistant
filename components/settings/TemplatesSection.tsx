@@ -1,21 +1,24 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { Loader2, RotateCcw, Save } from "lucide-react"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { toast } from "sonner"
-import { Loader2, RotateCcw, Save } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 import type { MessageTemplate } from "@/types"
 
 type TemplateKey = "konfirmasi_pesanan" | "pengingat_pembayaran" | "pengingat_janji_temu"
 
-const CONFIGS: Record<TemplateKey, {
-  name: string
-  vars: string[]
-  defaultBody: string
-  sampleVars: Record<string, string>
-}> = {
+const CONFIGS: Record<
+  TemplateKey,
+  {
+    name: string
+    vars: string[]
+    defaultBody: string
+    sampleVars: Record<string, string>
+  }
+> = {
   konfirmasi_pesanan: {
     name: "Konfirmasi Pesanan",
     vars: ["nama_klien", "nama_bisnis", "deskripsi_pesanan", "total_harga"],
@@ -25,7 +28,12 @@ Pesanan: {{deskripsi_pesanan}}
 Total: Rp {{total_harga}}
 
 Kami akan segera follow up untuk detail selanjutnya ya 🙏`,
-    sampleVars: { nama_klien: "Kak Dewi", nama_bisnis: "Butik Melati", deskripsi_pesanan: "Gaun kebaya custom", total_harga: "1.500.000" },
+    sampleVars: {
+      nama_klien: "Kak Dewi",
+      nama_bisnis: "Butik Melati",
+      deskripsi_pesanan: "Gaun kebaya custom",
+      total_harga: "1.500.000",
+    },
   },
   pengingat_pembayaran: {
     name: "Pengingat Pembayaran",
@@ -37,7 +45,14 @@ Mengingatkan pembayaran *{{nama_tahap}}* sebesar Rp {{jumlah}} jatuh tempo pada 
 Mohon segera lakukan pembayaran ya 🙏
 
 — {{nama_bisnis}}`,
-    sampleVars: { nama_klien: "Kak Dewi", nama_bisnis: "Butik Melati", nama_tahap: "DP 50%", jumlah: "750.000", jatuh_tempo: "15 Jun 2025", deskripsi_pesanan: "Gaun kebaya custom" },
+    sampleVars: {
+      nama_klien: "Kak Dewi",
+      nama_bisnis: "Butik Melati",
+      nama_tahap: "DP 50%",
+      jumlah: "750.000",
+      jatuh_tempo: "15 Jun 2025",
+      deskripsi_pesanan: "Gaun kebaya custom",
+    },
   },
   pengingat_janji_temu: {
     name: "Pengingat Janji Temu",
@@ -49,7 +64,13 @@ Mengingatkan jadwal *{{judul_janji}}* pada:
 📍 {{lokasi_janji}}
 
 Sampai jumpa! — {{nama_bisnis}}`,
-    sampleVars: { nama_klien: "Kak Dewi", nama_bisnis: "Butik Melati", judul_janji: "Fitting pertama", waktu_janji: "15 Jun 2025, 10:00 WIB", lokasi_janji: "Jl. Melati No. 5" },
+    sampleVars: {
+      nama_klien: "Kak Dewi",
+      nama_bisnis: "Butik Melati",
+      judul_janji: "Fitting pertama",
+      waktu_janji: "15 Jun 2025, 10:00 WIB",
+      lokasi_janji: "Jl. Melati No. 5",
+    },
   },
 }
 
@@ -57,9 +78,13 @@ function preview(body: string, vars: Record<string, string>): string {
   return body.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`)
 }
 
-function TemplateCard({ tpl, config, onSaved }: {
+function TemplateCard({
+  tpl,
+  config,
+  onSaved,
+}: {
   tpl: MessageTemplate
-  config: typeof CONFIGS[TemplateKey]
+  config: (typeof CONFIGS)[TemplateKey]
   onSaved: (id: string, body: string) => void
 }) {
   const [body, setBody] = useState(tpl.body)
@@ -67,7 +92,10 @@ function TemplateCard({ tpl, config, onSaved }: {
   const dirty = body !== tpl.body
 
   async function save() {
-    if (!body.trim()) { toast.error("Body template tidak boleh kosong."); return }
+    if (!body.trim()) {
+      toast.error("Body template tidak boleh kosong.")
+      return
+    }
     setSaving(true)
     const supabase = createClient()
     const { error } = await supabase
@@ -75,7 +103,10 @@ function TemplateCard({ tpl, config, onSaved }: {
       .update({ body: body.trim() })
       .eq("id", tpl.id)
     if (error) toast.error("Gagal menyimpan template.")
-    else { toast.success(`Template "${config.name}" disimpan.`); onSaved(tpl.id, body.trim()) }
+    else {
+      toast.success(`Template "${config.name}" disimpan.`)
+      onSaved(tpl.id, body.trim())
+    }
     setSaving(false)
   }
 
@@ -86,7 +117,9 @@ function TemplateCard({ tpl, config, onSaved }: {
   return (
     <div className="rounded-lg border border-border p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">{config.name}</span>
+        <span className="text-xs font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+          {config.name}
+        </span>
         <button
           type="button"
           onClick={reset}
@@ -98,7 +131,7 @@ function TemplateCard({ tpl, config, onSaved }: {
 
       <Textarea
         value={body}
-        onChange={e => setBody(e.target.value)}
+        onChange={(e) => setBody(e.target.value)}
         rows={5}
         className="resize-none text-xs font-mono"
         placeholder="Isi template pesan..."
@@ -106,27 +139,36 @@ function TemplateCard({ tpl, config, onSaved }: {
 
       {/* Variable chips */}
       <div className="flex flex-wrap gap-1.5">
-        {config.vars.map(v => (
+        {config.vars.map((v) => (
           <button
             key={v}
             type="button"
-            onClick={() => setBody(b => b + `{{${v}}}`)}
+            onClick={() => setBody((b) => b + `{{${v}}}`)}
             className="text-[10px] bg-muted hover:bg-accent px-1.5 py-0.5 rounded font-mono text-muted-foreground hover:text-foreground transition-colors"
           >
             {`{{${v}}}`}
           </button>
         ))}
-        <span className="text-[10px] text-muted-foreground self-center ml-1">← klik untuk sisipkan</span>
+        <span className="text-[10px] text-muted-foreground self-center ml-1">
+          ← klik untuk sisipkan
+        </span>
       </div>
 
       {/* Preview */}
       <div className="rounded bg-muted/40 border border-border p-3 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
-        <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Preview (data dummy):</p>
+        <p className="text-[10px] font-medium text-muted-foreground mb-1.5">
+          Preview (data dummy):
+        </p>
         {preview(body, config.sampleVars)}
       </div>
 
       <div className="flex justify-end pt-1">
-        <Button size="sm" className="h-7 text-xs gap-1.5" onClick={save} disabled={saving || !dirty}>
+        <Button
+          size="sm"
+          className="h-7 text-xs gap-1.5"
+          onClick={save}
+          disabled={saving || !dirty}
+        >
           {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
           {saving ? "Menyimpan..." : "Simpan"}
         </Button>
@@ -142,7 +184,9 @@ export default function TemplatesSection() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user) return
       const { data } = await supabase
         .from("message_templates")
@@ -157,28 +201,34 @@ export default function TemplatesSection() {
   }, [])
 
   function handleSaved(id: string, body: string) {
-    setTemplates(prev => prev.map(t => t.id === id ? { ...t, body } : t))
+    setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, body } : t)))
   }
 
-  if (loading) return (
-    <div className="space-y-3">
-      {[1, 2, 3].map(i => (
-        <div key={i} className="h-48 rounded-lg border border-border bg-muted/20 animate-pulse" />
-      ))}
-    </div>
-  )
+  if (loading)
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-48 rounded-lg border border-border bg-muted/20 animate-pulse" />
+        ))}
+      </div>
+    )
 
-  if (templates.length === 0) return (
-    <p className="text-sm text-muted-foreground py-4">Template belum tersedia. Pastikan database sudah disetup dengan benar.</p>
-  )
+  if (templates.length === 0)
+    return (
+      <p className="text-sm text-muted-foreground py-4">
+        Template belum tersedia. Pastikan database sudah disetup dengan benar.
+      </p>
+    )
 
   return (
     <div className="space-y-4">
       <div>
         <h3 className="font-display font-semibold text-sm">Template Pesan Otomatis</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">Edit isi pesan reminder yang dikirim otomatis ke Client.</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Edit isi pesan reminder yang dikirim otomatis ke Client.
+        </p>
       </div>
-      {templates.map(tpl => {
+      {templates.map((tpl) => {
         const config = CONFIGS[tpl.type as TemplateKey]
         if (!config) return null
         return <TemplateCard key={tpl.id} tpl={tpl} config={config} onSaved={handleSaved} />

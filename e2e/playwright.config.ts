@@ -1,8 +1,8 @@
-import { defineConfig } from "@playwright/test";
-import dotenv from "dotenv";
-import path from "path";
+import { defineConfig } from "@playwright/test"
+import dotenv from "dotenv"
+import path from "path"
 
-dotenv.config({ path: path.resolve(__dirname, "..", ".env.local") });
+dotenv.config({ path: path.resolve(__dirname, "..", ".env.local") })
 
 export default defineConfig({
   testDir: "./flows",
@@ -30,4 +30,4 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
   },
-});
+})

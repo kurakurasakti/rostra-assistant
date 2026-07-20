@@ -1,7 +1,7 @@
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
-import { Footer } from '@/components/footer'
-import { Logo } from '@/components/logo'
+import { ArrowLeft } from "lucide-react"
+import Link from "next/link"
+import { Footer } from "@/components/footer"
+import { Logo } from "@/components/logo"
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,9 +21,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         </div>
       </div>
       <main className="flex-1 px-4 py-10">
-        <div className="max-w-[680px] mx-auto">
-          {children}
-        </div>
+        <div className="max-w-[680px] mx-auto">{children}</div>
       </main>
       <Footer />
     </div>

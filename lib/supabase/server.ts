@@ -1,6 +1,6 @@
-import { createServerClient } from '@supabase/ssr'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { createServerClient } from "@supabase/ssr"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { cookies } from "next/headers"
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -16,14 +16,14 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options),
             )
           } catch {
             // Server Component — cookie mutation ignored, handled by middleware
           }
         },
       },
-    }
+    },
   )
 }
 
@@ -33,7 +33,7 @@ export async function createServiceClient() {
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
-      `Supabase configuration missing. URL: ${supabaseUrl ? 'Present' : 'Missing'}, Service Role Key: ${serviceRoleKey ? 'Present' : 'Missing'}. Please check your environment variables.`
+      `Supabase configuration missing. URL: ${supabaseUrl ? "Present" : "Missing"}, Service Role Key: ${serviceRoleKey ? "Present" : "Missing"}. Please check your environment variables.`,
     )
   }
 

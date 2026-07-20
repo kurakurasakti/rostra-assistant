@@ -1,35 +1,53 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
 import {
-  Upload, FileSpreadsheet, ArrowRight, Check, Loader2,
-  CheckCircle2, AlertCircle, Users, SkipForward, XCircle,
+  AlertCircle,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  FileSpreadsheet,
+  Loader2,
+  SkipForward,
+  Upload,
+  Users,
+  XCircle,
 } from "lucide-react"
 import Link from "next/link"
-import { suggestMapping, extractMappedRows, type ColMapping, type ImportResult } from "@/lib/importer"
+import { useRef, useState } from "react"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import {
+  type ColMapping,
+  extractMappedRows,
+  type ImportResult,
+  suggestMapping,
+} from "@/lib/importer"
 
 type Step = "upload" | "mapping" | "preview" | "confirm"
 
 const FIELDS: { id: keyof ColMapping; label: string; required: boolean }[] = [
-  { id: "name",  label: "Nama Klien",    required: true },
-  { id: "phone", label: "No. WhatsApp",  required: true },
-  { id: "email", label: "Email",         required: false },
-  { id: "notes", label: "Catatan",       required: false },
+  { id: "name", label: "Nama Klien", required: true },
+  { id: "phone", label: "No. WhatsApp", required: true },
+  { id: "email", label: "Email", required: false },
+  { id: "notes", label: "Catatan", required: false },
 ]
 
 const STEP_ORDER: Step[] = ["upload", "mapping", "preview", "confirm"]
 
 export default function ImportPage() {
-  const [step, setStep]         = useState<Step>("upload")
+  const [step, setStep] = useState<Step>("upload")
   const [fileName, setFileName] = useState("")
-  const [headers, setHeaders]   = useState<string[]>([])
+  const [headers, setHeaders] = useState<string[]>([])
   const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([])
-  const [allRows, setAllRows]   = useState<Record<string, string>[]>([])
-  const [colMapping, setColMapping] = useState<ColMapping>({ name: "", phone: "", email: "", notes: "" })
+  const [allRows, setAllRows] = useState<Record<string, string>[]>([])
+  const [colMapping, setColMapping] = useState<ColMapping>({
+    name: "",
+    phone: "",
+    email: "",
+    notes: "",
+  })
   const [importing, setImporting] = useState(false)
-  const [result, setResult]     = useState<ImportResult | null>(null)
+  const [result, setResult] = useState<ImportResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -78,7 +96,7 @@ export default function ImportPage() {
     // Auto-suggest column mapping
     const suggested = suggestMapping(cols)
     setColMapping({
-      name:  suggested.name  ?? "",
+      name: suggested.name ?? "",
       phone: suggested.phone ?? "",
       email: suggested.email ?? "",
       notes: suggested.notes ?? "",
@@ -120,7 +138,7 @@ export default function ImportPage() {
     setResult(null)
   }
 
-  const currentIdx   = STEP_ORDER.indexOf(step)
+  const currentIdx = STEP_ORDER.indexOf(step)
   const requiredMapped = colMapping.name && colMapping.phone
 
   return (
@@ -128,7 +146,8 @@ export default function ImportPage() {
       <div>
         <h1 className="font-display font-bold text-2xl tracking-tight">Import Data</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Import Client dari file Excel atau CSV. {allRows.length > 0 && (
+          Import Client dari file Excel atau CSV.{" "}
+          {allRows.length > 0 && (
             <span className="text-foreground font-medium">{allRows.length} baris terdeteksi.</span>
           )}
         </p>
@@ -136,21 +155,27 @@ export default function ImportPage() {
 
       {/* Stepper */}
       <div className="flex items-center gap-2 text-sm">
-        {([
-          { id: "upload",  label: "Upload" },
-          { id: "mapping", label: "Mapping" },
-          { id: "preview", label: "Preview" },
-          { id: "confirm", label: "Selesai" },
-        ] as { id: Step; label: string }[]).map((s, i) => {
+        {(
+          [
+            { id: "upload", label: "Upload" },
+            { id: "mapping", label: "Mapping" },
+            { id: "preview", label: "Preview" },
+            { id: "confirm", label: "Selesai" },
+          ] as { id: Step; label: string }[]
+        ).map((s, i) => {
           const isActive = step === s.id
-          const isDone   = currentIdx > i
+          const isDone = currentIdx > i
           return (
             <div key={s.id} className="flex items-center gap-2">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-                isActive ? "bg-primary text-primary-foreground"
-                : isDone  ? "bg-emerald-500 text-white"
-                : "bg-muted text-muted-foreground"
-              }`}>
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : isDone
+                      ? "bg-emerald-500 text-white"
+                      : "bg-muted text-muted-foreground"
+                }`}
+              >
                 {isDone ? <Check className="w-3.5 h-3.5" /> : i + 1}
               </div>
               <span className={isActive ? "text-foreground font-medium" : "text-muted-foreground"}>
@@ -167,8 +192,8 @@ export default function ImportPage() {
         <div
           className="rounded-xl border-2 border-dashed border-border bg-card p-12 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/[0.02] transition-colors"
           onClick={() => fileInputRef.current?.click()}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => {
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
             e.preventDefault()
             const file = e.dataTransfer.files[0]
             if (file && fileInputRef.current) {
@@ -191,7 +216,13 @@ export default function ImportPage() {
             className="hidden"
             onChange={handleFileUpload}
           />
-          <Button type="button" onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}>
+          <Button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              fileInputRef.current?.click()
+            }}
+          >
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Pilih File
           </Button>
@@ -209,7 +240,7 @@ export default function ImportPage() {
           </div>
 
           <div className="space-y-3">
-            {FIELDS.map(field => (
+            {FIELDS.map((field) => (
               <div key={field.id} className="grid grid-cols-2 items-center gap-3">
                 <p className="text-sm font-medium">
                   {field.label}
@@ -218,11 +249,15 @@ export default function ImportPage() {
                 <select
                   className="h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={colMapping[field.id]}
-                  onChange={e => setColMapping(prev => ({ ...prev, [field.id]: e.target.value }))}
+                  onChange={(e) =>
+                    setColMapping((prev) => ({ ...prev, [field.id]: e.target.value }))
+                  }
                 >
                   <option value="">— Tidak dipetakan —</option>
-                  {headers.map(h => (
-                    <option key={h} value={h}>{h}</option>
+                  {headers.map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -239,11 +274,18 @@ export default function ImportPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-border">
-                      {headers.map(h => (
-                        <th key={h} className="text-left px-3 py-2 text-muted-foreground font-medium whitespace-nowrap">
+                      {headers.map((h) => (
+                        <th
+                          key={h}
+                          className="text-left px-3 py-2 text-muted-foreground font-medium whitespace-nowrap"
+                        >
                           {h}
-                          {h === colMapping.name  && <span className="ml-1 text-primary">← Nama</span>}
-                          {h === colMapping.phone && <span className="ml-1 text-primary">← WA</span>}
+                          {h === colMapping.name && (
+                            <span className="ml-1 text-primary">← Nama</span>
+                          )}
+                          {h === colMapping.phone && (
+                            <span className="ml-1 text-primary">← WA</span>
+                          )}
                         </th>
                       ))}
                     </tr>
@@ -251,8 +293,11 @@ export default function ImportPage() {
                   <tbody>
                     {previewRows.map((row, i) => (
                       <tr key={i} className="border-b border-border last:border-0">
-                        {headers.map(h => (
-                          <td key={h} className="px-3 py-2 text-muted-foreground whitespace-nowrap max-w-[160px] truncate">
+                        {headers.map((h) => (
+                          <td
+                            key={h}
+                            className="px-3 py-2 text-muted-foreground whitespace-nowrap max-w-[160px] truncate"
+                          >
                             {row[h]}
                           </td>
                         ))}
@@ -265,7 +310,9 @@ export default function ImportPage() {
           )}
 
           <div className="flex gap-2 justify-end pt-1 border-t border-border">
-            <Button variant="outline" onClick={reset}>Ganti File</Button>
+            <Button variant="outline" onClick={reset}>
+              Ganti File
+            </Button>
             <Button onClick={() => setStep("preview")} disabled={!requiredMapped}>
               Lanjutkan
               <ArrowRight className="w-4 h-4 ml-2" />
@@ -299,7 +346,7 @@ export default function ImportPage() {
           {/* Mapping summary */}
           <div className="rounded-lg border border-border p-3 space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground mb-2">Mapping yang digunakan</p>
-            {FIELDS.filter(f => colMapping[f.id]).map(f => (
+            {FIELDS.filter((f) => colMapping[f.id]).map((f) => (
               <div key={f.id} className="flex items-center gap-2 text-xs">
                 <span className="text-muted-foreground w-24 flex-shrink-0">{f.label}</span>
                 <span className="text-foreground font-medium">← {colMapping[f.id]}</span>
@@ -316,16 +363,26 @@ export default function ImportPage() {
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left px-3 py-2 text-muted-foreground font-medium">Nama</th>
-                  <th className="text-left px-3 py-2 text-muted-foreground font-medium">No. WhatsApp</th>
-                  {colMapping.email && <th className="text-left px-3 py-2 text-muted-foreground font-medium">Email</th>}
+                  <th className="text-left px-3 py-2 text-muted-foreground font-medium">
+                    No. WhatsApp
+                  </th>
+                  {colMapping.email && (
+                    <th className="text-left px-3 py-2 text-muted-foreground font-medium">Email</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {allRows.slice(0, 5).map((row, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
-                    <td className="px-3 py-2">{row[colMapping.name] || <span className="text-destructive">—</span>}</td>
-                    <td className="px-3 py-2 font-mono">{row[colMapping.phone] || <span className="text-destructive">—</span>}</td>
-                    {colMapping.email && <td className="px-3 py-2 text-muted-foreground">{row[colMapping.email]}</td>}
+                    <td className="px-3 py-2">
+                      {row[colMapping.name] || <span className="text-destructive">—</span>}
+                    </td>
+                    <td className="px-3 py-2 font-mono">
+                      {row[colMapping.phone] || <span className="text-destructive">—</span>}
+                    </td>
+                    {colMapping.email && (
+                      <td className="px-3 py-2 text-muted-foreground">{row[colMapping.email]}</td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -338,7 +395,9 @@ export default function ImportPage() {
           </div>
 
           <div className="flex gap-2 justify-end pt-1 border-t border-border">
-            <Button variant="outline" onClick={() => setStep("mapping")}>Kembali</Button>
+            <Button variant="outline" onClick={() => setStep("mapping")}>
+              Kembali
+            </Button>
             <Button onClick={handleImport} disabled={importing}>
               {importing ? (
                 <>
@@ -373,17 +432,25 @@ export default function ImportPage() {
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-center">
               <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mx-auto mb-1" />
-              <p className="font-display font-bold text-2xl text-emerald-700 dark:text-emerald-400">{result.imported}</p>
-              <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">Berhasil</p>
+              <p className="font-display font-bold text-2xl text-emerald-700 dark:text-emerald-400">
+                {result.imported}
+              </p>
+              <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">
+                Berhasil
+              </p>
             </div>
             <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-center">
               <SkipForward className="w-4 h-4 text-amber-600 dark:text-amber-400 mx-auto mb-1" />
-              <p className="font-display font-bold text-2xl text-amber-700 dark:text-amber-400">{result.duplicates}</p>
+              <p className="font-display font-bold text-2xl text-amber-700 dark:text-amber-400">
+                {result.duplicates}
+              </p>
               <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-0.5">Duplikat</p>
             </div>
             <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-center">
               <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 mx-auto mb-1" />
-              <p className="font-display font-bold text-2xl text-red-700 dark:text-red-400">{result.skipped}</p>
+              <p className="font-display font-bold text-2xl text-red-700 dark:text-red-400">
+                {result.skipped}
+              </p>
               <p className="text-xs text-red-700/70 dark:text-red-400/70 mt-0.5">Dilewati</p>
             </div>
           </div>
@@ -400,7 +467,9 @@ export default function ImportPage() {
               <div className="divide-y divide-border max-h-48 overflow-y-auto">
                 {result.errors.map((err, i) => (
                   <div key={i} className="px-3 py-2 flex items-start gap-2 text-xs">
-                    <span className="text-muted-foreground flex-shrink-0 font-mono">Baris {err.row}</span>
+                    <span className="text-muted-foreground flex-shrink-0 font-mono">
+                      Baris {err.row}
+                    </span>
                     <span className="text-foreground">{err.reason}</span>
                   </div>
                 ))}
@@ -409,7 +478,9 @@ export default function ImportPage() {
           )}
 
           <div className="flex gap-2 pt-1 border-t border-border">
-            <Button variant="outline" onClick={reset}>Import Lagi</Button>
+            <Button variant="outline" onClick={reset}>
+              Import Lagi
+            </Button>
             {result.imported > 0 && (
               <Link href="/clients">
                 <Button>

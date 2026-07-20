@@ -1,28 +1,55 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
-import { Button, buttonVariants } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Skeleton } from "@/components/ui/skeleton"
-import { toast } from "sonner"
-import { ArrowLeft, Plus, MessageSquare, ArrowDownLeft, ArrowUpRight, CalendarClock, ChevronDown, ShoppingBag } from "lucide-react"
-import Link from "next/link"
-import { format, parseISO, formatDistanceToNow } from "date-fns"
+import { format, formatDistanceToNow, parseISO } from "date-fns"
 import { id as localeId } from "date-fns/locale"
-import { normalizeWANumber } from "@/lib/whatsapp"
-import type { Appointment, Client, PaymentStage, ScheduledMessage, FullOrder, InboxMessage } from "@/types"
+import {
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowUpRight,
+  CalendarClock,
+  ChevronDown,
+  MessageSquare,
+  Plus,
+  ShoppingBag,
+} from "lucide-react"
+import Link from "next/link"
+import { useParams, useRouter } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 import OrderCard from "@/components/clients/OrderCard"
 import OrderFormModal from "@/components/clients/OrderFormModal"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { createClient } from "@/lib/supabase/client"
+import { cn } from "@/lib/utils"
+import { normalizeWANumber } from "@/lib/whatsapp"
+import type {
+  Appointment,
+  Client,
+  FullOrder,
+  InboxMessage,
+  PaymentStage,
+  ScheduledMessage,
+} from "@/types"
 
 export default function ClientDetailPage() {
   const params = useParams<{ id: string }>()
@@ -61,7 +88,9 @@ export default function ClientDetailPage() {
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     if (!user) return
 
     const [clientRes, ordersRes, messagesRes, standaloneApptRes] = await Promise.all([
@@ -88,41 +117,60 @@ export default function ClientDetailPage() {
         .order("scheduled_at", { ascending: true }),
     ])
 
-    if (!clientRes.data) { router.push("/clients"); return }
+    if (!clientRes.data) {
+      router.push("/clients")
+      return
+    }
 
     const c = clientRes.data
     setClient(c)
-    setEditName(c.name); setEditWA(c.whatsapp_number)
-    setEditEmail(c.email ?? ""); setEditNotes(c.notes ?? ""); setEditAINotes(c.ai_notes ?? "")
+    setEditName(c.name)
+    setEditWA(c.whatsapp_number)
+    setEditEmail(c.email ?? "")
+    setEditNotes(c.notes ?? "")
+    setEditAINotes(c.ai_notes ?? "")
     setOrders(ordersRes.data ?? [])
     setStandaloneAppointments(standaloneApptRes.data ?? [])
     setMessages(messagesRes.data ?? [])
     setLoading(false)
   }, [clientId, router])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
     const normalized = normalizeWANumber(editWA)
-    if (!normalized) { toast.error("Format nomor WA tidak valid"); return }
+    if (!normalized) {
+      toast.error("Format nomor WA tidak valid")
+      return
+    }
 
     setSavingProfile(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     if (!user) return
 
-    const { error } = await supabase.from("clients").update({
-      name: editName.trim(),
-      whatsapp_number: normalized,
-      email: editEmail.trim() || null,
-      notes: editNotes.trim() || null,
-      ai_notes: editAINotes.trim() || null,
-      updated_at: new Date().toISOString(),
-    }).eq("id", clientId)
+    const { error } = await supabase
+      .from("clients")
+      .update({
+        name: editName.trim(),
+        whatsapp_number: normalized,
+        email: editEmail.trim() || null,
+        notes: editNotes.trim() || null,
+        ai_notes: editAINotes.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", clientId)
 
     if (error) toast.error("Gagal menyimpan.")
-    else { toast.success("Profil Client diperbarui."); loadData() }
+    else {
+      toast.success("Profil Client diperbarui.")
+      loadData()
+    }
     setSavingProfile(false)
   }
 
@@ -139,7 +187,13 @@ export default function ClientDetailPage() {
   }
 
   function openApptModal() {
-    setApptForm({ title: "", scheduled_at: "", location: "", reminder_hours_before: "24", notes: "" })
+    setApptForm({
+      title: "",
+      scheduled_at: "",
+      location: "",
+      reminder_hours_before: "24",
+      notes: "",
+    })
     setApptModalOpen(true)
   }
 
@@ -151,19 +205,28 @@ export default function ClientDetailPage() {
     }
     setApptSaving(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setApptSaving(false); return }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setApptSaving(false)
+      return
+    }
 
-    const { data: newAppt, error } = await supabase.from("appointments").insert({
-      user_id: user.id,
-      client_id: clientId,
-      order_id: null,
-      title: apptForm.title.trim(),
-      scheduled_at: new Date(apptForm.scheduled_at).toISOString(),
-      location: apptForm.location.trim() || null,
-      reminder_hours_before: Number(apptForm.reminder_hours_before),
-      notes: apptForm.notes.trim() || null,
-    }).select().single()
+    const { data: newAppt, error } = await supabase
+      .from("appointments")
+      .insert({
+        user_id: user.id,
+        client_id: clientId,
+        order_id: null,
+        title: apptForm.title.trim(),
+        scheduled_at: new Date(apptForm.scheduled_at).toISOString(),
+        location: apptForm.location.trim() || null,
+        reminder_hours_before: Number(apptForm.reminder_hours_before),
+        notes: apptForm.notes.trim() || null,
+      })
+      .select()
+      .single()
 
     if (error || !newAppt) {
       toast.error("Gagal menyimpan janji temu.")
@@ -197,65 +260,97 @@ export default function ClientDetailPage() {
     totalPrice: number
     status: "aktif" | "selesai" | "dibatalkan"
     notes: string
-    stages: { tempId: string; name: string; amount: string; due_date: string; reminder_days_before: number }[]
-    appointments: { tempId: string; title: string; scheduled_at: string; location: string; reminder_hours_before: number; notes: string }[]
+    stages: {
+      tempId: string
+      name: string
+      amount: string
+      due_date: string
+      reminder_days_before: number
+    }[]
+    appointments: {
+      tempId: string
+      title: string
+      scheduled_at: string
+      location: string
+      reminder_hours_before: number
+      notes: string
+    }[]
   }) {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     if (!user) return
 
     let orderId = editingOrder?.id
     if (orderId) {
-      await supabase.from("orders").update({
-        description: data.description,
-        total_price: data.totalPrice,
-        status: data.status,
-        notes: data.notes || null,
-        updated_at: new Date().toISOString(),
-      }).eq("id", orderId)
+      await supabase
+        .from("orders")
+        .update({
+          description: data.description,
+          total_price: data.totalPrice,
+          status: data.status,
+          notes: data.notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", orderId)
     } else {
-      const { data: newOrder, error } = await supabase.from("orders").insert({
-        user_id: user.id,
-        client_id: clientId,
-        description: data.description,
-        total_price: data.totalPrice,
-        status: data.status,
-        notes: data.notes || null,
-      }).select().single()
-      if (error || !newOrder) { toast.error("Gagal membuat pesanan."); return }
+      const { data: newOrder, error } = await supabase
+        .from("orders")
+        .insert({
+          user_id: user.id,
+          client_id: clientId,
+          description: data.description,
+          total_price: data.totalPrice,
+          status: data.status,
+          notes: data.notes || null,
+        })
+        .select()
+        .single()
+      if (error || !newOrder) {
+        toast.error("Gagal membuat pesanan.")
+        return
+      }
       orderId = newOrder.id
     }
 
     await supabase.from("payment_stages").delete().eq("order_id", orderId)
     if (data.stages.length > 0) {
-      await supabase.from("payment_stages").insert(data.stages.map((s, i) => ({
-        order_id: orderId,
-        user_id: user.id,
-        name: s.name.trim(),
-        amount: Number(s.amount.replace(/\D/g, "")),
-        due_date: s.due_date,
-        reminder_days_before: s.reminder_days_before,
-        sort_order: i,
-        paid: false,
-      })))
+      await supabase.from("payment_stages").insert(
+        data.stages.map((s, i) => ({
+          order_id: orderId,
+          user_id: user.id,
+          name: s.name.trim(),
+          amount: Number(s.amount.replace(/\D/g, "")),
+          due_date: s.due_date,
+          reminder_days_before: s.reminder_days_before,
+          sort_order: i,
+          paid: false,
+        })),
+      )
     }
 
     await supabase.from("appointments").delete().eq("order_id", orderId)
     if (data.appointments.length > 0) {
-      await supabase.from("appointments").insert(data.appointments.map(a => ({
-        order_id: orderId,
-        user_id: user.id,
-        client_id: clientId,
-        title: a.title.trim(),
-        scheduled_at: new Date(a.scheduled_at).toISOString(),
-        location: a.location.trim() || null,
-        reminder_hours_before: a.reminder_hours_before,
-        notes: a.notes.trim() || null,
-      })))
+      await supabase.from("appointments").insert(
+        data.appointments.map((a) => ({
+          order_id: orderId,
+          user_id: user.id,
+          client_id: clientId,
+          title: a.title.trim(),
+          scheduled_at: new Date(a.scheduled_at).toISOString(),
+          location: a.location.trim() || null,
+          reminder_hours_before: a.reminder_hours_before,
+          notes: a.notes.trim() || null,
+        })),
+      )
     }
 
-    await supabase.from("scheduled_messages").update({ status: "dibatalkan" })
-      .eq("order_id", orderId).eq("status", "menunggu")
+    await supabase
+      .from("scheduled_messages")
+      .update({ status: "dibatalkan" })
+      .eq("order_id", orderId)
+      .eq("status", "menunggu")
 
     let scheduledCount = 0
     try {
@@ -277,9 +372,15 @@ export default function ClientDetailPage() {
 
   async function handleMarkPaid(stage: PaymentStage) {
     const supabase = createClient()
-    await supabase.from("payment_stages").update({ paid: true, paid_at: new Date().toISOString() }).eq("id", stage.id)
-    await supabase.from("scheduled_messages").update({ status: "dibatalkan" })
-      .eq("payment_stage_id", stage.id).eq("status", "menunggu")
+    await supabase
+      .from("payment_stages")
+      .update({ paid: true, paid_at: new Date().toISOString() })
+      .eq("id", stage.id)
+    await supabase
+      .from("scheduled_messages")
+      .update({ status: "dibatalkan" })
+      .eq("payment_stage_id", stage.id)
+      .eq("status", "menunggu")
     toast.success(`${stage.name} ditandai lunas.`)
     loadData()
   }
@@ -290,8 +391,13 @@ export default function ClientDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message_id: msg.id }),
     })
-    if (res.ok) { toast.success("Pesan berhasil dikirim."); loadData() }
-    else { const d = await res.json(); toast.error(d.error ?? "Gagal mengirim.") }
+    if (res.ok) {
+      toast.success("Pesan berhasil dikirim.")
+      loadData()
+    } else {
+      const d = await res.json()
+      toast.error(d.error ?? "Gagal mengirim.")
+    }
   }
 
   async function handleCancelMsg(msg: ScheduledMessage) {
@@ -301,30 +407,31 @@ export default function ClientDetailPage() {
     loadData()
   }
 
-  if (loading) return (
-    <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6 animate-enter">
-      {/* Header: back + name */}
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-8 w-8 rounded-md" />
-        <div className="space-y-1.5">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-3.5 w-28" />
+  if (loading)
+    return (
+      <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6 animate-enter">
+        {/* Header: back + name */}
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-8 w-8 rounded-md" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-3.5 w-28" />
+          </div>
+        </div>
+        {/* Tabs */}
+        <Skeleton className="h-10 w-72 rounded-lg" />
+        {/* Profile card */}
+        <Skeleton className="h-44 rounded-xl" />
+        {/* AI notes */}
+        <Skeleton className="h-28 rounded-xl" />
+        {/* Orders section header + cards */}
+        <div className="space-y-3">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-20 rounded-xl" />
+          <Skeleton className="h-20 rounded-xl" />
         </div>
       </div>
-      {/* Tabs */}
-      <Skeleton className="h-10 w-72 rounded-lg" />
-      {/* Profile card */}
-      <Skeleton className="h-44 rounded-xl" />
-      {/* AI notes */}
-      <Skeleton className="h-28 rounded-xl" />
-      {/* Orders section header + cards */}
-      <div className="space-y-3">
-        <Skeleton className="h-5 w-32" />
-        <Skeleton className="h-20 rounded-xl" />
-        <Skeleton className="h-20 rounded-xl" />
-      </div>
-    </div>
-  )
+    )
 
   if (!client) return null
 
@@ -332,7 +439,10 @@ export default function ClientDetailPage() {
     <div className="p-6 lg:p-8 max-w-3xl mx-auto animate-enter">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/clients" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-8 px-2")}>
+        <Link
+          href="/clients"
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-8 px-2")}
+        >
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div>
@@ -350,30 +460,70 @@ export default function ClientDetailPage() {
 
         {/* Tab 1: Profile */}
         <TabsContent value="profile">
-          <form onSubmit={handleSaveProfile} className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <form
+            onSubmit={handleSaveProfile}
+            className="rounded-xl border border-border bg-card p-5 space-y-4"
+          >
             <div className="space-y-1.5">
               <Label>Nama Lengkap *</Label>
-              <Input value={editName} onChange={e => setEditName(e.target.value)} required className="h-10" />
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                required
+                className="h-10"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Nomor WhatsApp *</Label>
-              <Input value={editWA} onChange={e => setEditWA(e.target.value)} required className="h-10 font-mono" />
+              <Input
+                value={editWA}
+                onChange={(e) => setEditWA(e.target.value)}
+                required
+                className="h-10 font-mono"
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Email <span className="text-muted-foreground font-normal">(opsional)</span></Label>
-              <Input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className="h-10" />
+              <Label>
+                Email <span className="text-muted-foreground font-normal">(opsional)</span>
+              </Label>
+              <Input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                className="h-10"
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Catatan <span className="text-muted-foreground font-normal">(opsional)</span></Label>
-              <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} className="resize-none text-sm" />
+              <Label>
+                Catatan <span className="text-muted-foreground font-normal">(opsional)</span>
+              </Label>
+              <Textarea
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                rows={2}
+                className="resize-none text-sm"
+              />
             </div>
             <div className="space-y-1.5 border-t border-border pt-4">
-              <Label>Catatan untuk AI <span className="text-muted-foreground font-normal">(opsional)</span></Label>
-              <Textarea value={editAINotes} onChange={e => setEditAINotes(e.target.value)} placeholder="Contoh: Pelanggan VIP, boleh diskon max 10%. Panggil dengan nama." rows={2} className="resize-none text-sm" />
-              <p className="text-xs text-muted-foreground">Catatan ini dibaca AI setiap kali membalas pesan Client ini.</p>
+              <Label>
+                Catatan untuk AI{" "}
+                <span className="text-muted-foreground font-normal">(opsional)</span>
+              </Label>
+              <Textarea
+                value={editAINotes}
+                onChange={(e) => setEditAINotes(e.target.value)}
+                placeholder="Contoh: Pelanggan VIP, boleh diskon max 10%. Panggil dengan nama."
+                rows={2}
+                className="resize-none text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Catatan ini dibaca AI setiap kali membalas pesan Client ini.
+              </p>
             </div>
             <div className="flex justify-between items-center pt-1">
-              <p className="text-xs text-muted-foreground">Client sejak {format(parseISO(client.created_at), "d MMM yyyy")}</p>
+              <p className="text-xs text-muted-foreground">
+                Client sejak {format(parseISO(client.created_at), "d MMM yyyy")}
+              </p>
               <Button type="submit" size="sm" disabled={savingProfile}>
                 {savingProfile ? "Menyimpan..." : "Simpan"}
               </Button>
@@ -387,7 +537,7 @@ export default function ClientDetailPage() {
             <DropdownMenu>
               <DropdownMenuTrigger className={cn(buttonVariants({ size: "sm" }), "gap-1.5")}>
                 <Plus className="w-4 h-4" />
-                  Actions
+                Actions
                 <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
@@ -406,9 +556,14 @@ export default function ClientDetailPage() {
           {/* Standalone appointments */}
           {standaloneAppointments.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Janji Temu</p>
-              {standaloneAppointments.map(appt => (
-                <div key={appt.id} className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Janji Temu
+              </p>
+              {standaloneAppointments.map((appt) => (
+                <div
+                  key={appt.id}
+                  className="rounded-xl border border-border bg-card p-4 flex items-start gap-3"
+                >
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <CalendarClock className="w-4 h-4 text-primary" />
                   </div>
@@ -440,14 +595,18 @@ export default function ClientDetailPage() {
           {orders.length === 0 && standaloneAppointments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-border">
               <MessageSquare className="w-10 h-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">Belum ada pesanan atau janji temu</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Belum ada pesanan atau janji temu
+              </p>
             </div>
           ) : orders.length > 0 ? (
             <div className="space-y-3">
               {standaloneAppointments.length > 0 && (
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Orders</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Orders
+                </p>
               )}
-              {orders.map(order => (
+              {orders.map((order) => (
                 <OrderCard
                   key={order.id}
                   order={order}
@@ -469,11 +628,13 @@ export default function ClientDetailPage() {
             <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-border">
               <MessageSquare className="w-10 h-10 text-muted-foreground/40 mb-3" />
               <p className="text-sm font-medium text-muted-foreground">Belum ada riwayat pesan</p>
-              <p className="text-xs text-muted-foreground mt-1">Pesan masuk dan keluar dari Client ini akan muncul di sini</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Pesan masuk dan keluar dari Client ini akan muncul di sini
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
-              {messages.map(msg => {
+              {messages.map((msg) => {
                 const isIncoming = msg.direction === "masuk"
                 const statusColors: Record<string, string> = {
                   baru: "bg-blue-500/10 text-blue-600",
@@ -488,33 +649,56 @@ export default function ClientDetailPage() {
                   tidak_diketahui: "",
                 }
                 return (
-                  <div key={msg.id} className={cn(
-                    "flex gap-3 p-3 rounded-lg border",
-                    isIncoming ? "border-border bg-muted/20" : "border-primary/20 bg-primary/5"
-                  )}>
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
-                      isIncoming ? "bg-muted" : "bg-primary/10"
-                    )}>
-                      {isIncoming
-                        ? <ArrowDownLeft className="w-3 h-3 text-muted-foreground" />
-                        : <ArrowUpRight className="w-3 h-3 text-primary" />
-                      }
+                  <div
+                    key={msg.id}
+                    className={cn(
+                      "flex gap-3 p-3 rounded-lg border",
+                      isIncoming ? "border-border bg-muted/20" : "border-primary/20 bg-primary/5",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
+                        isIncoming ? "bg-muted" : "bg-primary/10",
+                      )}
+                    >
+                      {isIncoming ? (
+                        <ArrowDownLeft className="w-3 h-3 text-muted-foreground" />
+                      ) : (
+                        <ArrowUpRight className="w-3 h-3 text-primary" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm leading-snug text-foreground whitespace-pre-wrap break-words">{msg.message_body}</p>
+                      <p className="text-sm leading-snug text-foreground whitespace-pre-wrap break-words">
+                        {msg.message_body}
+                      </p>
                       <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
                         <span className="text-[10px] text-muted-foreground">
-                          {formatDistanceToNow(new Date(msg.received_at), { addSuffix: true, locale: localeId })}
+                          {formatDistanceToNow(new Date(msg.received_at), {
+                            addSuffix: true,
+                            locale: localeId,
+                          })}
                         </span>
                         {msg.status && statusColors[msg.status] && (
-                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", statusColors[msg.status])}>
+                          <span
+                            className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
+                              statusColors[msg.status],
+                            )}
+                          >
                             {msg.status}
                           </span>
                         )}
                         {msg.classification && classificationColors[msg.classification] && (
-                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", classificationColors[msg.classification])}>
-                            {msg.classification === "injection_attempt" ? "⚠️ injection" : msg.classification}
+                          <span
+                            className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
+                              classificationColors[msg.classification],
+                            )}
+                          >
+                            {msg.classification === "injection_attempt"
+                              ? "⚠️ injection"
+                              : msg.classification}
                           </span>
                         )}
                       </div>
@@ -523,7 +707,9 @@ export default function ClientDetailPage() {
                 )
               })}
               {messages.length === 50 && (
-                <p className="text-xs text-center text-muted-foreground py-2">Menampilkan 50 pesan terbaru</p>
+                <p className="text-xs text-center text-muted-foreground py-2">
+                  Menampilkan 50 pesan terbaru
+                </p>
               )}
             </div>
           )}
@@ -549,7 +735,7 @@ export default function ClientDetailPage() {
               <Label>Judul *</Label>
               <Input
                 value={apptForm.title}
-                onChange={e => setApptForm(f => ({ ...f, title: e.target.value }))}
+                onChange={(e) => setApptForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder="Cth: Kunjungan fitting awal"
                 required
                 className="h-10"
@@ -559,14 +745,16 @@ export default function ClientDetailPage() {
               <Label>Waktu *</Label>
               <DateTimePicker
                 value={apptForm.scheduled_at}
-                onChange={val => setApptForm(f => ({ ...f, scheduled_at: val }))}
+                onChange={(val) => setApptForm((f) => ({ ...f, scheduled_at: val }))}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Lokasi <span className="text-muted-foreground font-normal">(opsional)</span></Label>
+              <Label>
+                Lokasi <span className="text-muted-foreground font-normal">(opsional)</span>
+              </Label>
               <Input
                 value={apptForm.location}
-                onChange={e => setApptForm(f => ({ ...f, location: e.target.value }))}
+                onChange={(e) => setApptForm((f) => ({ ...f, location: e.target.value }))}
                 placeholder="Cth: Toko / Rumah Client"
                 className="h-10"
               />
@@ -575,7 +763,12 @@ export default function ClientDetailPage() {
               <Label>Pengingat</Label>
               <Select
                 value={apptForm.reminder_hours_before}
-                onValueChange={v => setApptForm(f => ({ ...f, reminder_hours_before: v ?? f.reminder_hours_before }))}
+                onValueChange={(v) =>
+                  setApptForm((f) => ({
+                    ...f,
+                    reminder_hours_before: v ?? f.reminder_hours_before,
+                  }))
+                }
               >
                 <SelectTrigger className="h-10">
                   <SelectValue />
@@ -591,17 +784,24 @@ export default function ClientDetailPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Catatan <span className="text-muted-foreground font-normal">(opsional)</span></Label>
+              <Label>
+                Catatan <span className="text-muted-foreground font-normal">(opsional)</span>
+              </Label>
               <Textarea
                 value={apptForm.notes}
-                onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))}
+                onChange={(e) => setApptForm((f) => ({ ...f, notes: e.target.value }))}
                 rows={2}
                 className="resize-none text-sm"
                 placeholder="Cth: Bawa referensi kain dari Instagram"
               />
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" onClick={() => setApptModalOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setApptModalOpen(false)}
+              >
                 Batal
               </Button>
               <Button type="submit" size="sm" disabled={apptSaving}>

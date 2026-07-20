@@ -1,13 +1,13 @@
-import type { ReactNode } from 'react'
-import { Logo } from '@/components/logo'
-import { WaMockup } from '@/components/landing/wa-mockup'
+import type { ReactNode } from "react"
+import { WaMockup } from "@/components/landing/wa-mockup"
+import { Logo } from "@/components/logo"
 
 export function AuthBrandPanel({ headline, tagline }: { headline: ReactNode; tagline: string }) {
   return (
     <div
       className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 relative overflow-hidden"
       style={{
-        background: 'linear-gradient(135deg, #4a2560 0%, #703c8b 40%, #8b5aa3 100%)',
+        background: "linear-gradient(135deg, #4a2560 0%, #703c8b 40%, #8b5aa3 100%)",
       }}
     >
       <div className="absolute inset-0 overflow-hidden">

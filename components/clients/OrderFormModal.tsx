@@ -1,19 +1,25 @@
 "use client"
 
+import { Loader2, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
-import { Plus, Trash2, Loader2 } from "lucide-react"
-import { formatRupiah } from "@/lib/templates"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
-import type { OrderStatus, PaymentStageForm, AppointmentForm, FullOrder } from "@/types"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
+import { formatRupiah } from "@/lib/templates"
+import type { AppointmentForm, FullOrder, OrderStatus, PaymentStageForm } from "@/types"
 
 interface OrderFormModalProps {
   open: boolean
@@ -30,11 +36,24 @@ interface OrderFormModalProps {
 }
 
 function newStage(): PaymentStageForm {
-  return { tempId: crypto.randomUUID(), name: "", amount: "", due_date: "", reminder_days_before: 3 }
+  return {
+    tempId: crypto.randomUUID(),
+    name: "",
+    amount: "",
+    due_date: "",
+    reminder_days_before: 3,
+  }
 }
 
 function newAppt(): AppointmentForm {
-  return { tempId: crypto.randomUUID(), title: "", scheduled_at: "", location: "", reminder_hours_before: 24, notes: "" }
+  return {
+    tempId: crypto.randomUUID(),
+    title: "",
+    scheduled_at: "",
+    location: "",
+    reminder_hours_before: 24,
+    notes: "",
+  }
 }
 
 function formatRupiahInput(value: string): string {
@@ -50,14 +69,16 @@ export default function OrderFormModal({
   onSave,
 }: OrderFormModalProps) {
   const [orderDesc, setOrderDesc] = useState(editingOrder?.description ?? "")
-  const [orderPrice, setOrderPrice] = useState(editingOrder ? formatRupiah(editingOrder.total_price) : "")
+  const [orderPrice, setOrderPrice] = useState(
+    editingOrder ? formatRupiah(editingOrder.total_price) : "",
+  )
   const [orderStatus, setOrderStatus] = useState<OrderStatus>(editingOrder?.status ?? "aktif")
   const [orderNotes, setOrderNotes] = useState(editingOrder?.notes ?? "")
   const [stages, setStages] = useState<PaymentStageForm[]>(
     editingOrder
       ? editingOrder.payment_stages
           .sort((a, b) => a.sort_order - b.sort_order)
-          .map(s => ({
+          .map((s) => ({
             tempId: s.id,
             name: s.name,
             amount: formatRupiah(s.amount),
@@ -68,7 +89,7 @@ export default function OrderFormModal({
   )
   const [apptList, setApptList] = useState<AppointmentForm[]>(
     editingOrder
-      ? editingOrder.appointments.map(a => ({
+      ? editingOrder.appointments.map((a) => ({
           tempId: a.id,
           title: a.title,
           scheduled_at: a.scheduled_at.slice(0, 16),
@@ -123,7 +144,7 @@ export default function OrderFormModal({
       description: orderDesc.trim(),
       totalPrice,
       status: orderStatus,
-      notes: orderNotes.trim() || null as unknown as string,
+      notes: orderNotes.trim() || (null as unknown as string),
       stages,
       appointments: apptList,
     })
@@ -131,7 +152,13 @@ export default function OrderFormModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) resetForm() }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o)
+        if (!o) resetForm()
+      }}
+    >
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingOrder ? "Edit Pesanan" : "Buat Pesanan Baru"}</DialogTitle>
@@ -141,19 +168,38 @@ export default function OrderFormModal({
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Deskripsi Pesanan *</Label>
-              <Input value={orderDesc} onChange={e => setOrderDesc(e.target.value)} placeholder="Contoh: Gaun pesta custom 2 pcs" required className="h-10" />
+              <Input
+                value={orderDesc}
+                onChange={(e) => setOrderDesc(e.target.value)}
+                placeholder="Contoh: Gaun pesta custom 2 pcs"
+                required
+                className="h-10"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Total Harga *</Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
-                  <Input value={orderPrice} onChange={e => setOrderPrice(formatRupiahInput(e.target.value))} placeholder="0" required className="h-10 pl-9" />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    Rp
+                  </span>
+                  <Input
+                    value={orderPrice}
+                    onChange={(e) => setOrderPrice(formatRupiahInput(e.target.value))}
+                    placeholder="0"
+                    required
+                    className="h-10 pl-9"
+                  />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Select value={orderStatus} onValueChange={v => { if (v) setOrderStatus(v as OrderStatus) }}>
+                <Select
+                  value={orderStatus}
+                  onValueChange={(v) => {
+                    if (v) setOrderStatus(v as OrderStatus)
+                  }}
+                >
                   <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
@@ -166,8 +212,15 @@ export default function OrderFormModal({
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Catatan <span className="text-muted-foreground font-normal">(opsional)</span></Label>
-              <Textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} rows={2} className="resize-none text-sm" />
+              <Label>
+                Catatan <span className="text-muted-foreground font-normal">(opsional)</span>
+              </Label>
+              <Textarea
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                rows={2}
+                className="resize-none text-sm"
+              />
             </div>
           </div>
 
@@ -177,40 +230,107 @@ export default function OrderFormModal({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-medium text-sm">Tahap Pembayaran</h3>
-              <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setStages(s => [...s, newStage()])}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => setStages((s) => [...s, newStage()])}
+              >
                 <Plus className="w-3 h-3" /> Tambah
               </Button>
             </div>
-            {stages.length === 0 && <p className="text-xs text-muted-foreground">Tidak ada tahap pembayaran.</p>}
+            {stages.length === 0 && (
+              <p className="text-xs text-muted-foreground">Tidak ada tahap pembayaran.</p>
+            )}
             {stages.map((stage, i) => (
-              <div key={stage.tempId} className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+              <div
+                key={stage.tempId}
+                className="rounded-lg border border-border p-3 space-y-2 bg-muted/20"
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Tahap {i + 1}</span>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => setStages(s => s.filter(x => x.tempId !== stage.tempId))}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-destructive"
+                    onClick={() => setStages((s) => s.filter((x) => x.tempId !== stage.tempId))}
+                  >
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Nama *</Label>
-                    <Input value={stage.name} onChange={e => setStages(s => s.map(x => x.tempId === stage.tempId ? { ...x, name: e.target.value } : x))} placeholder="DP 1" required className="h-8 text-sm" />
+                    <Input
+                      value={stage.name}
+                      onChange={(e) =>
+                        setStages((s) =>
+                          s.map((x) =>
+                            x.tempId === stage.tempId ? { ...x, name: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="DP 1"
+                      required
+                      className="h-8 text-sm"
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Jumlah *</Label>
                     <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Rp</span>
-                      <Input value={stage.amount} onChange={e => setStages(s => s.map(x => x.tempId === stage.tempId ? { ...x, amount: formatRupiahInput(e.target.value) } : x))} required className="h-8 text-sm pl-8" />
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        Rp
+                      </span>
+                      <Input
+                        value={stage.amount}
+                        onChange={(e) =>
+                          setStages((s) =>
+                            s.map((x) =>
+                              x.tempId === stage.tempId
+                                ? { ...x, amount: formatRupiahInput(e.target.value) }
+                                : x,
+                            ),
+                          )
+                        }
+                        required
+                        className="h-8 text-sm pl-8"
+                      />
                     </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1 flex flex-col">
                     <Label className="text-xs">Jatuh Tempo *</Label>
-                    <DatePicker value={stage.due_date} onChange={val => setStages(s => s.map(x => x.tempId === stage.tempId ? { ...x, due_date: val } : x))} size="sm" />
+                    <DatePicker
+                      value={stage.due_date}
+                      onChange={(val) =>
+                        setStages((s) =>
+                          s.map((x) => (x.tempId === stage.tempId ? { ...x, due_date: val } : x)),
+                        )
+                      }
+                      size="sm"
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Ingatkan X hari sebelum</Label>
-                    <Input type="number" min={1} max={30} value={stage.reminder_days_before} onChange={e => setStages(s => s.map(x => x.tempId === stage.tempId ? { ...x, reminder_days_before: Number(e.target.value) } : x))} className="h-8 text-sm" />
+                    <Input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={stage.reminder_days_before}
+                      onChange={(e) =>
+                        setStages((s) =>
+                          s.map((x) =>
+                            x.tempId === stage.tempId
+                              ? { ...x, reminder_days_before: Number(e.target.value) }
+                              : x,
+                          ),
+                        )
+                      }
+                      className="h-8 text-sm"
+                    />
                   </div>
                 </div>
               </div>
@@ -223,37 +343,104 @@ export default function OrderFormModal({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-medium text-sm">Janji Temu</h3>
-              <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setApptList(a => [...a, newAppt()])}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => setApptList((a) => [...a, newAppt()])}
+              >
                 <Plus className="w-3 h-3" /> Tambah
               </Button>
             </div>
-            {apptList.length === 0 && <p className="text-xs text-muted-foreground">Tidak ada janji temu.</p>}
+            {apptList.length === 0 && (
+              <p className="text-xs text-muted-foreground">Tidak ada janji temu.</p>
+            )}
             {apptList.map((appt, i) => (
-              <div key={appt.tempId} className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+              <div
+                key={appt.tempId}
+                className="rounded-lg border border-border p-3 space-y-2 bg-muted/20"
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Janji {i + 1}</span>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => setApptList(a => a.filter(x => x.tempId !== appt.tempId))}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-destructive"
+                    onClick={() => setApptList((a) => a.filter((x) => x.tempId !== appt.tempId))}
+                  >
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Judul *</Label>
-                    <Input value={appt.title} onChange={e => setApptList(a => a.map(x => x.tempId === appt.tempId ? { ...x, title: e.target.value } : x))} placeholder="Fitting 1" required className="h-8 text-sm" />
+                    <Input
+                      value={appt.title}
+                      onChange={(e) =>
+                        setApptList((a) =>
+                          a.map((x) =>
+                            x.tempId === appt.tempId ? { ...x, title: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="Fitting 1"
+                      required
+                      className="h-8 text-sm"
+                    />
                   </div>
                   <div className="space-y-1 flex flex-col">
                     <Label className="text-xs">Tanggal & Waktu *</Label>
-                    <DateTimePicker value={appt.scheduled_at} onChange={val => setApptList(a => a.map(x => x.tempId === appt.tempId ? { ...x, scheduled_at: val } : x))} size="sm" />
+                    <DateTimePicker
+                      value={appt.scheduled_at}
+                      onChange={(val) =>
+                        setApptList((a) =>
+                          a.map((x) =>
+                            x.tempId === appt.tempId ? { ...x, scheduled_at: val } : x,
+                          ),
+                        )
+                      }
+                      size="sm"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Lokasi <span className="text-muted-foreground">(opsional)</span></Label>
-                    <Input value={appt.location} onChange={e => setApptList(a => a.map(x => x.tempId === appt.tempId ? { ...x, location: e.target.value } : x))} placeholder="Jl. Sudirman No.1" className="h-8 text-sm" />
+                    <Label className="text-xs">
+                      Lokasi <span className="text-muted-foreground">(opsional)</span>
+                    </Label>
+                    <Input
+                      value={appt.location}
+                      onChange={(e) =>
+                        setApptList((a) =>
+                          a.map((x) =>
+                            x.tempId === appt.tempId ? { ...x, location: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="Jl. Sudirman No.1"
+                      className="h-8 text-sm"
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Ingatkan X jam sebelum</Label>
-                    <Input type="number" min={1} max={72} value={appt.reminder_hours_before} onChange={e => setApptList(a => a.map(x => x.tempId === appt.tempId ? { ...x, reminder_hours_before: Number(e.target.value) } : x))} className="h-8 text-sm" />
+                    <Input
+                      type="number"
+                      min={1}
+                      max={72}
+                      value={appt.reminder_hours_before}
+                      onChange={(e) =>
+                        setApptList((a) =>
+                          a.map((x) =>
+                            x.tempId === appt.tempId
+                              ? { ...x, reminder_hours_before: Number(e.target.value) }
+                              : x,
+                          ),
+                        )
+                      }
+                      className="h-8 text-sm"
+                    />
                   </div>
                 </div>
               </div>
@@ -261,9 +448,17 @@ export default function OrderFormModal({
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : "Simpan Pesanan"}
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...
+                </>
+              ) : (
+                "Simpan Pesanan"
+              )}
             </Button>
           </div>
         </form>
