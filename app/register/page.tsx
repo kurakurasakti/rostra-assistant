@@ -4,7 +4,7 @@ import { AlertCircle, Eye, EyeOff, MailCheck } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { AuthBrandPanel } from "@/components/auth/auth-brand-panel"
+import { AuthAmbientBg } from "@/components/auth/auth-ambient-bg"
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -140,21 +140,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#F8F6F2" }}>
-      <AuthBrandPanel
-        headline={
-          <>
-            Mulai kelola
-            <br />
-            bisnis kamu hari ini.
-          </>
-        }
-        tagline="Daftar sekarang dengan kode undangan dan nikmati semua fitur Glim secara gratis."
-      />
+    <div
+      className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-6 py-12"
+      style={{ backgroundColor: "#F8F6F2" }}
+    >
+      <AuthAmbientBg goldOpacity={0.34} aubergineOpacity={0.18} />
 
-      {/* Right panel — form */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        <div className="flex lg:hidden items-center mb-8">
+      <div className="relative z-10 w-full flex flex-col items-center">
+        <div className="flex items-center mb-8">
           <Logo variant="lockup" tone="light" height={30} />
         </div>
 
@@ -211,7 +204,8 @@ export default function RegisterPage() {
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
                       required
-                      className="h-10"
+                      className="h-10 rounded-xl border-[#E8E4DC]"
+                      style={{ backgroundColor: "#FAF8F4" }}
                     />
                   </div>
 
@@ -227,7 +221,8 @@ export default function RegisterPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       autoComplete="email"
-                      className="h-10"
+                      className="h-10 rounded-xl border-[#E8E4DC]"
+                      style={{ backgroundColor: "#FAF8F4" }}
                     />
                   </div>
 
@@ -245,7 +240,8 @@ export default function RegisterPage() {
                         required
                         autoComplete="new-password"
                         minLength={6}
-                        className="h-10 pr-10"
+                        className="h-10 pr-10 rounded-xl border-[#E8E4DC]"
+                        style={{ backgroundColor: "#FAF8F4" }}
                       />
                       <button
                         type="button"
@@ -273,7 +269,8 @@ export default function RegisterPage() {
                       value={inviteCode}
                       onChange={(e) => setInviteCode(e.target.value)}
                       required
-                      className="h-10"
+                      className="h-10 rounded-xl border-[#E8E4DC]"
+                      style={{ backgroundColor: "#FAF8F4" }}
                     />
                   </div>
 
