@@ -4,7 +4,7 @@ import { AlertCircle, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { AuthBrandPanel } from "@/components/auth/auth-brand-panel"
+import { AuthAmbientBg } from "@/components/auth/auth-ambient-bg"
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,21 +72,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#F8F6F2" }}>
-      <AuthBrandPanel
-        headline={
-          <>
-            Bisnis lebih rapi,
-            <br />
-            pelanggan lebih senang.
-          </>
-        }
-        tagline="Kelola client, pesanan, dan pesan WhatsApp dalam satu tempat yang terorganisir."
-      />
+    <div
+      className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-6 py-12"
+      style={{ backgroundColor: "#F8F6F2" }}
+    >
+      <AuthAmbientBg goldOpacity={0.22} aubergineOpacity={0.26} />
 
-      {/* Right panel — form */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        <div className="flex lg:hidden items-center mb-8">
+      <div className="relative z-10 w-full flex flex-col items-center">
+        <div className="flex items-center mb-8">
           <Logo variant="lockup" tone="light" height={30} />
         </div>
 
@@ -115,7 +108,8 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="h-10"
+                  className="h-10 rounded-xl border-[#E8E4DC]"
+                  style={{ backgroundColor: "#FAF8F4" }}
                 />
               </div>
 
@@ -132,7 +126,8 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     autoComplete="current-password"
-                    className="h-10 pr-10"
+                    className="h-10 pr-10 rounded-xl border-[#E8E4DC]"
+                    style={{ backgroundColor: "#FAF8F4" }}
                   />
                   <button
                     type="button"
