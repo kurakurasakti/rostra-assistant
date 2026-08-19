@@ -70,6 +70,7 @@ export interface Profile {
   terms_agreed_at?: string | null
   terms_version?: string | null
   onboarding_wizard_seen_at?: string | null
+  is_admin?: boolean | null
 }
 
 export interface Client {
@@ -191,3 +192,68 @@ export interface AppointmentForm {
   reminder_hours_before: number
   notes: string
 }
+
+// ─────────────────────────────────────────────────────────────
+// Subscription & Payment Types
+// ─────────────────────────────────────────────────────────────
+
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "expired"
+export type InvoiceStatus = "pending" | "waiting_confirmation" | "paid" | "expired" | "cancelled"
+export type PaymentMethodType =
+  | "qris_manual"
+  | "bank_transfer_bca"
+  | "bank_transfer_mandiri"
+  | "xendit_invoice"
+export type PaymentProviderType = "manual" | "xendit"
+
+export interface SubscriptionPlan {
+  id: string
+  name: string
+  price: number
+  interval: "month" | "year"
+  discountPercent?: number
+  features: string[]
+  popular?: boolean
+  description: string
+}
+
+export interface Subscription {
+  id: string
+  user_id: string
+  plan_id: string
+  status: SubscriptionStatus
+  trial_ends_at: string | null
+  current_period_start: string | null
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Invoice {
+  id: string
+  invoice_number: string
+  user_id: string
+  subscription_id: string | null
+  plan_id: string
+  plan_name: string
+  base_amount: number
+  unique_code: number
+  total_amount: number
+  currency: string
+  status: InvoiceStatus
+  payment_method: PaymentMethodType
+  provider: PaymentProviderType
+  provider_id: string | null
+  provider_data?: Record<string, unknown> | null
+  proof_url: string | null
+  sender_name: string | null
+  sender_bank: string | null
+  customer_notes: string | null
+  admin_notes: string | null
+  paid_at: string | null
+  expires_at: string
+  created_at: string
+  updated_at: string
+}
+

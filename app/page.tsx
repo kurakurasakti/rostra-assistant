@@ -70,6 +70,13 @@ export default function LandingPage() {
           <Logo variant="lockup" tone="light" height={22} />
           <nav className="flex items-center gap-2">
             <Link
+              href="/pricing"
+              className="text-sm px-3 py-1.5 rounded-lg transition-colors hover:text-[#1A1A18]"
+              style={{ color: "#6B6862" }}
+            >
+              Harga
+            </Link>
+            <Link
               href="/login"
               className="text-sm px-3 py-1.5 rounded-lg transition-colors hover:text-[#1A1A18]"
               style={{ color: "#6B6862" }}
@@ -483,13 +490,22 @@ export default function LandingPage() {
               ))}
             </ul>
 
-            <Link
-              href="/register"
-              className="block w-full text-center text-sm font-semibold px-6 py-3.5 rounded-xl transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#703c8b]"
-              style={{ backgroundColor: "#703c8b", color: "#fff" }}
-            >
-              Mulai Trial 14 Hari
-            </Link>
+            <div className="space-y-2.5">
+              <Link
+                href="/register"
+                className="block w-full text-center text-sm font-semibold px-6 py-3.5 rounded-xl transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#703c8b]"
+                style={{ backgroundColor: "#703c8b", color: "#fff" }}
+              >
+                Mulai Trial 14 Hari
+              </Link>
+              <Link
+                href="/checkout?plan=glim_pro_monthly"
+                className="block w-full text-center text-xs font-medium px-4 py-2.5 rounded-xl border transition-colors hover:bg-muted text-muted-foreground hover:text-foreground"
+                style={{ borderColor: "#E8E4DC" }}
+              >
+                Langsung Berlangganan (QRIS / Transfer)
+              </Link>
+            </div>
             <p className="text-center text-xs mt-3" style={{ color: "#9B9590" }}>
               Tidak perlu kartu kredit · Cancel kapan saja
             </p>
