@@ -47,3 +47,5 @@ yarn-error.log*
 next-env.d.ts
 .superpowers/
 .env*.local
+.env.vercel*
+/test-results/
