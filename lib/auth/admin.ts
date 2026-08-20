@@ -41,16 +41,17 @@ export async function checkIsAdmin(user: {
     const supabase = await createServiceClient()
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_admin")
+      .select("is_admin, role")
       .eq("id", user.id)
       .maybeSingle()
 
-    if (profile?.is_admin === true) {
+    if (profile?.is_admin === true || profile?.role === "admin") {
       return true
     }
   } catch (err) {
     console.error("[checkIsAdmin] Error checking profile:", err)
   }
+
 
   return false
 }

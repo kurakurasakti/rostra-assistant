@@ -133,27 +133,17 @@ export default function PaymentInvoicePage() {
     setSubmittingProof(true)
 
     try {
-      let finalProofUrl = proofUrl
-
-      // If a file was selected, convert to data URL or upload
+      const formData = new FormData()
       if (proofFile) {
-        finalProofUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
-          reader.readAsDataURL(proofFile)
-        })
+        formData.append("file", proofFile)
       }
+      if (senderName) formData.append("senderName", senderName)
+      if (senderBank) formData.append("senderBank", senderBank)
+      if (notes) formData.append("notes", notes)
 
       const res = await fetch(`/api/payment/${invoiceId}/proof`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          proofUrl: finalProofUrl || null,
-          senderName,
-          senderBank,
-          notes,
-        }),
+        body: formData,
       })
 
       const data = await res.json()
@@ -172,6 +162,7 @@ export default function PaymentInvoicePage() {
   }
 
   // Admin Quick Confirmation for Beta
+
   async function handleAdminQuickConfirm() {
     setAdminConfirming(true)
     try {
@@ -502,7 +493,7 @@ export default function PaymentInvoicePage() {
                   <Input
                     id="proofFile"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={(e) => setProofFile(e.target.files?.[0] || null)}
                     className="h-9 text-xs rounded-xl border-[#E8E4DC] cursor-pointer"
                     style={{ backgroundColor: "#FAF8F4" }}

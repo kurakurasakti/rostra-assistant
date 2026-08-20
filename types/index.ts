@@ -71,7 +71,9 @@ export interface Profile {
   terms_version?: string | null
   onboarding_wizard_seen_at?: string | null
   is_admin?: boolean | null
+  role?: string | null
 }
+
 
 export interface Client {
   id: string
@@ -247,6 +249,7 @@ export interface Invoice {
   provider_id: string | null
   provider_data?: Record<string, unknown> | null
   proof_url: string | null
+  proof_signed_url?: string | null
   sender_name: string | null
   sender_bank: string | null
   customer_notes: string | null

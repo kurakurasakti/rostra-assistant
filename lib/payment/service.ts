@@ -184,12 +184,57 @@ export class PaymentService {
       profile?.business_name || "Bisnis Glim",
     )
 
+    let proofSignedUrl: string | null = null
+    if (invoice.proof_url) {
+      proofSignedUrl = await this.getProofSignedUrl(invoice.proof_url, 300)
+    }
+
     return {
-      invoice,
+      invoice: {
+        ...invoice,
+        proof_signed_url: proofSignedUrl || undefined,
+      },
       instructions,
       whatsappUrl,
     }
   }
+
+  /**
+   * Generate a server-side signed URL for private payment proof (5 min expiry)
+   */
+  static async getProofSignedUrl(
+    storagePathOrUrl?: string | null,
+    expiresInSeconds: number = 300,
+  ): Promise<string | null> {
+    if (!storagePathOrUrl) return null
+
+    // If it's already a full URL (not from supabase storage) or data URI, return as-is
+    if (
+      storagePathOrUrl.startsWith("http://") ||
+      storagePathOrUrl.startsWith("https://") ||
+      storagePathOrUrl.startsWith("data:")
+    ) {
+      return storagePathOrUrl
+    }
+
+    try {
+      const supabase = await createServiceClient()
+      const cleanPath = storagePathOrUrl.replace(/^payment-proofs\//, "")
+      const { data, error } = await supabase.storage
+        .from("payment-proofs")
+        .createSignedUrl(cleanPath, expiresInSeconds)
+
+      if (error || !data) {
+        console.error("[getProofSignedUrl] Error creating signed URL:", error)
+        return null
+      }
+      return data.signedUrl
+    } catch (err) {
+      console.error("[getProofSignedUrl] Exception:", err)
+      return null
+    }
+  }
+
 
   /**
    * Submit manual payment proof
@@ -401,14 +446,21 @@ export class PaymentService {
 
     const profileMap = new Map((profiles || []).map((p) => [p.id, p]))
 
-    const enriched = invoicesData.map((inv) => {
-      const prof = profileMap.get(inv.user_id)
-      return {
-        ...inv,
-        business_name: prof?.business_name || undefined,
-        customer_phone: prof?.notification_wa_number || undefined,
-      }
-    })
+    const enriched = await Promise.all(
+      invoicesData.map(async (inv) => {
+        const prof = profileMap.get(inv.user_id)
+        let proofSignedUrl: string | null = null
+        if (inv.proof_url) {
+          proofSignedUrl = await PaymentService.getProofSignedUrl(inv.proof_url, 300)
+        }
+        return {
+          ...inv,
+          proof_signed_url: proofSignedUrl || undefined,
+          business_name: prof?.business_name || undefined,
+          customer_phone: prof?.notification_wa_number || undefined,
+        }
+      }),
+    )
 
     if (params?.search) {
       const q = params.search.toLowerCase()
@@ -423,6 +475,7 @@ export class PaymentService {
 
     return enriched
   }
+
 
   /**
    * Admin: Reject proof / reset invoice

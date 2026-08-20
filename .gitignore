@@ -45,7 +45,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.superpowers/
 .env*.local
 .env.vercel*
 /test-results/
+
+# WhatsApp & Baileys Session storage & credentials
+rostra-wa/wa-service/auth/
+rostra-wa/wa-service/.env
+*.session*

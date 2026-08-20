@@ -457,7 +457,18 @@ export default function AdminPaymentsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setPreviewProofUrl(inv.proof_url)}
+                            onClick={() => {
+                              if (inv.proof_signed_url) {
+                                setPreviewProofUrl(inv.proof_signed_url)
+                              } else {
+                                fetch(`/api/payment/${inv.id}/proof`)
+                                  .then((res) => res.json())
+                                  .then((data) => {
+                                    setPreviewProofUrl(data.signedUrl || inv.proof_url)
+                                  })
+                                  .catch(() => setPreviewProofUrl(inv.proof_url))
+                              }
+                            }}
                             className="h-7 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/5"
                           >
                             <ImageIcon className="w-3.5 h-3.5" />
@@ -469,6 +480,7 @@ export default function AdminPaymentsPage() {
                           </span>
                         )}
                       </TableCell>
+
 
                       {/* Status */}
                       <TableCell>
