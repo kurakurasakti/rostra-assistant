@@ -7,6 +7,13 @@ import {
   selectBestExamples,
 } from "@/lib/chat-parser"
 import { analyzeBrandVoice } from "@/lib/openrouter"
+import {
+  checkAIRateLimit,
+  createAIRateLimitResponse,
+  estimateTokens,
+  getClientIp,
+  recordAIUsage,
+} from "@/lib/rate-limit"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import type { QACategory } from "@/types"
 
@@ -22,6 +29,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "sender and file_content required" }, { status: 400 })
   }
 
+  const ip = getClientIp(new Headers(request.headers))
+  const estTokens = estimateTokens(body.file_content) + 600
+
+  const rateLimit = await checkAIRateLimit(user.id, ip, estTokens)
+  if (!rateLimit.allowed) {
+    return createAIRateLimitResponse(rateLimit.retryAfterSeconds, rateLimit.reason)
+  }
+
   const analysis = parseWhatsAppExport(body.file_content)
   const messages = extractBusinessMessages(analysis, body.sender)
 
@@ -31,6 +46,8 @@ export async function POST(request: Request) {
 
   const conversationContext = extractConversationContext(analysis, body.sender)
   const brandVoice = await analyzeBrandVoice(messages, conversationContext)
+  await recordAIUsage(user.id, estTokens, ip)
+
 
   // Extract few-shot examples from full parsed conversation (both sides)
   const rawPairs = extractQAPairs(analysis.messages, body.sender)

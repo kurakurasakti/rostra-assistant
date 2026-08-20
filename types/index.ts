@@ -257,3 +257,12 @@ export interface Invoice {
   updated_at: string
 }
 
+export interface AIUsageRecord {
+  id: string
+  user_id: string
+  day: string
+  requests: number
+  est_tokens: number
+  created_at: string
+  updated_at: string
+}
