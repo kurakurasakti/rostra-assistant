@@ -80,11 +80,12 @@
       "Bash(rg -P --no-ignore -g '*.js' -g '*.mjs' -l 'static\\\\s*\\\\{' /Users/roytjandra/Documents/Rostra/rostra-assistant/node_modules)",
       "Bash(echo \"exit:$?\")",
       "Bash(rg -P -l 'static\\\\s*\\\\{' .next/static)",
-      "PowerShell(pnpm lint *)"
+      "PowerShell(pnpm lint *)",
+      "Read(//Users/roytjandra/.ssh/**)",
+      "Bash(railway ssh *)",
+      "mcp__mobbin__search_sections"
     ]
   },
   "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [
-    "supabase"
-  ]
+  "enabledMcpjsonServers": ["supabase"]
 }

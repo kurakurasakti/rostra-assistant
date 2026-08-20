@@ -1,16 +1,16 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test"
 
-const WEBHOOK_PATH = "/api/webhook/whatsapp";
+const WEBHOOK_PATH = "/api/webhook/whatsapp"
 
 export async function sendTestMessage(
   request: APIRequestContext,
   baseURL: string,
   payload: {
-    userId: string;
-    sender: string;
-    message: string;
-    name: string;
-    messageId?: string;
+    userId: string
+    sender: string
+    message: string
+    name: string
+    messageId?: string
   },
 ) {
   return request.post(`${baseURL}${WEBHOOK_PATH}`, {
@@ -22,5 +22,5 @@ export async function sendTestMessage(
       ...payload,
       messageId: payload.messageId || `msg-test-${Date.now()}`,
     },
-  });
+  })
 }

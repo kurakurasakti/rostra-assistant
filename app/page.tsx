@@ -1,23 +1,27 @@
-import type { Metadata } from 'next'
-import Link from 'next/link'
-import { Logo } from '@/components/logo'
-import { Footer } from '@/components/footer'
-import { FaqAccordion } from '@/components/landing/faq-accordion'
-import { PricingSection } from '@/components/landing/pricing-section'
-import { faqs } from '@/components/landing/faq-data'
 import {
-  MessageSquare,
-  Bell,
-  ShieldCheck,
   ArrowRight,
-  Sparkles,
+  Bell,
+  Briefcase,
+  Check,
   ClipboardList,
+  Coffee,
+  MessageSquare,
+  ShieldCheck,
+  Smile,
+  Sparkles,
   Zap,
-} from 'lucide-react'
+} from "lucide-react"
+import type { Metadata } from "next"
+import Link from "next/link"
+import { Footer } from "@/components/footer"
+import { FaqAccordion } from "@/components/landing/faq-accordion"
+import { faqs } from "@/components/landing/faq-data"
+import { WaMockup } from "@/components/landing/wa-mockup"
+import { Logo } from "@/components/logo"
 
-const pageTitle = 'Glim — AI Assistant WhatsApp untuk Bisnis Indonesia'
+const pageTitle = "Glim — AI Assistant WhatsApp untuk Bisnis Indonesia"
 const pageDescription =
-  'Balas pesan pelanggan dengan gaya bicaramu sendiri. Pengingat pembayaran otomatis. Kelola pesanan dalam satu tempat. Khusus untuk bisnis jasa Indonesia.'
+  "Balas pesan pelanggan dengan gaya bicaramu sendiri. Pengingat pembayaran otomatis. Kelola pesanan dalam satu tempat. Khusus untuk bisnis jasa Indonesia."
 
 export const metadata: Metadata = {
   title: pageTitle,
@@ -25,54 +29,64 @@ export const metadata: Metadata = {
   openGraph: {
     title: pageTitle,
     description: pageDescription,
-    url: '/',
-    siteName: 'Glim',
-    locale: 'id_ID',
-    type: 'website',
+    url: "/",
+    siteName: "Glim",
+    locale: "id_ID",
+    type: "website",
   },
   twitter: {
-    card: 'summary_large_image',
+    card: "summary_large_image",
     title: pageTitle,
     description: pageDescription,
   },
   alternates: {
-    canonical: '/',
+    canonical: "/",
   },
 }
 
 const faqJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'FAQPage',
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
   mainEntity: faqs.map(({ q, a }) => ({
-    '@type': 'Question',
+    "@type": "Question",
     name: q,
-    acceptedAnswer: { '@type': 'Answer', text: a },
+    acceptedAnswer: { "@type": "Answer", text: a },
   })),
 }
 
 // Static page — logged-in users are redirected to /dashboard by proxy.ts
 export default function LandingPage() {
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F8F6F2', color: '#1A1A18' }}>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ backgroundColor: "#F8F6F2", color: "#1A1A18" }}
+    >
       {/* ── Navbar ── */}
       <header
         className="sticky top-0 z-50 backdrop-blur-md border-b"
-        style={{ backgroundColor: 'rgba(248,246,242,0.92)', borderColor: '#E8E4DC' }}
+        style={{ backgroundColor: "rgba(248,246,242,0.92)", borderColor: "#E8E4DC" }}
       >
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Logo variant="lockup" tone="light" height={22} />
           <nav className="flex items-center gap-2">
             <Link
+              href="/pricing"
+              className="text-sm px-3 py-1.5 rounded-lg transition-colors hover:text-[#1A1A18]"
+              style={{ color: "#6B6862" }}
+            >
+              Harga
+            </Link>
+            <Link
               href="/login"
               className="text-sm px-3 py-1.5 rounded-lg transition-colors hover:text-[#1A1A18]"
-              style={{ color: '#6B6862' }}
+              style={{ color: "#6B6862" }}
             >
               Masuk
             </Link>
             <Link
               href="/register"
               className="text-sm font-medium px-4 py-2 rounded-lg transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#703c8b]"
-              style={{ backgroundColor: '#703c8b', color: '#fff' }}
+              style={{ backgroundColor: "#703c8b", color: "#fff" }}
             >
               Daftar Gratis
             </Link>
@@ -81,14 +95,53 @@ export default function LandingPage() {
       </header>
 
       {/* ── Hero ── */}
-      <section style={{ backgroundColor: '#F8F6F2' }} className="pt-16 pb-20 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+      <section
+        style={{ backgroundColor: "#F8F6F2" }}
+        className="relative overflow-hidden pt-16 pb-24 px-4 sm:px-6"
+      >
+        {/* Batik parang texture — very faint, ambient only */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+              `<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56'><g fill='none' stroke='#DDD5C7' stroke-width='1.4' stroke-linecap='round'><path d='M8 20c6-8 14-8 20 0'/><path d='M4 44c6-8 14-8 20 0'/><path d='M32 48c6-8 14-8 20 0'/><path d='M36 12c6-8 14-8 20 0'/></g></svg>`,
+            )}")`,
+            backgroundSize: "56px 56px",
+            opacity: 0.28,
+          }}
+        />
+        {/* Ambient gradient glow — aubergine + gold, replaces photography as the hero's depth cue */}
+        <div
+          aria-hidden="true"
+          className="animate-hero-glow absolute -top-24 -right-24 w-[520px] h-[520px] rounded-full pointer-events-none blur-3xl"
+          style={{
+            background: "radial-gradient(circle, rgba(232,163,61,0.30) 0%, rgba(232,163,61,0) 70%)",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="animate-hero-glow absolute top-1/3 -left-32 w-[420px] h-[420px] rounded-full pointer-events-none blur-3xl"
+          style={{
+            background: "radial-gradient(circle, rgba(112,60,139,0.22) 0%, rgba(112,60,139,0) 70%)",
+            animationDelay: "-6s",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(248,246,242,0.15) 0%, rgba(248,246,242,0.6) 60%, #F8F6F2 100%)",
+          }}
+        />
+        <div className="relative max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-[1fr_1.15fr] gap-10 md:gap-8 items-center">
             {/* Left — copy */}
             <div className="animate-fade-up">
               <span
                 className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full mb-6"
-                style={{ backgroundColor: '#EDE0F5', color: '#4a2560' }}
+                style={{ backgroundColor: "#EDE0F5", color: "#4a2560" }}
               >
                 <Sparkles className="w-3 h-3" />
                 AI untuk bisnis jasa Indonesia
@@ -96,14 +149,16 @@ export default function LandingPage() {
 
               <h1
                 className="font-display font-bold text-4xl sm:text-5xl leading-[1.1] tracking-tight mb-5"
-                style={{ color: '#1A1A18' }}
+                style={{ color: "#1A1A18" }}
               >
-                Biar AI yang jaga{' '}
-                <span style={{ color: '#703c8b' }}>WhatsApp kamu,</span>{' '}
-                kamu fokus jaga kualitas kerja.
+                Biar AI yang jaga <span style={{ color: "#703c8b" }}>WhatsApp kamu,</span> kamu
+                fokus jaga kualitas kerja.
               </h1>
 
-              <p className="text-base leading-relaxed mb-8" style={{ color: '#6B6862', maxWidth: '420px' }}>
+              <p
+                className="text-base leading-relaxed mb-8"
+                style={{ color: "#6B6862", maxWidth: "420px" }}
+              >
                 Glim membalas pesan pelanggan dengan gaya bicara bisnismu sendiri, ingatkan jadwal
                 dan pembayaran otomatis — supaya kamu nggak perlu standby HP 24 jam.
               </p>
@@ -112,7 +167,7 @@ export default function LandingPage() {
                 <Link
                   href="/register"
                   className="inline-flex items-center justify-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#703c8b]"
-                  style={{ backgroundColor: '#703c8b', color: '#fff' }}
+                  style={{ backgroundColor: "#703c8b", color: "#fff" }}
                 >
                   Coba Gratis 14 Hari
                   <ArrowRight className="w-4 h-4" />
@@ -120,40 +175,61 @@ export default function LandingPage() {
                 <Link
                   href="#cara-kerja"
                   className="inline-flex items-center justify-center gap-2 text-sm font-medium px-6 py-3 rounded-xl border transition-colors hover:bg-white"
-                  style={{ borderColor: '#C9C3BB', color: '#1A1A18', backgroundColor: 'transparent' }}
+                  style={{
+                    borderColor: "#C9C3BB",
+                    color: "#1A1A18",
+                    backgroundColor: "transparent",
+                  }}
                 >
                   Lihat cara kerja
                 </Link>
               </div>
-              <p className="text-xs mt-3" style={{ color: '#9B9590' }}>
+              <p className="text-xs mt-3" style={{ color: "#9B9590" }}>
                 Tidak perlu kartu kredit
               </p>
             </div>
 
-            {/* Right — WA mockup */}
-            <div className="flex justify-center animate-fade-up" style={{ animationDelay: '0.15s' }}>
-              <WaMockup />
+            {/* Right — WA mockup, enlarged as the hero's centerpiece */}
+            <div
+              className="relative flex justify-center md:justify-end animate-fade-up scroll-reveal-scale"
+              style={{ animationDelay: "0.15s" }}
+            >
+              {/* Glow ring behind the mockup — depth without photography */}
+              <div
+                aria-hidden="true"
+                className="absolute rounded-full blur-3xl pointer-events-none"
+                style={{
+                  inset: "-10%",
+                  background:
+                    "radial-gradient(circle, rgba(232,163,61,0.28) 0%, rgba(112,60,139,0.22) 55%, transparent 75%)",
+                }}
+              />
+              <div className="relative z-10 w-full" style={{ maxWidth: "400px" }}>
+                <WaMockup />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── Problem ── */}
-      <section className="py-20 px-4 sm:px-6 bg-white">
+      <section className="py-16 px-4 sm:px-6 bg-white scroll-reveal-up">
         <div className="max-w-2xl mx-auto text-center">
           <span
             className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-4"
-            style={{ backgroundColor: '#FDF3E7', color: '#B8720A' }}
+            style={{ backgroundColor: "#FDF3E7", color: "#B8720A" }}
           >
             Masalah yang kamu kenal
           </span>
           <h2
             className="font-display font-bold text-3xl sm:text-4xl leading-tight tracking-tight mb-6"
-            style={{ color: '#1A1A18' }}
+            style={{ color: "#1A1A18" }}
           >
-            Satu admin sakit,<br />satu hari penuh kacau.
+            Satu admin sakit,
+            <br />
+            satu hari penuh kacau.
           </h2>
-          <p className="text-base leading-relaxed" style={{ color: '#6B6862' }}>
+          <p className="text-base leading-relaxed" style={{ color: "#6B6862" }}>
             Pelanggan nanya harga, nanya jadwal fitting, nagih DP yang belum dibayar — semua lewat
             WhatsApp, semua butuh dibalas cepat. Kalau orang yang pegang HP bisnis lagi cuti atau
             sakit, semua menumpuk. Pelanggan nunggu, kamu yang dikomplain.
@@ -162,66 +238,104 @@ export default function LandingPage() {
       </section>
 
       {/* ── Features ── */}
-      <section className="py-20 px-4 sm:px-6" style={{ backgroundColor: '#F8F6F2' }}>
+      <section className="py-24 px-4 sm:px-6" style={{ backgroundColor: "#F8F6F2" }}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <span
               className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-4"
-              style={{ backgroundColor: '#EDE0F5', color: '#4a2560' }}
+              style={{ backgroundColor: "#EDE0F5", color: "#4a2560" }}
             >
               Yang Glim kerjakan
             </span>
             <h2
               className="font-display font-bold text-3xl sm:text-4xl tracking-tight"
-              style={{ color: '#1A1A18' }}
+              style={{ color: "#1A1A18" }}
             >
               Satu platform, semua terhandle.
             </h2>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-5">
-            {[
-              {
-                icon: <MessageSquare className="w-5 h-5" style={{ color: '#703c8b' }} />,
-                iconBg: '#EDE0F5',
-                title: 'Balas dengan gaya bicaramu sendiri',
-                body: 'Upload riwayat chat kamu, AI belajar cara kamu biasa menyapa, menjawab harga, dan bicara ke pelanggan. Bukan jawaban template — jawaban yang terasa seperti kamu yang ketik sendiri.',
-              },
-              {
-                icon: <Bell className="w-5 h-5" style={{ color: '#B8720A' }} />,
-                iconBg: '#FDF3E7',
-                title: 'Pengingat otomatis, tanpa kamu ingat-ingat',
-                body: 'DP belum lunas? Jadwal fitting besok? Glim kirim pengingat WhatsApp otomatis ke pelanggan, sesuai jadwal yang kamu atur. Kamu nggak perlu buka catatan manual lagi.',
-              },
-              {
-                icon: <ShieldCheck className="w-5 h-5" style={{ color: '#1A7A4A' }} />,
-                iconBg: '#E6F4ED',
-                title: 'Kamu tetap pegang kendali',
-                body: 'Setiap balasan AI bisa kamu review dulu sebelum terkirim. Pesan rumit atau komplain otomatis dialihkan ke kamu — AI tahu kapan harus minta bantuan manusia.',
-              },
-            ].map((feat, i) => (
-              <div
-                key={i}
-                className="rounded-2xl p-6 border"
-                style={{ backgroundColor: '#fff', borderColor: '#E8E4DC' }}
-              >
+          <div className="grid lg:grid-cols-[1.3fr_1fr] gap-5">
+            {/* Hero feature — the one that makes Glim not-generic, given room to breathe */}
+            <div
+              className="rounded-2xl p-8 sm:p-10 border scroll-reveal-up flex flex-col justify-between"
+              style={{ backgroundColor: "#EDE0F5", borderColor: "#DCC5EA" }}
+            >
+              <div>
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
-                  style={{ backgroundColor: feat.iconBg }}
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-6"
+                  style={{ backgroundColor: "#fff" }}
                 >
-                  {feat.icon}
+                  <MessageSquare className="w-6 h-6" style={{ color: "#703c8b" }} />
                 </div>
                 <h3
-                  className="font-display font-semibold text-base mb-2 leading-snug"
-                  style={{ color: '#1A1A18' }}
+                  className="font-display font-semibold text-xl sm:text-2xl mb-3 leading-snug"
+                  style={{ color: "#1A1A18" }}
                 >
-                  {feat.title}
+                  Balas dengan gaya bicaramu sendiri
                 </h3>
-                <p className="text-sm leading-relaxed" style={{ color: '#6B6862' }}>
-                  {feat.body}
+                <p
+                  className="text-sm sm:text-base leading-relaxed mb-6"
+                  style={{ color: "#4a2560" }}
+                >
+                  Upload riwayat chat kamu, AI belajar cara kamu biasa menyapa, menjawab harga, dan
+                  bicara ke pelanggan. Bukan jawaban template — jawaban yang terasa seperti kamu
+                  yang ketik sendiri.
                 </p>
               </div>
-            ))}
+              {/* Decorative accent only — no new copy, echoes the tone-preset icons from Settings */}
+              <div className="flex items-center gap-2" aria-hidden="true">
+                {[Smile, Briefcase, Coffee].map((Icon, i) => (
+                  <div
+                    key={i}
+                    className="w-9 h-9 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: "rgba(255,255,255,0.6)" }}
+                  >
+                    <Icon className="w-4 h-4" style={{ color: "#703c8b" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Two supporting features, stacked */}
+            <div className="grid gap-5">
+              {[
+                {
+                  icon: <Bell className="w-5 h-5" style={{ color: "#B8720A" }} />,
+                  iconBg: "#FDF3E7",
+                  title: "Pengingat otomatis, tanpa kamu ingat-ingat",
+                  body: "DP belum lunas? Jadwal fitting besok? Glim kirim pengingat WhatsApp otomatis ke pelanggan, sesuai jadwal yang kamu atur.",
+                },
+                {
+                  icon: <ShieldCheck className="w-5 h-5" style={{ color: "#1A7A4A" }} />,
+                  iconBg: "#E6F4ED",
+                  title: "Kamu tetap pegang kendali",
+                  body: "Setiap balasan AI bisa kamu review dulu sebelum terkirim. Pesan rumit atau komplain otomatis dialihkan ke kamu.",
+                },
+              ].map((feat, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl p-6 border scroll-reveal-up flex-1"
+                  style={{ backgroundColor: "#fff", borderColor: "#E8E4DC" }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                    style={{ backgroundColor: feat.iconBg }}
+                  >
+                    {feat.icon}
+                  </div>
+                  <h3
+                    className="font-display font-semibold text-base mb-2 leading-snug"
+                    style={{ color: "#1A1A18" }}
+                  >
+                    {feat.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed" style={{ color: "#6B6862" }}>
+                    {feat.body}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -232,13 +346,13 @@ export default function LandingPage() {
           <div className="text-center mb-12">
             <span
               className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-4"
-              style={{ backgroundColor: '#EDE0F5', color: '#4a2560' }}
+              style={{ backgroundColor: "#EDE0F5", color: "#4a2560" }}
             >
               Cara kerja
             </span>
             <h2
               className="font-display font-bold text-3xl sm:text-4xl tracking-tight"
-              style={{ color: '#1A1A18' }}
+              style={{ color: "#1A1A18" }}
             >
               Setup 10 menit, langsung jalan.
             </h2>
@@ -247,50 +361,50 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               {
-                num: '01',
+                num: "01",
                 icon: <Zap className="w-4 h-4" />,
-                title: 'Hubungkan WhatsApp bisnis kamu',
-                body: 'Scan QR sekali, nomor WA kamu langsung terhubung.',
+                title: "Hubungkan WhatsApp bisnis kamu",
+                body: "Scan QR sekali, nomor WA kamu langsung terhubung.",
               },
               {
-                num: '02',
+                num: "02",
                 icon: <MessageSquare className="w-4 h-4" />,
-                title: 'Ceritakan bisnismu',
-                body: 'Upload chat lama atau ceritakan produk dan harga kamu — AI langsung paham konteks bisnismu.',
+                title: "Ceritakan bisnismu",
+                body: "Upload chat lama atau ceritakan produk dan harga kamu — AI langsung paham konteks bisnismu.",
               },
               {
-                num: '03',
+                num: "03",
                 icon: <ClipboardList className="w-4 h-4" />,
-                title: 'Tambah klien dan jadwal',
-                body: 'Catat klien, pesanan, dan jadwal pembayaran dalam satu tempat.',
+                title: "Tambah klien dan jadwal",
+                body: "Catat klien, pesanan, dan jadwal pembayaran dalam satu tempat.",
               },
               {
-                num: '04',
+                num: "04",
                 icon: <Sparkles className="w-4 h-4" />,
-                title: 'AI mulai bantu balas',
-                body: 'Setiap pesan masuk, AI siapkan draft balasan. Kamu review, kamu kirim.',
+                title: "AI mulai bantu balas",
+                body: "Setiap pesan masuk, AI siapkan draft balasan. Kamu review, kamu kirim.",
               },
             ].map((step, i) => (
-              <div key={i}>
+              <div key={i} className="scroll-reveal-up">
                 <div
                   className="font-display font-bold text-4xl mb-4 tabular-nums"
-                  style={{ color: '#E8E4DC' }}
+                  style={{ color: "#E8E4DC" }}
                 >
                   {step.num}
                 </div>
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center mb-3"
-                  style={{ backgroundColor: '#EDE0F5', color: '#703c8b' }}
+                  style={{ backgroundColor: "#EDE0F5", color: "#703c8b" }}
                 >
                   {step.icon}
                 </div>
                 <h3
                   className="font-display font-semibold text-sm mb-1.5 leading-snug"
-                  style={{ color: '#1A1A18' }}
+                  style={{ color: "#1A1A18" }}
                 >
                   {step.title}
                 </h3>
-                <p className="text-sm leading-relaxed" style={{ color: '#6B6862' }}>
+                <p className="text-sm leading-relaxed" style={{ color: "#6B6862" }}>
                   {step.body}
                 </p>
               </div>
@@ -300,29 +414,142 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ── */}
-      <PricingSection />
+      <section
+        className="relative overflow-hidden py-24 px-4 sm:px-6"
+        style={{ backgroundColor: "#F8F6F2" }}
+      >
+        {/* Ambient glow behind the price — same signature as hero, ties the page together */}
+        <div
+          aria-hidden="true"
+          className="absolute top-1/2 left-1/2 w-[600px] h-[600px] rounded-full pointer-events-none blur-3xl"
+          style={{
+            transform: "translate(-50%, -50%)",
+            background:
+              "radial-gradient(circle, rgba(112,60,139,0.16) 0%, rgba(232,163,61,0.14) 55%, transparent 75%)",
+          }}
+        />
+        <div className="relative max-w-md mx-auto">
+          <div className="text-center mb-8">
+            <span
+              className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-4"
+              style={{ backgroundColor: "#EDE0F5", color: "#4a2560" }}
+            >
+              Harga jelas, tanpa kejutan
+            </span>
+            <h2
+              className="font-display font-bold text-3xl tracking-tight"
+              style={{ color: "#1A1A18" }}
+            >
+              Satu paket, semua fitur.
+            </h2>
+          </div>
+
+          <div
+            className="rounded-2xl border-2 p-8 sm:p-10 shadow-xl scroll-reveal-up"
+            style={{ backgroundColor: "#fff", borderColor: "#703c8b" }}
+          >
+            <p
+              className="font-display font-bold text-sm mb-1 text-center"
+              style={{ color: "#703c8b" }}
+            >
+              Glim
+            </p>
+            <div className="flex items-end justify-center gap-1 mb-1">
+              <span
+                className="font-bold text-5xl tabular-nums tracking-tight"
+                style={{ fontFamily: "ui-monospace, monospace", color: "#1A1A18" }}
+              >
+                Rp 299.000
+              </span>
+            </div>
+            <p className="text-sm mb-8 text-center" style={{ color: "#9B9590" }}>
+              per bulan · coba gratis 14 hari
+            </p>
+
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 mb-8">
+              {[
+                "Nomor WhatsApp bisnis terhubung",
+                "AI belajar gaya bicara dari chat kamu",
+                "Pengingat pembayaran & jadwal otomatis",
+                "Inbox terpusat untuk semua percakapan",
+                "Import data klien dari Excel",
+              ].map((item) => (
+                <li
+                  key={item}
+                  className="flex items-start gap-2 text-sm"
+                  style={{ color: "#1A1A18" }}
+                >
+                  <span
+                    className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ backgroundColor: "#EDE0F5" }}
+                  >
+                    <Check className="w-2.5 h-2.5" style={{ color: "#703c8b" }} />
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+
+            <div className="space-y-2.5">
+              <Link
+                href="/register"
+                className="block w-full text-center text-sm font-semibold px-6 py-3.5 rounded-xl transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#703c8b]"
+                style={{ backgroundColor: "#703c8b", color: "#fff" }}
+              >
+                Mulai Trial 14 Hari
+              </Link>
+              <Link
+                href="/checkout?plan=glim_pro_monthly"
+                className="block w-full text-center text-xs font-medium px-4 py-2.5 rounded-xl border transition-colors hover:bg-muted text-muted-foreground hover:text-foreground"
+                style={{ borderColor: "#E8E4DC" }}
+              >
+                Langsung Berlangganan (QRIS / Transfer)
+              </Link>
+            </div>
+            <p className="text-center text-xs mt-3" style={{ color: "#9B9590" }}>
+              Tidak perlu kartu kredit · Cancel kapan saja
+            </p>
+          </div>
+        </div>
+      </section>
 
       {/* ── Why we built this ── */}
       <section
-        className="py-20 px-4 sm:px-6"
-        style={{ background: 'linear-gradient(135deg, #2D1445 0%, #4a2560 60%, #5c3070 100%)' }}
+        className="relative overflow-hidden py-24 px-4 sm:px-6 scroll-reveal-up"
+        style={{ backgroundColor: "#2D1445" }}
       >
-        <div className="max-w-2xl mx-auto text-center">
+        {/* Atelier photo — kebaya fitting on a dress form, tinted to the brand aubergine */}
+        <img
+          src="/landing/atelier.jpg"
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(45,20,69,0.82) 0%, rgba(74,37,96,0.6) 55%, rgba(45,20,69,0.8) 100%)",
+          }}
+        />
+        <div className="relative max-w-2xl mx-auto text-center">
           <span
             className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-6"
-            style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}
+            style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}
           >
             Kenapa Glim ada
           </span>
           <h2
             className="font-display font-bold text-3xl sm:text-4xl leading-tight tracking-tight mb-6"
-            style={{ color: '#fff' }}
+            style={{ color: "#fff" }}
           >
             Dibangun dari masalah nyata pemilik bisnis jasa.
           </h2>
           <p
             className="text-base leading-relaxed mx-auto"
-            style={{ color: 'rgba(255,255,255,0.7)', maxWidth: '520px' }}
+            style={{ color: "rgba(255,255,255,0.7)", maxWidth: "520px" }}
           >
             Glim lahir dari obrolan dengan pemilik bisnis fashion custom yang setiap kali admin-nya
             cuti, pesanan jadi berantakan — pelanggan nanya berkali-kali, jadwal fitting kelewat,
@@ -333,18 +560,18 @@ export default function LandingPage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-20 px-4 sm:px-6 bg-white">
+      <section className="py-20 px-4 sm:px-6 bg-white scroll-reveal-up">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-10">
             <span
               className="inline-block text-xs font-medium px-3 py-1 rounded-full mb-4"
-              style={{ backgroundColor: '#F8F6F2', color: '#6B6862', border: '1px solid #E8E4DC' }}
+              style={{ backgroundColor: "#F8F6F2", color: "#6B6862", border: "1px solid #E8E4DC" }}
             >
               FAQ
             </span>
             <h2
               className="font-display font-bold text-3xl tracking-tight"
-              style={{ color: '#1A1A18' }}
+              style={{ color: "#1A1A18" }}
             >
               Pertanyaan yang sering ditanya.
             </h2>
@@ -359,23 +586,23 @@ export default function LandingPage() {
 
       {/* ── Final CTA ── */}
       <section
-        className="py-20 px-4 sm:px-6"
-        style={{ background: 'linear-gradient(135deg, #4a2560 0%, #703c8b 50%, #8b5aa3 100%)' }}
+        className="py-24 px-4 sm:px-6 scroll-reveal-up"
+        style={{ background: "linear-gradient(135deg, #4a2560 0%, #703c8b 50%, #8b5aa3 100%)" }}
       >
         <div className="max-w-xl mx-auto text-center">
           <h2
             className="font-display font-bold text-3xl sm:text-4xl leading-tight tracking-tight mb-4"
-            style={{ color: '#fff' }}
+            style={{ color: "#fff" }}
           >
             Mulai bantu admin kamu hari ini.
           </h2>
-          <p className="text-base mb-8" style={{ color: 'rgba(255,255,255,0.75)' }}>
+          <p className="text-base mb-8" style={{ color: "rgba(255,255,255,0.75)" }}>
             14 hari gratis. Tanpa kartu kredit. Setup 10 menit.
           </p>
           <Link
             href="/register"
             className="inline-flex items-center gap-2 text-sm font-semibold px-8 py-4 rounded-xl transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white"
-            style={{ backgroundColor: '#E8A33D', color: '#1A1A18' }}
+            style={{ backgroundColor: "#E8A33D", color: "#1A1A18" }}
           >
             Coba Glim Sekarang
             <ArrowRight className="w-4 h-4" />
@@ -384,104 +611,6 @@ export default function LandingPage() {
       </section>
 
       <Footer />
-    </div>
-  )
-}
-
-function WaMockup() {
-  return (
-    // Decorative product mockup — hidden from assistive tech, no focusable controls inside
-    <div
-      aria-hidden="true"
-      className="rounded-2xl shadow-xl overflow-hidden border w-full"
-      style={{ maxWidth: '340px', borderColor: '#E8E4DC', backgroundColor: '#ECE5DD' }}
-    >
-      {/* Header */}
-      <div
-        className="px-4 py-3 flex items-center gap-3"
-        style={{ background: 'linear-gradient(135deg, #4a2560 0%, #703c8b 100%)' }}
-      >
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
-        >
-          <span className="text-white font-bold text-xs">R</span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-medium text-xs truncate">Rina Sari</p>
-          <p className="text-white/60 text-[10px]">0812-3456-7890</p>
-        </div>
-        <span
-          className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-          style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)' }}
-        >
-          Inbox Glim
-        </span>
-      </div>
-
-      {/* Chat area */}
-      <div className="p-3 space-y-2 min-h-[200px]">
-        {/* Incoming message 1 */}
-        <div
-          className="animate-chat-bubble-1 rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]"
-          style={{ backgroundColor: '#fff' }}
-        >
-          <p className="text-xs leading-relaxed" style={{ color: '#1A1A18' }}>
-            Halo kak, mau tanya soal kebaya custom dong, ada nggak? 🙏
-          </p>
-          <p className="text-right text-[10px] mt-1" style={{ color: '#9B9590' }}>
-            11:23
-          </p>
-        </div>
-
-        {/* Incoming message 2 */}
-        <div
-          className="animate-chat-bubble-2 rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]"
-          style={{ backgroundColor: '#fff' }}
-        >
-          <p className="text-xs leading-relaxed" style={{ color: '#1A1A18' }}>
-            Berapa harga mulai dari untuk size M?
-          </p>
-          <p className="text-right text-[10px] mt-1" style={{ color: '#9B9590' }}>
-            11:24
-          </p>
-        </div>
-
-        {/* AI draft card */}
-        <div
-          className="animate-ai-draft rounded-xl border-2 p-3 mt-3"
-          style={{ backgroundColor: '#FFFBF3', borderColor: '#E8A33D' }}
-        >
-          <div className="flex items-center gap-1.5 mb-2">
-            <Sparkles
-              className="animate-amber-pulse w-3 h-3"
-              style={{ color: '#E8A33D' }}
-            />
-            <span className="text-[10px] font-semibold" style={{ color: '#B8720A' }}>
-              Draft AI
-            </span>
-          </div>
-          <p className="text-xs leading-relaxed mb-3" style={{ color: '#1A1A18' }}>
-            Halo Rina! Ada kok kak 😊 Kebaya custom kami mulai dari{' '}
-            <span className="font-medium">Rp 850.000</span> untuk size M. Bisa konsultasi gratis
-            dulu soal desain dan bahan...
-          </p>
-          <div className="flex gap-2">
-            <div
-              className="flex-1 text-center text-[10px] font-medium py-1.5 rounded-lg border"
-              style={{ borderColor: '#C9C3BB', color: '#6B6862', backgroundColor: 'transparent' }}
-            >
-              Ubah
-            </div>
-            <div
-              className="flex-1 text-center text-[10px] font-semibold py-1.5 rounded-lg"
-              style={{ backgroundColor: '#703c8b', color: '#fff' }}
-            >
-              ✓ Kirim
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

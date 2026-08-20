@@ -1,7 +1,14 @@
-import type { MessageClassification, Profile, Client, BusinessKnowledgeStructured, ConversationExample, QACategory } from '@/types'
-import { createServiceClient as createSupabaseClient } from '@/lib/supabase/server'
-import { validateAIOutput } from '@/lib/security'
-import { sendTextMessage } from '@/lib/whatsapp'
+import { validateAIOutput } from "@/lib/security"
+import { createServiceClient as createSupabaseClient } from "@/lib/supabase/server"
+import { sendTextMessage } from "@/lib/whatsapp"
+import type {
+  BusinessKnowledgeStructured,
+  Client,
+  ConversationExample,
+  MessageClassification,
+  Profile,
+  QACategory,
+} from "@/types"
 
 interface AIProvider {
   base: string
@@ -24,23 +31,25 @@ function getProviders(analysis = false): AIProvider[] {
 
   if (process.env.DEEPSEEK_API_KEY) {
     providers.push({
-      base: (process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com') + '/v1',
+      base: (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com") + "/v1",
       apiKey: process.env.DEEPSEEK_API_KEY,
       // Real-time tasks use deepseek-v4-flash (with thinking disabled explicitly).
       // Analysis tasks use deepseek-v4-pro for higher reasoning quality and style extraction.
       model: analysis
-        ? (process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-pro')
-        : (process.env.DEEPSEEK_CHAT_MODEL ?? 'deepseek-v4-flash'),
+        ? (process.env.DEEPSEEK_MODEL ?? "deepseek-v4-pro")
+        : (process.env.DEEPSEEK_CHAT_MODEL ?? "deepseek-v4-flash"),
     })
   }
 
   if (process.env.OPENROUTER_API_KEY) {
     providers.push({
-      base: 'https://openrouter.ai/api/v1',
+      base: "https://openrouter.ai/api/v1",
       apiKey: process.env.OPENROUTER_API_KEY,
       model: analysis
-        ? (process.env.OPENROUTER_ANALYSIS_MODEL ?? process.env.OPENROUTER_MODEL ?? 'google/gemini-flash-1.5')
-        : (process.env.OPENROUTER_MODEL ?? 'google/gemini-flash-1.5'),
+        ? (process.env.OPENROUTER_ANALYSIS_MODEL ??
+          process.env.OPENROUTER_MODEL ??
+          "google/gemini-flash-1.5")
+        : (process.env.OPENROUTER_MODEL ?? "google/gemini-flash-1.5"),
     })
   }
 
@@ -51,32 +60,33 @@ async function callWithFallback(
   system: string,
   user: string,
   maxTokens: number,
-  fnName: string = 'ai',
+  fnName: string = "ai",
   analysis = false,
 ): Promise<{ text: string; usage: AIUsage | null }> {
   const providers = getProviders(analysis)
-  if (providers.length === 0) throw new Error('No AI API key set (DEEPSEEK_API_KEY or OPENROUTER_API_KEY)')
+  if (providers.length === 0)
+    throw new Error("No AI API key set (DEEPSEEK_API_KEY or OPENROUTER_API_KEY)")
 
-  let lastError: Error = new Error('No providers available')
+  let lastError: Error = new Error("No providers available")
 
   for (const provider of providers) {
     try {
       const res = await fetch(`${provider.base}/chat/completions`, {
-        method: 'POST',
+        method: "POST",
         headers: {
           Authorization: `Bearer ${provider.apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://glim.app',
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "https://glim.app",
         },
         body: JSON.stringify({
           model: provider.model,
           messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
+            { role: "system", content: system },
+            { role: "user", content: user },
           ],
           max_tokens: maxTokens,
           // Explicitly disable thinking for DeepSeek API to prevent empty content/reasoning overflow
-          ...(provider.base.includes('deepseek.com') ? { thinking: { type: 'disabled' } } : {}),
+          ...(provider.base.includes("deepseek.com") ? { thinking: { type: "disabled" } } : {}),
         }),
       })
 
@@ -87,14 +97,14 @@ async function callWithFallback(
 
       const data = await res.json()
       const raw = data.usage
-      const providerName = provider.base.includes('deepseek') ? 'deepseek' : 'openrouter'
+      const providerName = provider.base.includes("deepseek") ? "deepseek" : "openrouter"
 
       let usage: AIUsage | null = null
       if (raw) {
         const hit = raw.prompt_cache_hit_tokens ?? raw.prompt_tokens_details?.cached_tokens ?? 0
-        const miss = raw.prompt_cache_miss_tokens ?? (raw.prompt_tokens - hit)
+        const miss = raw.prompt_cache_miss_tokens ?? raw.prompt_tokens - hit
         const inCostIDR = Math.round(((miss * 0.14 + hit * 0.0028) / 1_000_000) * 16300)
-        const outCostIDR = Math.round((raw.completion_tokens * 0.28 / 1_000_000) * 16300)
+        const outCostIDR = Math.round(((raw.completion_tokens * 0.28) / 1_000_000) * 16300)
         usage = {
           provider: providerName,
           model: provider.model,
@@ -106,12 +116,12 @@ async function callWithFallback(
         }
         console.log(
           `[AI:${fnName}] ${providerName}/${provider.model}` +
-          ` | prompt:${raw.prompt_tokens} (miss:${miss} hit:${hit})` +
-          ` | out:${raw.completion_tokens}` +
-          ` | ~Rp${inCostIDR + outCostIDR} (in:Rp${inCostIDR} out:Rp${outCostIDR})`,
+            ` | prompt:${raw.prompt_tokens} (miss:${miss} hit:${hit})` +
+            ` | out:${raw.completion_tokens}` +
+            ` | ~Rp${inCostIDR + outCostIDR} (in:Rp${inCostIDR} out:Rp${outCostIDR})`,
         )
       }
-      const text = data.choices?.[0]?.message?.content ?? ''
+      const text = data.choices?.[0]?.message?.content ?? ""
       return { text, usage }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
@@ -171,18 +181,23 @@ interface Product {
 export function buildBusinessContext(profile: Profile): string {
   if (profile.business_knowledge_structured) {
     const s = profile.business_knowledge_structured as BusinessKnowledgeStructured
-    const servicesList = s.services?.map(
-      sv => `- ${sv.name}: ${sv.price_range}${sv.description ? ` (${sv.description})` : ''}`,
-    ).join('\n') ?? '-'
+    const servicesList =
+      s.services
+        ?.map(
+          (sv) => `- ${sv.name}: ${sv.price_range}${sv.description ? ` (${sv.description})` : ""}`,
+        )
+        .join("\n") ?? "-"
 
     return [
       `Layanan:\n${servicesList}`,
       s.operating_hours && `Jam: ${s.operating_hours}`,
       s.location && `Lokasi: ${s.location}`,
-      s.payment_methods?.length && `Pembayaran: ${s.payment_methods.join(', ')}`,
-      `PO: ${s.po_status ? `Buka${s.po_close_date ? ` s/d ${s.po_close_date}` : ''}` : 'Tutup'}`,
+      s.payment_methods?.length && `Pembayaran: ${s.payment_methods.join(", ")}`,
+      `PO: ${s.po_status ? `Buka${s.po_close_date ? ` s/d ${s.po_close_date}` : ""}` : "Tutup"}`,
       s.special_notes && `Catatan: ${s.special_notes}`,
-    ].filter(Boolean).join('\n')
+    ]
+      .filter(Boolean)
+      .join("\n")
   }
 
   // Raw text only → cap at 500 chars to bound token usage
@@ -192,14 +207,14 @@ export function buildBusinessContext(profile: Profile): string {
 
   // Legacy structured fields
   const products = (profile.product_knowledge as Product[] | null) || []
-  let ctx = ''
+  let ctx = ""
 
   if (products.length > 0) {
-    ctx += 'Produk:\n'
-    products.forEach(p => {
-      ctx += `- ${p.name} (${p.price_range}${p.description ? ', ' + p.description : ''})\n`
+    ctx += "Produk:\n"
+    products.forEach((p) => {
+      ctx += `- ${p.name} (${p.price_range}${p.description ? ", " + p.description : ""})\n`
     })
-    ctx += '\n'
+    ctx += "\n"
   }
 
   if (profile.operating_hours) ctx += `Jam: ${profile.operating_hours}\n`
@@ -208,7 +223,9 @@ export function buildBusinessContext(profile: Profile): string {
   if (profile.payment_methods) ctx += `Pembayaran: ${profile.payment_methods}\n`
   if (profile.minimal_dp) ctx += `Minimal DP: ${profile.minimal_dp}\n`
   ctx += profile.po_status
-    ? (profile.po_close_date ? `PO buka s/d: ${profile.po_close_date}\n` : `PO buka\n`)
+    ? profile.po_close_date
+      ? `PO buka s/d: ${profile.po_close_date}\n`
+      : `PO buka\n`
     : `PO tutup\n`
   if (profile.slot_info) ctx += `Slot: ${profile.slot_info}\n`
   if (profile.special_notes) ctx += `Catatan: ${profile.special_notes}\n`
@@ -218,24 +235,31 @@ export function buildBusinessContext(profile: Profile): string {
 
 // ── FEW-SHOT EXAMPLES ────────────────────────────────────────────────────────
 
-const CATEGORY_ORDER: QACategory[] = ['harga', 'jadwal', 'ketersediaan', 'status', 'pembayaran', 'umum']
+const CATEGORY_ORDER: QACategory[] = [
+  "harga",
+  "jadwal",
+  "ketersediaan",
+  "status",
+  "pembayaran",
+  "umum",
+]
 
 const EXAMPLE_KEYWORDS: Record<QACategory, string[]> = {
-  harga:        ['harga', 'budget', 'biaya', 'cost', 'mahal', 'murah', 'tarif'],
-  ketersediaan: ['bisa', 'masih ada', 'tersedia', 'ready', 'stok', 'ada'],
-  jadwal:       ['kapan', 'jadwal', 'fitting', 'ambil', 'tanggal', 'waktu', 'jam'],
-  status:       ['sudah', 'progress', 'gimana', 'selesai', 'jadi', 'sampai mana', 'update'],
-  pembayaran:   ['bayar', 'transfer', 'dp', 'lunas', 'kwitansi', 'bukti', 'tagihan'],
-  umum:         [],
+  harga: ["harga", "budget", "biaya", "cost", "mahal", "murah", "tarif"],
+  ketersediaan: ["bisa", "masih ada", "tersedia", "ready", "stok", "ada"],
+  jadwal: ["kapan", "jadwal", "fitting", "ambil", "tanggal", "waktu", "jam"],
+  status: ["sudah", "progress", "gimana", "selesai", "jadi", "sampai mana", "update"],
+  pembayaran: ["bayar", "transfer", "dp", "lunas", "kwitansi", "bukti", "tagihan"],
+  umum: [],
 }
 
 function classifyMessageCategory(message: string): QACategory {
   const lower = message.toLowerCase()
   for (const [cat, keywords] of Object.entries(EXAMPLE_KEYWORDS) as [QACategory, string[]][]) {
-    if (cat === 'umum') continue
-    if (keywords.some(kw => lower.includes(kw))) return cat
+    if (cat === "umum") continue
+    if (keywords.some((kw) => lower.includes(kw))) return cat
   }
-  return 'umum'
+  return "umum"
 }
 
 export function getPrioritizedExamples(
@@ -244,19 +268,19 @@ export function getPrioritizedExamples(
 ): ConversationExample[] {
   const relevantCat = classifyMessageCategory(incomingMessage)
   return [
-    ...examples.filter(e => e.category === relevantCat),
-    ...examples.filter(e => e.category !== relevantCat),
+    ...examples.filter((e) => e.category === relevantCat),
+    ...examples.filter((e) => e.category !== relevantCat),
   ]
 }
 
 function buildExamplesSection(examples: ConversationExample[] | null | undefined): string {
-  if (!examples?.length) return ''
+  if (!examples?.length) return ""
 
   const sorted = [...examples].sort(
     (a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category),
   )
 
-  const body = sorted.map(e => `Pelanggan: "${e.customer}"\nAdmin: "${e.admin}"`).join('\n\n')
+  const body = sorted.map((e) => `Pelanggan: "${e.customer}"\nAdmin: "${e.admin}"`).join("\n\n")
 
   return `=== CONTOH BALASAN NYATA BISNIS INI ===
 Gunakan contoh berikut sebagai referensi gaya dan isi balasan.
@@ -272,15 +296,15 @@ function buildRelevantExamplesSection(
   examples: ConversationExample[] | null | undefined,
   message: string,
 ): string {
-  if (!examples?.length) return ''
+  if (!examples?.length) return ""
 
   const relevantCat = classifyMessageCategory(message)
   const top = getPrioritizedExamples(examples, message)
-    .filter(e => e.category === relevantCat)
+    .filter((e) => e.category === relevantCat)
     .slice(0, 3)
-  if (!top.length) return ''
+  if (!top.length) return ""
 
-  const body = top.map(e => `Pelanggan: "${e.customer}"\nAdmin: "${e.admin}"`).join('\n\n')
+  const body = top.map((e) => `Pelanggan: "${e.customer}"\nAdmin: "${e.admin}"`).join("\n\n")
 
   return `=== CONTOH PALING RELEVAN UNTUK PESAN INI ===
 Pesan pelanggan saat ini termasuk kategori "${relevantCat}". Jika sama atau sangat serupa dengan contoh berikut, gunakan jawaban yang sama — boleh sesuaikan sapaan/nama saja, JANGAN ubah informasi inti (harga/tanggal/status).
@@ -292,18 +316,18 @@ ${body}`
 // Stable across all messages from the same user until settings are updated.
 function buildLevel2(profile: Profile): string {
   const escalationNote = (profile.escalation_keywords as string[] | null)?.length
-    ? `\nEskalasi langsung jika pesan mengandung: ${(profile.escalation_keywords as string[]).join(', ')}`
-    : ''
+    ? `\nEskalasi langsung jika pesan mengandung: ${(profile.escalation_keywords as string[]).join(", ")}`
+    : ""
 
   const businessSection = `=== BISNIS: ${profile.business_name} ===
-${profile.brand_voice || 'Balas dengan sopan, ramah, dan singkat dalam Bahasa Indonesia.'}${escalationNote}
+${profile.brand_voice || "Balas dengan sopan, ramah, dan singkat dalam Bahasa Indonesia."}${escalationNote}
 
 === PENGETAHUAN BISNIS ===
 ${buildBusinessContext(profile)}`
 
   const examplesSection = buildExamplesSection(profile.conversation_examples)
 
-  return [businessSection, examplesSection].filter(Boolean).join('\n\n').trim()
+  return [businessSection, examplesSection].filter(Boolean).join("\n\n").trim()
 }
 
 // Level 3 — changes per client/message. Cache miss is expected here.
@@ -316,21 +340,21 @@ function buildLevel3(
   if (client?.ai_notes) parts.push(`=== KONTEKS KLIEN ===\n${client.ai_notes}`)
   if (orderSummary) parts.push(`=== PESANAN AKTIF KLIEN INI ===\n${orderSummary}`)
   if (relevantExamples) parts.push(relevantExamples)
-  return parts.join('\n\n')
+  return parts.join("\n\n")
 }
 
 export async function getClientOrderSummary(userId: string, clientId: string): Promise<string> {
   const supabase = await createSupabaseClient()
 
   const { data: orders } = await supabase
-    .from('orders')
-    .select('id, description, total_price, status, payment_stages(*), appointments(*)')
-    .eq('client_id', clientId)
-    .eq('user_id', userId)
-    .eq('status', 'aktif')
-    .order('created_at', { ascending: false })
+    .from("orders")
+    .select("id, description, total_price, status, payment_stages(*), appointments(*)")
+    .eq("client_id", clientId)
+    .eq("user_id", userId)
+    .eq("status", "aktif")
+    .order("created_at", { ascending: false })
 
-  if (!orders || orders.length === 0) return ''
+  if (!orders || orders.length === 0) return ""
 
   const parts: string[] = []
 
@@ -342,22 +366,28 @@ export async function getClientOrderSummary(userId: string, clientId: string): P
       .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0]
     if (nextUnpaid) {
       parts.push(
-        `Tagihan berikutnya: ${nextUnpaid.name} Rp ${nextUnpaid.amount?.toLocaleString('id-ID')} (tempo ${new Date(nextUnpaid.due_date + 'T00:00:00').toLocaleDateString('id-ID')})`,
+        `Tagihan berikutnya: ${nextUnpaid.name} Rp ${nextUnpaid.amount?.toLocaleString("id-ID")} (tempo ${new Date(nextUnpaid.due_date + "T00:00:00").toLocaleDateString("id-ID")})`,
       )
     }
 
     const nextAppt = (order.appointments || [])
       .filter((a: any) => new Date(a.scheduled_at) > new Date())
-      .sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]
+      .sort(
+        (a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
+      )[0]
     if (nextAppt) {
-      const dt = new Date(nextAppt.scheduled_at).toLocaleDateString('id-ID', {
-        weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      const dt = new Date(nextAppt.scheduled_at).toLocaleDateString("id-ID", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
       })
       parts.push(`Janji temu: ${nextAppt.title} ${dt}`)
     }
   }
 
-  return parts.join(' | ')
+  return parts.join(" | ")
 }
 
 // buildSecurePrompt = Level 1 + Level 2 + Level 3, ordered for max cache hits.
@@ -372,10 +402,10 @@ export function buildSecurePrompt(
 ): string {
   const relevantExamples = message
     ? buildRelevantExamplesSection(profile.conversation_examples, message)
-    : ''
+    : ""
   return [LEVEL1_RULES, buildLevel2(profile), buildLevel3(client, orderSummary, relevantExamples)]
     .filter(Boolean)
-    .join('\n\n')
+    .join("\n\n")
 }
 
 export async function buildAIContext(
@@ -384,11 +414,11 @@ export async function buildAIContext(
   userId?: string,
   message?: string,
 ): Promise<string> {
-  let orderSummary = ''
+  let orderSummary = ""
   if (userId && client?.id) {
     orderSummary = await getClientOrderSummary(userId, client.id)
   }
-  return buildSecurePrompt(profile, client, '', '', orderSummary, message)
+  return buildSecurePrompt(profile, client, "", "", orderSummary, message)
 }
 
 // ── AI CALLERS ────────────────────────────────────────────────────────────────
@@ -397,7 +427,7 @@ export async function callAI(
   system: string,
   user: string,
   maxTokens: number = 500,
-  fnName = 'ai',
+  fnName = "ai",
 ): Promise<string> {
   const { text } = await callWithFallback(system, user, maxTokens, fnName, false)
   return text
@@ -408,13 +438,13 @@ async function callAnalysisAI(
   user: string,
   maxTokens: number = 600,
 ): Promise<string> {
-  const { text } = await callWithFallback(system, user, maxTokens, 'analysis', true)
+  const { text } = await callWithFallback(system, user, maxTokens, "analysis", true)
   return text
 }
 
 function extractJSON(text: string): string {
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
+  const start = text.indexOf("{")
+  const end = text.lastIndexOf("}")
   if (start !== -1 && end !== -1 && end > start) {
     return text.substring(start, end + 1)
   }
@@ -427,16 +457,18 @@ function extractJSON(text: string): string {
 // ~220 tokens total. CLASSIFY_SYSTEM cached globally after first call.
 async function classifyOnly(message: string): Promise<MessageClassification> {
   try {
-    const raw = await callAI(CLASSIFY_SYSTEM, `Pesan: ${message}`, 150, 'classify')
-    const clean = extractJSON(raw).replace(/```json|```/g, '').trim()
+    const raw = await callAI(CLASSIFY_SYSTEM, `Pesan: ${message}`, 150, "classify")
+    const clean = extractJSON(raw)
+      .replace(/```json|```/g, "")
+      .trim()
     const parsed = JSON.parse(clean) as { classification: string }
-    if (parsed.classification === 'rutin' || parsed.classification === 'sensitif') {
+    if (parsed.classification === "rutin" || parsed.classification === "sensitif") {
       return parsed.classification
     }
-    return 'tidak_diketahui'
+    return "tidak_diketahui"
   } catch (err) {
-    console.error('[classifyOnly] Parsing failed for raw output:', err)
-    return 'tidak_diketahui'
+    console.error("[classifyOnly] Parsing failed for raw output:", err)
+    return "tidak_diketahui"
   }
 }
 
@@ -459,14 +491,14 @@ async function callDraftOnly(
   if (history && history.length > 0) {
     const historyText = history
       .slice(-3)
-      .map(m => `${m.direction === 'masuk' ? 'Pelanggan' : 'Admin'}: ${m.message_body}`)
-      .join('\n')
+      .map((m) => `${m.direction === "masuk" ? "Pelanggan" : "Admin"}: ${m.message_body}`)
+      .join("\n")
     userPrompt = `Riwayat:\n${historyText}\n\nPesan terbaru: ${message}`
   }
   if (hint?.trim()) {
     userPrompt += `\n\nRevisi dengan petunjuk (jangan sebut petunjuk di balasan): ${hint.trim()}`
   }
-  return callWithFallback(systemPrompt, userPrompt, 200, 'draft', false)
+  return callWithFallback(systemPrompt, userPrompt, 200, "draft", false)
 }
 
 // Exported for /api/messages/draft route
@@ -526,12 +558,14 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
 
   try {
     const result = await callAnalysisAI(system, rawText, 800)
-    console.log('[extractBusinessKnowledge] Raw AI response:', result)
-    const clean = extractJSON(result).replace(/```json|```/g, '').trim()
-    console.log('[extractBusinessKnowledge] Extracted clean JSON:', clean)
+    console.log("[extractBusinessKnowledge] Raw AI response:", result)
+    const clean = extractJSON(result)
+      .replace(/```json|```/g, "")
+      .trim()
+    console.log("[extractBusinessKnowledge] Extracted clean JSON:", clean)
     return JSON.parse(clean) as BusinessKnowledgeStructured
   } catch (err) {
-    console.error('[extractBusinessKnowledge] Failed parsing business knowledge JSON:', err)
+    console.error("[extractBusinessKnowledge] Failed parsing business knowledge JSON:", err)
     return { ...EMPTY_STRUCTURED }
   }
 }
@@ -540,40 +574,40 @@ export async function extractBusinessKnowledgeFromImages(
   images: Array<{ base64: string; mimeType: string }>,
 ): Promise<BusinessKnowledgeStructured> {
   // Vision calls need multimodal model — prefer OpenRouter for image analysis
-  const apiKey = process.env.OPENROUTER_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? ''
-  if (!apiKey) throw new Error('No AI API key set')
+  const apiKey = process.env.OPENROUTER_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? ""
+  if (!apiKey) throw new Error("No AI API key set")
 
   const base = process.env.OPENROUTER_API_KEY
-    ? 'https://openrouter.ai/api/v1'
-    : (process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com') + '/v1'
+    ? "https://openrouter.ai/api/v1"
+    : (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com") + "/v1"
 
   const model = process.env.OPENROUTER_API_KEY
-    ? (process.env.OPENROUTER_MODEL ?? 'google/gemini-flash-1.5')
-    : (process.env.DEEPSEEK_CHAT_MODEL ?? 'deepseek-chat')
+    ? (process.env.OPENROUTER_MODEL ?? "google/gemini-flash-1.5")
+    : (process.env.DEEPSEEK_CHAT_MODEL ?? "deepseek-chat")
 
   const prompt = `Kamu mengekstrak informasi bisnis dari gambar katalog/price list Indonesia.
 Baca semua teks, harga, layanan, dan informasi yang terlihat di gambar.
 ${BUSINESS_EXTRACTION_SCHEMA}`
 
   const content: Array<Record<string, unknown>> = [
-    ...images.map(img => ({
-      type: 'image_url',
+    ...images.map((img) => ({
+      type: "image_url",
       image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
     })),
-    { type: 'text', text: prompt },
+    { type: "text", text: prompt },
   ]
 
   try {
     const res = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://glim.app',
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "https://glim.app",
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content }],
+        messages: [{ role: "user", content }],
         max_tokens: 800,
       }),
     })
@@ -584,13 +618,18 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
     }
 
     const data = await res.json()
-    const raw = data.choices?.[0]?.message?.content ?? ''
-    console.log('[extractBusinessKnowledgeFromImages] Raw AI response:', raw)
-    const clean = extractJSON(raw).replace(/```json|```/g, '').trim()
-    console.log('[extractBusinessKnowledgeFromImages] Extracted clean JSON:', clean)
+    const raw = data.choices?.[0]?.message?.content ?? ""
+    console.log("[extractBusinessKnowledgeFromImages] Raw AI response:", raw)
+    const clean = extractJSON(raw)
+      .replace(/```json|```/g, "")
+      .trim()
+    console.log("[extractBusinessKnowledgeFromImages] Extracted clean JSON:", clean)
     return JSON.parse(clean) as BusinessKnowledgeStructured
   } catch (err) {
-    console.error('[extractBusinessKnowledgeFromImages] Failed parsing business knowledge JSON:', err)
+    console.error(
+      "[extractBusinessKnowledgeFromImages] Failed parsing business knowledge JSON:",
+      err,
+    )
     return { ...EMPTY_STRUCTURED }
   }
 }
@@ -599,7 +638,7 @@ export async function analyzeBrandVoice(
   messages: string[],
   conversationContext?: string,
 ): Promise<string> {
-  const adminSample = messages.slice(-100).join('\n')
+  const adminSample = messages.slice(-100).join("\n")
 
   const inputSection = conversationContext
     ? `Berikut adalah contoh percakapan WhatsApp bisnis ini (Admin = pemilik, Pelanggan = customer):\n\n${conversationContext}`
@@ -632,30 +671,30 @@ export async function reanalyzeBrandVoice(userId: string): Promise<void> {
   const supabase = await createSupabaseClient()
 
   const { data: feedback } = await supabase
-    .from('ai_feedback')
-    .select('original, corrected')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
+    .from("ai_feedback")
+    .select("original, corrected")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
     .limit(20)
 
   if (!feedback || feedback.length < 3) return
 
   const { data: profile } = await supabase
-    .from('profiles')
-    .select('brand_voice')
-    .eq('id', userId)
+    .from("profiles")
+    .select("brand_voice")
+    .eq("id", userId)
     .single()
 
   const corrections = feedback
-    .map(f => `AI draft: "${f.original}"\nAdmin koreksi: "${f.corrected}"`)
-    .join('\n---\n')
+    .map((f) => `AI draft: "${f.original}"\nAdmin koreksi: "${f.corrected}"`)
+    .join("\n---\n")
 
   const system = `Kamu adalah analis gaya komunikasi bisnis Indonesia.
 Berdasarkan pola koreksi admin terhadap draft AI, perbarui deskripsi gaya komunikasi
 agar AI lebih sesuai di masa depan.
 
 Gaya komunikasi saat ini:
-${profile?.brand_voice || '(belum ada)'}
+${profile?.brand_voice || "(belum ada)"}
 
 Output: paragraf deskriptif (3-5 kalimat) yang menginstruksikan AI untuk menggunakan gaya ini.
 Fokus pada pola yang BERULANG dikoreksi admin. JANGAN gunakan bullet points.`
@@ -665,13 +704,10 @@ Fokus pada pola yang BERULANG dikoreksi admin. JANGAN gunakan bullet points.`
   try {
     const updated = await callAnalysisAI(system, user, 300)
     if (updated.trim()) {
-      await supabase
-        .from('profiles')
-        .update({ brand_voice: updated.trim() })
-        .eq('id', userId)
+      await supabase.from("profiles").update({ brand_voice: updated.trim() }).eq("id", userId)
     }
   } catch (err) {
-    console.error('[reanalyzeBrandVoice] error:', err)
+    console.error("[reanalyzeBrandVoice] error:", err)
   }
 }
 
@@ -685,7 +721,7 @@ const GREETING_PATTERNS = [
 function isPlainGreeting(message: string): boolean {
   const trimmed = message.trim()
   if (trimmed.length < 3) return true
-  return GREETING_PATTERNS.some(p => p.test(trimmed))
+  return GREETING_PATTERNS.some((p) => p.test(trimmed))
 }
 
 // ── MAIN WEBHOOK FLOW ─────────────────────────────────────────────────────────
@@ -703,145 +739,185 @@ export async function classifyAndDraft(
   const supabase = await createSupabaseClient()
 
   try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
     if (!profile) return
 
     // Gate 1a: appointment keywords — always escalate, zero AI cost
     const APPOINTMENT_KEYWORDS = [
-      'booking', 'reservasi', 'janji temu', 'buat janji', 'bikin janji',
-      'kapan kosong', 'kapan bisa', 'ada slot', 'ada waktu luang', 'masih ada slot',
-      'mau datang', 'bisa datang', 'mau ke sini', 'mau kesana', 'mau ke tempat',
-      'boleh datang', 'rencana datang', 'datang ke',
-      'reschedule', 'pindah jadwal', 'ganti jadwal', 'geser jadwal', 'ubah jadwal',
-      'batalkan jadwal',
-      'sesi', 'session', 'kunjungan', 'visit',
-      'fitting', 'treatment', 'sesi foto', 'pemotretan',
+      "booking",
+      "reservasi",
+      "janji temu",
+      "buat janji",
+      "bikin janji",
+      "kapan kosong",
+      "kapan bisa",
+      "ada slot",
+      "ada waktu luang",
+      "masih ada slot",
+      "mau datang",
+      "bisa datang",
+      "mau ke sini",
+      "mau kesana",
+      "mau ke tempat",
+      "boleh datang",
+      "rencana datang",
+      "datang ke",
+      "reschedule",
+      "pindah jadwal",
+      "ganti jadwal",
+      "geser jadwal",
+      "ubah jadwal",
+      "batalkan jadwal",
+      "sesi",
+      "session",
+      "kunjungan",
+      "visit",
+      "fitting",
+      "treatment",
+      "sesi foto",
+      "pemotretan",
     ]
-    if (APPOINTMENT_KEYWORDS.some(kw => messageBody.toLowerCase().includes(kw.toLowerCase()))) {
+    if (APPOINTMENT_KEYWORDS.some((kw) => messageBody.toLowerCase().includes(kw.toLowerCase()))) {
       await supabase
-        .from('inbox_messages')
-        .update({ classification: 'sensitif', ai_draft_reply: null, status: 'dieskalasi' })
-        .eq('id', messageId)
+        .from("inbox_messages")
+        .update({ classification: "sensitif", ai_draft_reply: null, status: "dieskalasi" })
+        .eq("id", messageId)
       const { data: msgData } = await supabase
-        .from('inbox_messages')
-        .select('sender_name, whatsapp_number')
-        .eq('id', messageId)
+        .from("inbox_messages")
+        .select("sender_name, whatsapp_number")
+        .eq("id", messageId)
         .single()
-      const contactName = msgData?.sender_name || msgData?.whatsapp_number || 'Pelanggan'
-      const { sendEscalationNotification } = await import('@/lib/notifications')
-      sendEscalationNotification(userId, contactName, messageBody, 'sensitif').catch(() => {})
+      const contactName = msgData?.sender_name || msgData?.whatsapp_number || "Pelanggan"
+      const { sendEscalationNotification } = await import("@/lib/notifications")
+      sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch(() => {})
       return
     }
 
     // Gate 1b: user-configured escalation keywords
-    if ((profile.escalation_keywords || []).some(
-      (kw: string) => messageBody.toLowerCase().includes(kw.toLowerCase()),
-    )) {
+    if (
+      (profile.escalation_keywords || []).some((kw: string) =>
+        messageBody.toLowerCase().includes(kw.toLowerCase()),
+      )
+    ) {
       await supabase
-        .from('inbox_messages')
-        .update({ classification: 'sensitif', ai_draft_reply: null, status: 'dieskalasi' })
-        .eq('id', messageId)
+        .from("inbox_messages")
+        .update({ classification: "sensitif", ai_draft_reply: null, status: "dieskalasi" })
+        .eq("id", messageId)
       const { data: msgData } = await supabase
-        .from('inbox_messages')
-        .select('sender_name, whatsapp_number')
-        .eq('id', messageId)
+        .from("inbox_messages")
+        .select("sender_name, whatsapp_number")
+        .eq("id", messageId)
         .single()
-      const contactName = msgData?.sender_name || msgData?.whatsapp_number || 'Pelanggan'
-      const { sendEscalationNotification } = await import('@/lib/notifications')
-      sendEscalationNotification(userId, contactName, messageBody, 'sensitif').catch(() => {})
+      const contactName = msgData?.sender_name || msgData?.whatsapp_number || "Pelanggan"
+      const { sendEscalationNotification } = await import("@/lib/notifications")
+      sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch(() => {})
       return
     }
 
     // Gate 2: plain greeting → skip AI entirely
     if (isPlainGreeting(messageBody)) {
       await supabase
-        .from('inbox_messages')
-        .update({ classification: 'tidak_diketahui', ai_draft_reply: null, status: 'baru' })
-        .eq('id', messageId)
+        .from("inbox_messages")
+        .update({ classification: "tidak_diketahui", ai_draft_reply: null, status: "baru" })
+        .eq("id", messageId)
       return
     }
 
     // AI Call 1: classify only (~220 tokens, CLASSIFY_SYSTEM cached globally)
     const classification = await classifyOnly(messageBody)
-    console.log('[classifyAndDraft] classification:', classification, '| messageId:', messageId, '| auto_reply_level:', profile.auto_reply_level)
+    console.log(
+      "[classifyAndDraft] classification:",
+      classification,
+      "| messageId:",
+      messageId,
+      "| auto_reply_level:",
+      profile.auto_reply_level,
+    )
 
-    if (classification !== 'rutin') {
-      console.log('[classifyAndDraft] non-rutin → no draft. status:', classification === 'sensitif' ? 'dieskalasi' : 'baru')
+    if (classification !== "rutin") {
+      console.log(
+        "[classifyAndDraft] non-rutin → no draft. status:",
+        classification === "sensitif" ? "dieskalasi" : "baru",
+      )
       await supabase
-        .from('inbox_messages')
+        .from("inbox_messages")
         .update({
           classification,
           ai_draft_reply: null,
-          status: classification === 'sensitif' ? 'dieskalasi' : 'baru',
+          status: classification === "sensitif" ? "dieskalasi" : "baru",
         })
-        .eq('id', messageId)
+        .eq("id", messageId)
 
-      if (classification === 'sensitif') {
+      if (classification === "sensitif") {
         const { data: msgData } = await supabase
-          .from('inbox_messages')
-          .select('sender_name, whatsapp_number')
-          .eq('id', messageId)
+          .from("inbox_messages")
+          .select("sender_name, whatsapp_number")
+          .eq("id", messageId)
           .single()
-        const contactName = msgData?.sender_name || msgData?.whatsapp_number || 'Pelanggan'
-        const { sendEscalationNotification } = await import('@/lib/notifications')
-        sendEscalationNotification(userId, contactName, messageBody, 'sensitif').catch(() => {})
+        const contactName = msgData?.sender_name || msgData?.whatsapp_number || "Pelanggan"
+        const { sendEscalationNotification } = await import("@/lib/notifications")
+        sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch(() => {})
       }
       return
     }
 
     // AI Call 2: draft reply (only for 'rutin', full Level 1+2+3 context)
     const { data: msgRow } = await supabase
-      .from('inbox_messages')
-      .select('whatsapp_number, client_id, sender_name')
-      .eq('id', messageId)
+      .from("inbox_messages")
+      .select("whatsapp_number, client_id, sender_name")
+      .eq("id", messageId)
       .single()
 
     let history: Array<{ direction: string; message_body: string }> = []
     if (msgRow?.whatsapp_number) {
       const { data: recent } = await supabase
-        .from('inbox_messages')
-        .select('direction, message_body')
-        .eq('user_id', userId)
-        .eq('whatsapp_number', msgRow.whatsapp_number)
-        .neq('id', messageId)
-        .order('received_at', { ascending: false })
+        .from("inbox_messages")
+        .select("direction, message_body")
+        .eq("user_id", userId)
+        .eq("whatsapp_number", msgRow.whatsapp_number)
+        .neq("id", messageId)
+        .order("received_at", { ascending: false })
         .limit(3)
       history = (recent ?? []).reverse()
     }
 
-    const securePrompt = buildSecurePrompt(profile, null, '', '', undefined, messageBody)
+    const securePrompt = buildSecurePrompt(profile, null, "", "", undefined, messageBody)
     const { text: rawDraft } = await callDraftOnly(messageBody, securePrompt, history)
 
     let safeDraft: string | null = rawDraft || null
     if (safeDraft) {
       const validation = validateAIOutput(safeDraft)
       if (!validation.safe) {
-        console.warn('[classifyAndDraft] AI output failed validation → draft nulled')
+        console.warn("[classifyAndDraft] AI output failed validation → draft nulled")
         safeDraft = null
       }
     }
-    console.log('[classifyAndDraft] draft result:', safeDraft ? `"${safeDraft.slice(0, 60)}..."` : 'null (no draft)')
+    console.log(
+      "[classifyAndDraft] draft result:",
+      safeDraft ? `"${safeDraft.slice(0, 60)}..."` : "null (no draft)",
+    )
 
     await supabase
-      .from('inbox_messages')
+      .from("inbox_messages")
       .update({
-        classification: 'rutin',
+        classification: "rutin",
         ai_draft_reply: safeDraft,
-        status: 'baru',
+        status: "baru",
       })
-      .eq('id', messageId)
+      .eq("id", messageId)
 
     // Auto-reply based on level
     const autoReplyLevel = profile.auto_reply_level ?? 1
-    console.log('[classifyAndDraft] auto_reply_level:', autoReplyLevel, '| safeDraft:', !!safeDraft)
+    console.log("[classifyAndDraft] auto_reply_level:", autoReplyLevel, "| safeDraft:", !!safeDraft)
     if (safeDraft && autoReplyLevel >= 2) {
       const waNumber = msgRow?.whatsapp_number
-      console.log('[classifyAndDraft] waNumber:', waNumber, '| level branch:', autoReplyLevel >= 3 ? 'full-auto' : 'semi-auto queue')
+      console.log(
+        "[classifyAndDraft] waNumber:",
+        waNumber,
+        "| level branch:",
+        autoReplyLevel >= 3 ? "full-auto" : "semi-auto queue",
+      )
       if (waNumber) {
         if (autoReplyLevel >= 3) {
           // Full Auto (level 3): send immediately
@@ -849,47 +925,47 @@ export async function classifyAndDraft(
             await sendTextMessage(waNumber, safeDraft, userId)
             await Promise.all([
               supabase
-                .from('inbox_messages')
-                .update({ status: 'dibalas', replied_at: new Date().toISOString() })
-                .eq('id', messageId),
-              supabase.from('inbox_messages').insert({
+                .from("inbox_messages")
+                .update({ status: "dibalas", replied_at: new Date().toISOString() })
+                .eq("id", messageId),
+              supabase.from("inbox_messages").insert({
                 user_id: userId,
-                direction: 'keluar',
+                direction: "keluar",
                 whatsapp_number: waNumber,
                 message_body: safeDraft,
-                classification: 'rutin',
-                status: 'dibalas',
+                classification: "rutin",
+                status: "dibalas",
               }),
             ])
           } catch (err) {
-            console.error('[classifyAndDraft] auto-reply failed:', err)
+            console.error("[classifyAndDraft] auto-reply failed:", err)
           }
         } else {
           // Semi-Auto (level 2): queue with 5-min delay, owner can cancel/edit
           const sendAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-          console.log('[classifyAndDraft] inserting to send_queue, send_at:', sendAt)
+          console.log("[classifyAndDraft] inserting to send_queue, send_at:", sendAt)
           try {
-            const { error: queueErr } = await supabase.from('send_queue').insert({
+            const { error: queueErr } = await supabase.from("send_queue").insert({
               user_id: userId,
               message_id: messageId,
               to_number: waNumber,
               message: safeDraft,
               send_at: sendAt,
             })
-            if (queueErr) console.error('[classifyAndDraft] send_queue insert error:', queueErr)
+            if (queueErr) console.error("[classifyAndDraft] send_queue insert error:", queueErr)
             const { error: updateErr } = await supabase
-              .from('inbox_messages')
-              .update({ status: 'antri', ai_draft_reply: safeDraft })
-              .eq('id', messageId)
-            if (updateErr) console.error('[classifyAndDraft] antri update error:', updateErr)
-            console.log('[classifyAndDraft] queue OK → message status set to antri')
+              .from("inbox_messages")
+              .update({ status: "antri", ai_draft_reply: safeDraft })
+              .eq("id", messageId)
+            if (updateErr) console.error("[classifyAndDraft] antri update error:", updateErr)
+            console.log("[classifyAndDraft] queue OK → message status set to antri")
           } catch (err) {
-            console.error('[classifyAndDraft] queue insert failed:', err)
+            console.error("[classifyAndDraft] queue insert failed:", err)
           }
         }
       }
     }
   } catch (err) {
-    console.error('[classifyAndDraft] error:', err)
+    console.error("[classifyAndDraft] error:", err)
   }
 }

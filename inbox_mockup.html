@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glim Inbox Redesign Mockup (Alternative Filters)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 h-screen overflow-hidden flex flex-col">
+  <!-- Top Trial Banner -->
+  <div class="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2 flex items-center justify-between text-xs text-amber-800 dark:text-amber-400 shrink-0">
+    <p>⚡ <strong>Mode Trial Advanced</strong>: Tersisa 8 hari. AI membalas otomatis untuk 50 pesan pertama.</p>
+    <button class="bg-amber-500 hover:bg-amber-600 text-white font-medium px-3 py-1 rounded-md transition-colors">Upgrade Sekarang</button>
+  </div>
+
+  <!-- Main Container -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- 1. Navigation Rail (Far Left) -->
+    <div class="w-16 bg-slate-900 text-slate-400 flex flex-col items-center py-4 gap-6 shrink-0">
+      <div class="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-white font-bold text-lg mb-2">G</div>
+      <button class="p-2 rounded-lg hover:bg-slate-800 hover:text-white transition-colors" title="Dashboard">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"></path></svg>
+      </button>
+      <button class="p-2 rounded-lg bg-slate-800 text-white transition-colors" title="Inbox">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+      </button>
+      <button class="p-2 rounded-lg hover:bg-slate-800 hover:text-white transition-colors" title="Klien">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+      </button>
+      <button class="p-2 rounded-lg hover:bg-slate-800 hover:text-white transition-colors" title="Pengaturan">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+      </button>
+    </div>
+
+    <!-- 2. Integrated Conversation Feed (Column 2) -->
+    <div class="w-80 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col shrink-0">
+      
+      <!-- Interactive Style Switcher Trigger -->
+      <div class="px-4 pt-3 pb-1 border-b border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/10 flex justify-between items-center shrink-0">
+        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gaya Filter</span>
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-white dark:bg-slate-950">
+          <button id="toggleBtnDropdown" onclick="switchFilterStyle('dropdown')" class="px-2 py-0.5 rounded-md text-[9px] font-semibold bg-violet-600 text-white transition-all duration-100">
+            Dropdown (Upwork)
+          </button>
+          <button id="toggleBtnSegment" onclick="switchFilterStyle('segment')" class="px-2 py-0.5 rounded-md text-[9px] font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all duration-100">
+            Segmen (Wellfound)
+          </button>
+        </div>
+      </div>
+
+      <!-- Integrated Header: Title + Search + Style-dependent Filters -->
+      <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-2.5 shrink-0 bg-white dark:bg-slate-950 relative">
+        <div class="flex items-center justify-between">
+          <h1 class="font-bold text-base">Kotak Masuk</h1>
+          <span class="bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 text-xs px-2 py-0.5 rounded-full font-semibold">5 Baru</span>
+        </div>
+        
+        <!-- SEARCH & DROPDOWN FILTER LAYOUT (Airbnb/Upwork Style) -->
+        <div id="filterStyleDropdown" class="flex gap-1.5 items-center">
+          <div class="relative flex-1">
+            <input type="text" placeholder="Cari kontak atau pesan..." class="w-full text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-lg py-2 pl-3 pr-8 focus:outline-none focus:ring-1 focus:ring-violet-500">
+          </div>
+          <!-- Trigger Button -->
+          <div class="relative">
+            <button id="dropdownBtn" onclick="toggleDropdownMenu()" class="p-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-lg transition-colors flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 font-semibold" title="Filter Chat">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 8.293A1 1 0 013 7.586V4z"></path></svg>
+              <span id="selectedFilterText">Semua</span>
+            </button>
+            
+            <!-- Floating Dropdown Overlay -->
+            <div id="dropdownMenu" class="hidden absolute right-0 mt-1 w-44 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg shadow-lg py-1 z-30 text-xs">
+              <button onclick="selectDropdownFilter('Semua')" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-900 flex justify-between items-center font-medium">
+                <span>Semua Pesan</span>
+                <span class="text-violet-600">✓</span>
+              </button>
+              <button onclick="selectDropdownFilter('Perlu Balasan', 2)" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-900 flex justify-between items-center">
+                <span>Perlu Balasan</span>
+                <span class="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400 px-1.5 py-0.5 rounded text-[10px]">2</span>
+              </button>
+              <button onclick="selectDropdownFilter('Dieskalasi', 1)" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-900 flex justify-between items-center">
+                <span>Dieskalasi</span>
+                <span class="bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-400 px-1.5 py-0.5 rounded text-[10px]">1</span>
+              </button>
+              <button onclick="selectDropdownFilter('Diabaikan')" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-900 flex justify-between items-center">
+                <span>Diabaikan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEGMENTED GRID LAYOUT (Wellfound Style - No scroll, fits exactly) -->
+        <div id="filterStyleSegment" class="hidden flex flex-col gap-2.5">
+          <input type="text" placeholder="Cari kontak atau pesan..." class="w-full text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-violet-500">
+          
+          <div class="grid grid-cols-3 gap-1 border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-center">
+            <button onclick="setSegmentActive(this)" class="py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 shadow-sm transition-all duration-150">
+              Semua
+            </button>
+            <button onclick="setSegmentActive(this)" class="py-1 rounded-md text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 transition-all duration-150 flex items-center justify-center gap-1">
+              Antrean <span class="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400 rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold">2</span>
+            </button>
+            <button onclick="setSegmentActive(this)" class="py-1 rounded-md text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 transition-all duration-150 flex items-center justify-center gap-1">
+              Eskalasi <span class="bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-400 rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold">1</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+      
+      <!-- Scrollable Conversation Feed -->
+      <div class="flex-1 overflow-y-auto scrollbar-thin">
+        <!-- Item 1 (Selected) -->
+        <button class="w-full text-left px-4 py-3.5 border-b border-slate-100 dark:border-slate-900 bg-violet-500/5 border-l-[3px] border-l-violet-600 flex gap-3">
+          <div class="w-9 h-9 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-semibold shrink-0">AS</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-xs truncate">Abigail Smith</span>
+              <span class="text-[10px] text-slate-400 shrink-0 font-medium">10m ago</span>
+            </div>
+            <div class="flex items-center gap-1 mt-0.5">
+              <span class="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+              <p class="text-[11px] text-slate-500 truncate flex-1 font-medium">Hi support, I'm having problems creating an account...</p>
+            </div>
+            <div class="mt-1.5 flex gap-1">
+              <span class="inline-block text-[9px] px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-600 font-medium">Sensitif</span>
+              <span class="inline-block text-[9px] px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-600 font-medium">Jadwal & Fitting</span>
+            </div>
+          </div>
+        </button>
+
+        <!-- Item 2 -->
+        <button class="w-full text-left px-4 py-3.5 border-b border-slate-100 dark:border-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900/50 flex gap-3">
+          <div class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-xs font-semibold shrink-0">JD</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-xs text-slate-700 dark:text-slate-300 truncate">Jane Doe</span>
+              <span class="text-[10px] text-slate-400 shrink-0">1h ago</span>
+            </div>
+            <div class="flex items-center gap-1 mt-0.5">
+              <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
+              <p class="text-[11px] text-slate-500 truncate flex-1"><span class="text-violet-600 font-medium">Kamu:</span> Ok, saya update details pengirimannya.</p>
+            </div>
+            <div class="mt-1.5 flex gap-1">
+              <span class="inline-block text-[9px] px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-600 font-medium">Rutin</span>
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. Active Thread Panel (Main Chat column) -->
+    <div class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
+      
+      <!-- Thread Header -->
+      <div class="h-14 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-5 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-400 flex items-center justify-center font-bold text-xs">AS</div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="font-semibold text-sm truncate">Abigail Smith</h2>
+              <span class="inline-block text-[9px] px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-600 font-medium">Sensitif</span>
+            </div>
+            <p class="text-[10px] text-slate-400 font-medium">+62 812-3456-7890</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <!-- Toggle Context Panel Button -->
+          <button id="toggleDrawerBtn" class="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-md transition-colors" title="Toggle Detail Klien">
+            <svg class="w-4 h-4 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages View -->
+      <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin">
+        
+        <!-- Customer Message -->
+        <div class="flex justify-start">
+          <div class="max-w-[70%] bg-white dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
+            <p class="text-xs text-slate-400 font-medium mb-1">Abigail Smith</p>
+            <p class="text-sm">Hi support, I'm having problems creating an account with my email. Can you help me?</p>
+            <p class="text-[9px] text-slate-400 mt-1 text-right">14:12</p>
+          </div>
+        </div>
+
+        <!-- AI Generated Auto Reply Alert (Level 2 Queued) -->
+        <div class="flex justify-center">
+          <div class="bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-400 text-xs px-4 py-2.5 rounded-lg max-w-md flex flex-col gap-2 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold flex items-center gap-1">⏱️ Draf Otomatis AI (Tunda 5m)</span>
+              <span class="font-mono bg-amber-500/25 px-1.5 py-0.5 rounded text-[10px]" id="timer">04:32</span>
+            </div>
+            <p class="text-[11px] leading-relaxed italic text-slate-600 dark:text-slate-300">"Halo Abigail! Kami sangat senang membantu Anda. Untuk kendala pendaftaran akun, silakan info pesan error yang muncul atau bisa kirimkan screenshot agar tim teknis kami bisa bantu cek segera. Terima kasih!"</p>
+            <div class="flex justify-end gap-2 mt-1">
+              <button onclick="cancelQueue()" class="text-[10px] border border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 px-2.5 py-1 rounded font-medium">Batalkan</button>
+              <button onclick="sendNow()" class="text-[10px] bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded font-medium shadow">Kirim Sekarang</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Composer Panel (Redesigned with Split-Tab Composer Mode) -->
+      <div class="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-5 py-4 shrink-0">
+        
+        <!-- Tab Headers -->
+        <div class="flex gap-1 mb-2">
+          <button id="replyTab" onclick="setComposerMode('reply')" class="px-3 py-1.5 rounded-t-lg text-xs font-semibold bg-violet-600 text-white border-t border-x border-violet-600/20 shadow-sm transition-all duration-150">
+            Balas Publik
+          </button>
+          <button id="noteTab" onclick="setComposerMode('note')" class="px-3 py-1.5 rounded-t-lg text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all duration-150">
+            Catatan / Draf AI
+          </button>
+        </div>
+
+        <!-- Composer Box -->
+        <div id="composerBox" class="border border-violet-500 dark:border-violet-600 rounded-lg p-2.5 bg-white dark:bg-slate-950 transition-all duration-300 flex flex-col gap-2 shadow-sm">
+          <textarea id="textarea" placeholder="Tulis balasan publik ke WhatsApp..." class="w-full text-sm bg-transparent border-0 focus:outline-none resize-none min-h-[80px]" rows="3"></textarea>
+          
+          <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-900 pt-2 shrink-0">
+            <div class="flex gap-1.5">
+              <button id="loadDraftBtn" class="flex items-center gap-1 text-[11px] font-semibold text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/20 px-2 py-1 rounded transition-colors">
+                ✨ Muat Draft AI
+              </button>
+              <button class="flex items-center gap-1 text-[11px] text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 px-2 py-1 rounded transition-colors">
+                ⚠️ Eskalasi
+              </button>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-slate-400">Ctrl+Enter</span>
+              <button class="bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs px-3.5 py-1.5 rounded-md transition-all duration-150 shadow active:scale-95">
+                Kirim
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 4. Client Context Panel (Collapsible Right Column) -->
+    <div id="contextPanel" class="w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col shrink-0 transition-all duration-300">
+      
+      <!-- Panel Header -->
+      <div class="h-14 border-b border-slate-200 dark:border-slate-800 px-5 flex items-center justify-between shrink-0">
+        <h3 class="font-semibold text-xs uppercase tracking-wider text-slate-400">Detail Klien</h3>
+        <button id="closeDrawerBtn" class="p-1 hover:bg-slate-100 dark:hover:bg-slate-900 rounded transition-colors">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- Panel Content -->
+      <div class="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
+        
+        <!-- Profile info card -->
+        <div class="text-center pb-4 border-b border-slate-100 dark:border-slate-900">
+          <div class="w-16 h-16 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-600 dark:text-violet-400 flex items-center justify-center font-bold text-2xl mx-auto shadow-sm">AS</div>
+          <h4 class="font-bold text-sm mt-3">Abigail Smith</h4>
+          <p class="text-xs text-slate-400 mt-1">Lead Client (Potensial Buyer)</p>
+          <span class="inline-block text-[10px] mt-2 px-2.5 py-0.5 font-medium rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">Aktif Chatting</span>
+        </div>
+
+        <!-- Meta Details -->
+        <div class="space-y-3 text-xs">
+          <div class="flex justify-between">
+            <span class="text-slate-400">WhatsApp</span>
+            <span class="font-medium">+62 812-3456-7890</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Kategori</span>
+            <span class="font-medium">Jadwal & Fitting</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Zona Waktu</span>
+            <span class="font-medium">WIB (UTC+7)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Dibuat Pada</span>
+            <span class="font-medium">10 Juli 2026</span>
+          </div>
+        </div>
+
+        <!-- Notes Section -->
+        <div class="border-t border-slate-100 dark:border-slate-900 pt-4 space-y-3">
+          <h5 class="font-semibold text-xs text-slate-400 uppercase tracking-wider">Catatan Staf</h5>
+          <div class="bg-amber-500/5 border border-amber-500/10 p-3 rounded-lg text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+            "Abigail sempat tanya slot fitting gaun hari Sabtu jam 14:00. AI merekomendasikan opsi slot kosong. Perlu follow up konfirmasi pembayaran booking fee."
+          </div>
+          <textarea placeholder="Tambah catatan internal baru..." class="w-full text-xs p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500" rows="2"></textarea>
+        </div>
+
+        <!-- Tagging Section -->
+        <div class="border-t border-slate-100 dark:border-slate-900 pt-4 space-y-3">
+          <h5 class="font-semibold text-xs text-slate-400 uppercase tracking-wider">Tags</h5>
+          <div class="flex flex-wrap gap-1">
+            <span class="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">Gaun Pernikahan</span>
+            <span class="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">Fitting Sabtu</span>
+            <span class="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">High Intent</span>
+            <button class="text-[10px] text-violet-600 hover:underline font-semibold">+ Tambah Tag</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const contextPanel = document.getElementById('contextPanel');
+    const toggleDrawerBtn = document.getElementById('toggleDrawerBtn');
+    const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+    
+    const toggleDrawer = () => {
+      if (contextPanel.classList.contains('w-80')) {
+        contextPanel.classList.remove('w-80');
+        contextPanel.classList.add('w-0', 'overflow-hidden', 'opacity-0');
+      } else {
+        contextPanel.classList.remove('w-0', 'overflow-hidden', 'opacity-0');
+        contextPanel.classList.add('w-80');
+      }
+    };
+
+    toggleDrawerBtn.addEventListener('click', toggleDrawer);
+    closeDrawerBtn.addEventListener('click', toggleDrawer);
+
+    // Filter Style Switcher (Dropdown vs Segmented Tab)
+    function switchFilterStyle(style) {
+      const dropdownSection = document.getElementById('filterStyleDropdown');
+      const segmentSection = document.getElementById('filterStyleSegment');
+      const toggleDropdown = document.getElementById('toggleBtnDropdown');
+      const toggleSegment = document.getElementById('toggleBtnSegment');
+
+      if (style === 'dropdown') {
+        dropdownSection.classList.remove('hidden');
+        segmentSection.classList.add('hidden');
+        toggleDropdown.className = "px-2 py-0.5 rounded-md text-[9px] font-semibold bg-violet-600 text-white transition-all duration-100";
+        toggleSegment.className = "px-2 py-0.5 rounded-md text-[9px] font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all duration-100";
+      } else {
+        dropdownSection.classList.add('hidden');
+        segmentSection.classList.remove('hidden');
+        toggleSegment.className = "px-2 py-0.5 rounded-md text-[9px] font-semibold bg-violet-600 text-white transition-all duration-100";
+        toggleDropdown.className = "px-2 py-0.5 rounded-md text-[9px] font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all duration-100";
+      }
+      // Hide active dropdown menu
+      document.getElementById('dropdownMenu').classList.add('hidden');
+    }
+
+    // Dropdown toggle menu logic
+    function toggleDropdownMenu() {
+      const menu = document.getElementById('dropdownMenu');
+      menu.classList.toggle('hidden');
+    }
+
+    // Close dropdown on clicking elsewhere
+    window.addEventListener('click', (e) => {
+      const dropdownBtn = document.getElementById('dropdownBtn');
+      const menu = document.getElementById('dropdownMenu');
+      if (dropdownBtn && !dropdownBtn.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+
+    // Dropdown Select Item Logic
+    function selectDropdownFilter(filterName, badgeValue) {
+      const label = document.getElementById('selectedFilterText');
+      const menu = document.getElementById('dropdownMenu');
+      
+      label.textContent = filterName;
+      menu.classList.add('hidden');
+      
+      // Update checkmarks in UI
+      const buttons = menu.children;
+      for (const btn of buttons) {
+        const textSpan = btn.querySelector('span');
+        const checkSpan = btn.querySelector('.text-violet-600');
+        if (textSpan.textContent.includes(filterName)) {
+          if (!checkSpan) {
+            const check = document.createElement('span');
+            check.className = 'text-violet-600';
+            check.textContent = '✓';
+            btn.appendChild(check);
+          }
+          btn.classList.add('font-semibold');
+        } else {
+          if (checkSpan) checkSpan.remove();
+          btn.classList.remove('font-semibold');
+        }
+      }
+    }
+
+    // Segment Selector Logic
+    function setSegmentActive(element) {
+      const buttons = element.parentElement.children;
+      for (const btn of buttons) {
+        btn.className = "py-1 rounded-md text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 transition-all duration-150 flex items-center justify-center gap-1";
+      }
+      element.className = "py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 shadow-sm transition-all duration-150 flex items-center justify-center gap-1";
+    }
+
+    // Composer modes selector
+    function setComposerMode(mode) {
+      const replyTab = document.getElementById('replyTab');
+      const noteTab = document.getElementById('noteTab');
+      const composerBox = document.getElementById('composerBox');
+      const textarea = document.getElementById('textarea');
+      const loadDraftBtn = document.getElementById('loadDraftBtn');
+
+      if (mode === 'reply') {
+        replyTab.className = "px-3 py-1.5 rounded-t-lg text-xs font-semibold bg-violet-600 text-white border-t border-x border-violet-600/20 shadow-sm transition-all duration-150";
+        noteTab.className = "px-3 py-1.5 rounded-t-lg text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all duration-150";
+        
+        composerBox.className = "border border-violet-500 dark:border-violet-600 rounded-lg p-2.5 bg-white dark:bg-slate-950 transition-all duration-300 flex flex-col gap-2 shadow-sm";
+        textarea.placeholder = "Tulis balasan publik ke WhatsApp...";
+        loadDraftBtn.style.display = "flex";
+      } else {
+        noteTab.className = "px-3 py-1.5 rounded-t-lg text-xs font-semibold bg-amber-500 text-white border-t border-x border-amber-500/20 shadow-sm transition-all duration-150";
+        replyTab.className = "px-3 py-1.5 rounded-t-lg text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all duration-150";
+        
+        composerBox.className = "border border-amber-500 dark:border-amber-600 rounded-lg p-2.5 bg-amber-500/5 dark:bg-amber-950/10 transition-all duration-300 flex flex-col gap-2 shadow-sm";
+        textarea.placeholder = "Tulis catatan internal atau edit draf respon AI di sini (tidak terkirim ke klien)...";
+        loadDraftBtn.style.display = "none";
+      }
+    }
+
+    // Mock countdown
+    let count = 272;
+    const timerEl = document.getElementById('timer');
+    setInterval(() => {
+      if (count > 0) {
+        count--;
+        const m = Math.floor(count / 60);
+        const s = String(count % 60).padStart(2, '0');
+        timerEl.textContent = `${m}:${s}`;
+      }
+    }, 1000);
+
+    function cancelQueue() {
+      alert("Pengiriman otomatis AI dibatalkan.");
+    }
+    
+    function sendNow() {
+      alert("Pesan dikirim sekarang.");
+    }
+  </script>
+</body>
+</html>

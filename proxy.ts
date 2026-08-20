@@ -1,5 +1,5 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from "@supabase/ssr"
+import { type NextRequest, NextResponse } from "next/server"
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -16,46 +16,56 @@ export async function proxy(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options),
           )
         },
       },
-    }
+    },
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   const publicPaths = [
-    '/login',
-    '/register',
-    '/privacy-policy',
-    '/terms',
-    '/about',
-    '/api/auth',
-    '/api/webhook',
-    '/api/whatsapp/connected',
-    '/api/whatsapp/disconnected',
-    '/assets',
-    '/favicon.ico',
-    '/icon.svg',
-    '/apple-icon.svg',
-    '/og-image.svg',
-    '/opengraph-image',
+    "/login",
+    "/register",
+    "/privacy-policy",
+    "/terms",
+    "/about",
+    "/pricing",
+    "/checkout",
+    "/payment",
+    "/api/auth",
+    "/api/webhook",
+    "/api/payment",
+    "/api/subscription",
+    "/api/whatsapp/connected",
+    "/api/whatsapp/disconnected",
+    "/assets",
+    "/landing",
+    "/favicon.ico",
+    "/icon.svg",
+    "/apple-icon.svg",
+    "/og-image.svg",
+    "/opengraph-image",
   ]
   const pathname = request.nextUrl.pathname
-  const isPublic = pathname === '/' || publicPaths.some(p => pathname.startsWith(p))
+  const isPublic = pathname === "/" || publicPaths.some((p) => pathname.startsWith(p))
 
   if (!user && !isPublic) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  if (user && (pathname === '/' || pathname === '/login' || pathname === '/register')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+  if (user && (pathname === "/" || pathname === "/login" || pathname === "/register")) {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
   return supabaseResponse
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|assets|favicon.ico|icon.svg|apple-icon.svg|og-image.svg).*)'],
+  matcher: [
+    "/((?!_next/static|_next/image|assets|landing|favicon.ico|icon.svg|apple-icon.svg|og-image.svg).*)",
+  ],
 }

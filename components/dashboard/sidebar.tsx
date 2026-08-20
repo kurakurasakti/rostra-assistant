@@ -1,46 +1,54 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
-import { cn } from '@/lib/utils'
 import {
+  CreditCard,
   LayoutDashboard,
-  Users,
-  MessageSquare,
-  Settings,
   LogOut,
-  Sun,
+  MessageSquare,
   Moon,
-} from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { NotificationBell } from '@/components/dashboard/notification-bell'
-import { Logo } from '@/components/logo'
+  Settings,
+  ShieldCheck,
+  Sun,
+  Users,
+} from "lucide-react"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
+import { NotificationBell } from "@/components/dashboard/notification-bell"
+import { Logo } from "@/components/logo"
+import { createClient } from "@/lib/supabase/client"
+import { cn } from "@/lib/utils"
 
-const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/clients', label: 'Klien', icon: Users },
-  { href: '/inbox', label: 'Kotak Masuk', icon: MessageSquare },
-  { href: '/settings', label: 'Pengaturan', icon: Settings },
-]
+interface SidebarProps {
+  isAdmin?: boolean
+}
 
-export function Sidebar() {
+export function Sidebar({ isAdmin = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
+  const navItems = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/clients", label: "Klien", icon: Users },
+    { href: "/inbox", label: "Kotak Masuk", icon: MessageSquare },
+    { href: "/billing", label: "Langganan", icon: CreditCard },
+    ...(isAdmin ? [{ href: "/admin/payments", label: "Admin Portal", icon: ShieldCheck }] : []),
+    { href: "/settings", label: "Pengaturan", icon: Settings },
+  ]
+
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/login')
+    router.push("/login")
     router.refresh()
   }
 
   function toggleTheme() {
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+    setTheme(resolvedTheme === "dark" ? "light" : "dark")
   }
 
   return (
@@ -50,7 +58,7 @@ export function Sidebar() {
         <Logo variant="mark" className="lg:hidden" height={28} />
         <Logo
           variant="lockup"
-          tone={mounted && resolvedTheme === 'dark' ? 'dark' : 'light'}
+          tone={mounted && resolvedTheme === "dark" ? "dark" : "light"}
           className="hidden lg:block"
           height={26}
         />
@@ -59,21 +67,24 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-2 lg:px-3 py-4 space-y-0.5">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || (href !== '/' && pathname.startsWith(href))
+          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href))
           return (
             <Link
               key={href}
               href={href}
               title={label}
               className={cn(
-                'flex items-center gap-3 px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150',
-                'justify-center lg:justify-start',
+                "flex items-center gap-3 px-2 lg:px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
+                "justify-center lg:justify-start",
                 isActive
-                  ? 'bg-primary/10 text-primary lg:border-l-2 lg:border-accent lg:pl-[10px]'
-                  : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'
+                  ? "bg-primary/10 text-primary lg:border-l-2 lg:border-accent lg:pl-[10px]"
+                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
               )}
             >
-              <Icon suppressHydrationWarning className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-accent' : '')} />
+              <Icon
+                suppressHydrationWarning
+                className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-accent" : "")}
+              />
               <span className="hidden lg:inline">{label}</span>
             </Link>
           )
@@ -85,10 +96,10 @@ export function Sidebar() {
         <NotificationBell />
         <button
           onClick={toggleTheme}
-          title={mounted && resolvedTheme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}
+          title={mounted && resolvedTheme === "dark" ? "Mode Terang" : "Mode Gelap"}
           className="flex items-center gap-3 px-2 lg:px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground w-full transition-colors justify-center lg:justify-start"
         >
-          {mounted && resolvedTheme === 'dark' ? (
+          {mounted && resolvedTheme === "dark" ? (
             <>
               <Sun suppressHydrationWarning className="w-4 h-4 flex-shrink-0" />
               <span className="hidden lg:inline">Mode Terang</span>

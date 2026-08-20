@@ -1,196 +1,242 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { AlertCircle, ArrowRight, Eye, EyeOff, Sparkles } from 'lucide-react'
-import { Logo } from '@/components/logo'
-import { AuthBrandPanel } from '@/components/auth/AuthBrandPanel'
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
-    ),
-  ])
-}
+import { AlertCircle, Eye, EyeOff, Lock, ShieldAlert } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { AuthAmbientBg } from "@/components/auth/auth-ambient-bg"
+import { Logo } from "@/components/logo"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [trapField, setTrapField] = useState("") // Bot honeypot
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState("")
+  const [warning, setWarning] = useState("")
   const [loading, setLoading] = useState(false)
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null)
+
+  // Live countdown timer for rate limit lockout
+  useEffect(() => {
+    if (countdownSeconds === null || countdownSeconds <= 0) return
+
+    const timer = setInterval(() => {
+      setCountdownSeconds((prev) => {
+        if (prev === null || prev <= 1) {
+          setError("")
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [countdownSeconds])
+
+  function formatTime(totalSeconds: number): string {
+    const mins = Math.floor(totalSeconds / 60)
+    const secs = totalSeconds % 60
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
+    if (countdownSeconds && countdownSeconds > 0) return
+
     setLoading(true)
-    setError('')
+    setError("")
+    setWarning("")
 
     try {
-      const supabase = createClient()
-      const { error } = await withTimeout(
-        supabase.auth.signInWithPassword({ email, password }),
-        10000,
-        'signInWithPassword'
-      )
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          trapField, // Should be empty for real humans
+        }),
+      })
 
-      if (error) {
-        console.error('[login] signInWithPassword failed:', error)
-        setError('Email atau password salah. Periksa lagi, lalu coba masuk.')
+      const data = await res.json()
+
+      if (res.status === 429) {
+        // Rate limited / Locked out
+        const retryAfter = data.retryAfterSeconds || 900
+        setCountdownSeconds(retryAfter)
+        setError(data.error || "Terlalu banyak percobaan gagal. Akun dikunci sementara demi keamanan.")
         setLoading(false)
         return
       }
 
-      const { data: profile, error: profileError } = await withTimeout(
-        Promise.resolve(supabase.from('profiles').select('onboarding_complete').single()),
-        10000,
-        'profile fetch'
-      )
-
-      if (profileError) {
-        console.error('[login] profile fetch failed:', profileError)
+      if (!res.ok) {
+        setError(data.error || "Email atau password salah.")
+        setLoading(false)
+        return
       }
 
-      if (profile && !profile.onboarding_complete) {
-        router.push('/settings')
-      } else {
-        router.push('/dashboard')
-      }
+      // Success
+      router.push(data.redirectTo || "/dashboard")
       router.refresh()
     } catch (err) {
-      console.error('[login] unexpected error:', err)
-      setError('Tidak bisa terhubung ke server. Cek koneksi internetmu, lalu coba lagi.')
+      console.error("[login] unexpected error:", err)
+      setError("Gagal terhubung ke server. Periksa koneksi internet kamu.")
       setLoading(false)
     }
   }
 
+  const isLocked = countdownSeconds !== null && countdownSeconds > 0
+
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: '#F8F6F2' }}>
-      <AuthBrandPanel>
-        <div className="space-y-8">
-          <h1 className="text-white font-display font-bold text-4xl xl:text-[2.75rem] leading-[1.15] tracking-tight">
-            WhatsApp kamu
-            <br />
-            tetap terbalas,
-            <br />
-            <span style={{ color: '#E8A33D' }}>bahkan jam 10 malam.</span>
-          </h1>
+    <div
+      className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-6 py-12"
+      style={{ backgroundColor: "#F8F6F2" }}
+    >
+      <AuthAmbientBg goldOpacity={0.22} aubergineOpacity={0.26} />
 
-          {/* Chat vignette — what Glim actually does */}
-          <div aria-hidden="true" className="max-w-xs space-y-2">
-            <div className="rounded-xl rounded-tl-sm bg-white/95 px-3.5 py-2.5 shadow-lg">
-              <p className="text-xs leading-relaxed" style={{ color: '#1A1A18' }}>
-                Kak, jadi berapa harga kebaya custom size M? 🙏
-              </p>
-              <p className="text-right text-[10px] mt-1" style={{ color: '#9B9590' }}>22:41</p>
-            </div>
-            <div
-              className="rounded-xl border-2 px-3.5 py-2.5 shadow-lg"
-              style={{ backgroundColor: '#FFFBF3', borderColor: '#E8A33D' }}
-            >
-              <p className="flex items-center gap-1.5 text-[10px] font-semibold mb-1" style={{ color: '#B8720A' }}>
-                <Sparkles className="w-3 h-3" /> Draft AI siap dikirim
-              </p>
-              <p className="text-xs leading-relaxed" style={{ color: '#1A1A18' }}>
-                Halo Kak! Kebaya custom size M mulai dari Rp 850.000 ya 😊
-              </p>
-            </div>
-          </div>
-        </div>
-      </AuthBrandPanel>
-
-      {/* Form side */}
-      <div className="flex-1 flex flex-col px-6 py-8 lg:py-12">
-        <div className="lg:hidden">
-          <Logo variant="lockup" tone="light" height={26} />
+      <div className="relative z-10 w-full flex flex-col items-center">
+        <div className="flex items-center mb-8">
+          <Logo variant="lockup" tone="light" height={30} />
         </div>
 
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-full max-w-sm animate-fade-up">
-            <div className="mb-8">
-              <h2 className="font-display font-bold text-[1.75rem] tracking-tight" style={{ color: '#1A1A18' }}>
-                Masuk ke Glim
+        <div className="w-full max-w-md animate-fade-up">
+          <div
+            className="rounded-2xl bg-white border p-8 shadow-sm"
+            style={{ borderColor: "#E8E4DC" }}
+          >
+            <div className="mb-7">
+              <h2 className="font-display font-bold text-2xl tracking-tight text-foreground">
+                Selamat datang kembali 👋
               </h2>
-              <p className="text-sm mt-1.5" style={{ color: '#6B6862' }}>
-                Lanjutkan mengelola pesan dan pesanan bisnismu.
-              </p>
+              <p className="text-muted-foreground text-sm mt-1">Masuk untuk melanjutkan ke Glim</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4" suppressHydrationWarning>
+              {/* Invisible Honeypot field to trap automated brute-force bots */}
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: "-9999px",
+                  top: "-9999px",
+                  opacity: 0,
+                  pointerEvents: "none",
+                }}
+              >
+                <input
+                  type="text"
+                  name="website_url_field"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={trapField}
+                  onChange={(e) => setTrapField(e.target.value)}
+                />
+              </div>
+
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium">
+                  Email
+                </Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="kamu@email.com"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={loading || isLocked}
                   autoComplete="email"
-                  className="h-11 rounded-xl bg-white"
+                  className="h-10 rounded-xl border-[#E8E4DC]"
+                  style={{ backgroundColor: "#FAF8F4" }}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                <Label htmlFor="password" className="text-sm font-medium">
+                  Password
+                </Label>
                 <div className="relative">
                   <Input
                     id="password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
+                    disabled={loading || isLocked}
                     autoComplete="current-password"
-                    className="h-11 rounded-xl bg-white pr-11"
+                    className="h-10 pr-10 rounded-xl border-[#E8E4DC]"
+                    style={{ backgroundColor: "#FAF8F4" }}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(v => !v)}
-                    aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                    onClick={() => setShowPassword((v) => !v)}
+                    disabled={loading || isLocked}
+                    aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {error && (
-                <div className="flex items-start gap-2 rounded-xl bg-destructive/10 border border-destructive/20 px-3 py-2.5 text-sm text-destructive">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  {error}
+              {/* Lockout Notice with Live Timer */}
+              {isLocked && (
+                <div className="flex items-start gap-2.5 rounded-xl bg-destructive/10 border border-destructive/25 p-3.5 text-xs text-destructive animate-fade-up">
+                  <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-sm">Akun Dikunci Sementara</p>
+                    <p className="leading-relaxed">
+                      Terlalu banyak percobaan login yang gagal. Silakan tunggu:
+                    </p>
+                    <div className="font-mono font-bold text-sm bg-destructive/15 px-2.5 py-1 rounded-md inline-block mt-1">
+                      ⏳ {formatTime(countdownSeconds)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Notice */}
+              {error && !isLocked && (
+                <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2.5 text-sm text-destructive animate-fade-up">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Warning Notice */}
+              {warning && !isLocked && (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/25 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400 animate-fade-up">
+                  <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                  <span>{warning}</span>
                 </div>
               )}
 
               <Button
                 type="submit"
-                className="w-full h-11 rounded-xl font-medium font-display text-[0.9rem]"
-                disabled={loading}
+                className="w-full h-10 font-medium font-display"
+                disabled={loading || isLocked}
               >
-                {loading ? 'Sedang masuk...' : (
-                  <span className="inline-flex items-center gap-2">
-                    Masuk <ArrowRight className="w-4 h-4" />
-                  </span>
-                )}
+                {isLocked
+                  ? `Tunggu (${formatTime(countdownSeconds)})`
+                  : loading
+                    ? "Memverifikasi..."
+                    : "Masuk"}
               </Button>
             </form>
-
-            <div className="mt-8 pt-6 border-t" style={{ borderColor: '#E8E4DC' }}>
-              <p className="text-center text-sm" style={{ color: '#6B6862' }}>
-                Belum punya akun?{' '}
-                <Link href="/register" className="text-primary font-medium hover:underline">
-                  Daftar dengan kode undangan
-                </Link>
-              </p>
-            </div>
           </div>
+
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            Belum punya akun?{" "}
+            <Link href="/register" className="text-primary font-medium hover:underline">
+              Daftar di sini
+            </Link>
+          </p>
         </div>
       </div>
     </div>

@@ -1,19 +1,21 @@
-'use client'
+"use client"
 
-import { Suspense, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { AlertCircle, Loader2 } from 'lucide-react'
-import { Logo } from '@/components/logo'
+import { AlertCircle, Loader2 } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
+import { Logo } from "@/components/logo"
+import { Button } from "@/components/ui/button"
+import { createClient } from "@/lib/supabase/client"
 
 export default function AuthCallbackPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      }
+    >
       <AuthCallbackInner />
     </Suspense>
   )
@@ -27,10 +29,10 @@ function AuthCallbackInner() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      const code = searchParams.get('code')
+      const code = searchParams.get("code")
 
       if (!code) {
-        setError('Tidak ada kode verifikasi. Link mungkin sudah kadaluarsa.')
+        setError("Tidak ada kode verifikasi. Link mungkin sudah kadaluarsa.")
         setLoading(false)
         return
       }
@@ -46,7 +48,8 @@ function AuthCallbackInner() {
 
         try {
           // Modern approach: exchangeCodeForSession
-          const { data: exchangeData, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code)
+          const { data: exchangeData, error: exchangeErr } =
+            await supabase.auth.exchangeCodeForSession(code)
           if (!exchangeErr) {
             session = exchangeData.session
             user = exchangeData.user
@@ -56,9 +59,9 @@ function AuthCallbackInner() {
         } catch {
           // Fallback to verifyOtp for legacy versions
           const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({
-            email: searchParams.get('email') || '',
+            email: searchParams.get("email") || "",
             token: code,
-            type: 'signup',
+            type: "signup",
           })
           if (!verifyErr) {
             session = verifyData.session
@@ -69,51 +72,51 @@ function AuthCallbackInner() {
         }
 
         if (verifyError) {
-          console.error('[auth callback] verification error:', verifyError)
+          console.error("[auth callback] verification error:", verifyError)
           setError(`Verifikasi gagal: ${verifyError.message}`)
           setLoading(false)
           return
         }
 
         if (!user) {
-          setError('Verifikasi gagal: data user tidak ditemukan.')
+          setError("Verifikasi gagal: data user tidak ditemukan.")
           setLoading(false)
           return
         }
 
-        console.log('[auth callback] email verified, user:', user.id)
+        console.log("[auth callback] email verified, user:", user.id)
 
         // Save terms consent on first verification
         const { error: updateError } = await supabase
-          .from('profiles')
+          .from("profiles")
           .update({
             terms_agreed_at: new Date().toISOString(),
-            terms_version: process.env.NEXT_PUBLIC_TERMS_VERSION || '1.0',
+            terms_version: process.env.NEXT_PUBLIC_TERMS_VERSION || "1.0",
             updated_at: new Date().toISOString(),
           })
-          .eq('id', user.id)
+          .eq("id", user.id)
 
         if (updateError) {
-          console.error('[auth callback] update profile error:', updateError)
+          console.error("[auth callback] update profile error:", updateError)
         }
 
         // Check onboarding status
         const { data: profile } = await supabase
-          .from('profiles')
-          .select('onboarding_complete')
-          .eq('id', user.id)
+          .from("profiles")
+          .select("onboarding_complete")
+          .eq("id", user.id)
           .single()
 
         // Redirect to settings for onboarding or dashboard if complete
         if (profile && !profile.onboarding_complete) {
-          router.push('/settings')
+          router.push("/settings")
         } else {
-          router.push('/dashboard')
+          router.push("/dashboard")
         }
         router.refresh()
       } catch (err) {
-        console.error('[auth callback] unexpected error:', err)
-        setError('Terjadi kesalahan. Coba lagi atau hubungi kami.')
+        console.error("[auth callback] unexpected error:", err)
+        setError("Terjadi kesalahan. Coba lagi atau hubungi kami.")
         setLoading(false)
       }
     }
@@ -135,10 +138,12 @@ function AuthCallbackInner() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 relative overflow-hidden"
+      <div
+        className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between p-12 relative overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, #4a2560 0%, #703c8b 40%, #8b5aa3 100%)'
-        }}>
+          background: "linear-gradient(135deg, #4a2560 0%, #703c8b 40%, #8b5aa3 100%)",
+        }}
+      >
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -bottom-32 -left-32 w-[500px] h-[500px] rounded-full bg-white/5" />
           <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5" />
@@ -151,8 +156,10 @@ function AuthCallbackInner() {
         <div className="relative space-y-6">
           <div>
             <h1 className="text-white font-display font-bold text-4xl xl:text-5xl leading-tight tracking-tight">
-              Bisnis lebih rapi,<br />
-              pelanggan lebih<br />
+              Bisnis lebih rapi,
+              <br />
+              pelanggan lebih
+              <br />
               senang.
             </h1>
             <p className="text-white/70 mt-4 text-base leading-relaxed max-w-xs">
@@ -162,7 +169,9 @@ function AuthCallbackInner() {
         </div>
 
         <div className="relative">
-          <p className="text-white/40 text-xs">© 2025 Glim. Dibuat dengan ♥ untuk bisnis Indonesia.</p>
+          <p className="text-white/40 text-xs">
+            © 2025 Glim. Dibuat dengan ♥ untuk bisnis Indonesia.
+          </p>
         </div>
       </div>
 
@@ -179,15 +188,21 @@ function AuthCallbackInner() {
             </div>
             <div>
               <h2 className="font-display font-bold text-2xl tracking-tight">Verifikasi Gagal</h2>
-              <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
-                {error}
-              </p>
+              <p className="text-muted-foreground text-sm mt-2 leading-relaxed">{error}</p>
             </div>
             <div className="pt-2 space-y-2">
-              <Button variant="default" className="w-full font-display" onClick={() => router.push('/login')}>
+              <Button
+                variant="default"
+                className="w-full font-display"
+                onClick={() => router.push("/login")}
+              >
                 Ke Halaman Login
               </Button>
-              <Button variant="outline" className="w-full font-display" onClick={() => router.push('/register')}>
+              <Button
+                variant="outline"
+                className="w-full font-display"
+                onClick={() => router.push("/register")}
+              >
                 Coba Daftar Lagi
               </Button>
             </div>
