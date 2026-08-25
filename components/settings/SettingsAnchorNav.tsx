@@ -10,6 +10,7 @@ const sections = [
   { id: "business", label: "Pengetahuan Bisnis" },
   { id: "ai", label: "AI & Eskalasi" },
   { id: "import", label: "Impor Data" },
+  { id: "system", label: "Tentang Aplikasi" },
   { id: "danger", label: "Zona Berbahaya" },
 ] as const
 

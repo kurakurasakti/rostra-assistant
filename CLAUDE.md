@@ -17,10 +17,25 @@ WhatsApp CRM + AI auto-reply for Indonesian SMBs (fashion/tailoring niche). Mult
 ```bash
 pnpm dev        # dev server
 pnpm build      # production build
-pnpm lint       # ESLint
+pnpm test       # run Vitest unit tests
+pnpm lint       # Biome linter
 ```
 
 Webhook local testing: `ngrok` is a devDependency — run `npx ngrok http 3000` to expose `/api/webhook/whatsapp`.
+
+---
+
+## Versioning & CI Releases
+
+This repository uses **Google's Release Please** (`.github/workflows/release.yml`) for automated semantic versioning and release management.
+
+- **Conventional Commits**: Commits to `main` determine semver bumps:
+  - `fix: ...` → Patch bump (`0.1.0` → `0.1.1`)
+  - `feat: ...` → Minor bump (`0.1.0` → `0.2.0`)
+  - `feat!: ...` or `BREAKING CHANGE:` → Major bump (`0.1.0` → `1.0.0`)
+- **Automated Release PR**: When conventional commits are pushed to `main`, GitHub Actions creates or updates a release pull request tracking all changes in `CHANGELOG.md` and bumping version in `package.json` & `.release-please-manifest.json`.
+- **Release & Tagging**: Merging the release PR automatically tags the repository (`vX.Y.Z`) and generates a GitHub Release.
+- **In-App Version**: The current version is exported in `lib/version.ts` as `APP_VERSION` and displayed in the sidebar footer and Settings page.
 
 ---
 

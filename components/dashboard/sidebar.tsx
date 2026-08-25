@@ -9,6 +9,7 @@ import { NotificationBell } from "@/components/dashboard/notification-bell"
 import { Logo } from "@/components/logo"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
+import { APP_VERSION } from "@/lib/version"
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -104,6 +105,12 @@ export function Sidebar() {
           <LogOut suppressHydrationWarning className="w-4 h-4 flex-shrink-0" />
           <span className="hidden lg:inline">Keluar</span>
         </button>
+
+        <div className="pt-2 px-2 flex justify-center lg:justify-start">
+          <span className="text-[11px] font-mono text-muted-foreground/60 select-none">
+            v{APP_VERSION}
+          </span>
+        </div>
       </div>
     </aside>
   )

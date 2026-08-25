@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Info,
   Loader2,
   MessageSquare,
   Plus,
@@ -25,6 +26,7 @@ import TemplatesSection from "@/components/settings/TemplatesSection"
 import TonePresetPicker from "@/components/settings/TonePresetPicker"
 import WhatsAppSection from "@/components/settings/WhatsAppSection"
 import { Button } from "@/components/ui/button"
+import { APP_VERSION } from "@/lib/version"
 import {
   Dialog,
   DialogContent,
@@ -800,6 +802,46 @@ export default function SettingsPage() {
         <section id="import" className="scroll-mt-24">
           <div className="rounded-xl border border-border bg-card p-5">
             <ImportDataSection />
+          </div>
+        </section>
+
+        {/* System & Version Information */}
+        <section id="system" className="scroll-mt-24">
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-muted-foreground" />
+              <div>
+                <h2 className="font-display font-semibold text-sm">Tentang & Versi Aplikasi</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Informasi versi dan status sistem Glim Assistant.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="rounded-lg border border-border bg-muted/20 p-3.5 space-y-1">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Versi Aplikasi
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm font-semibold text-foreground">
+                    v{APP_VERSION}
+                  </span>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    Aktif
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/20 p-3.5 space-y-1">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Rilis Otomatis (CI)
+                </span>
+                <p className="text-sm font-medium text-foreground">
+                  Release Please via GitHub Actions
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
