@@ -85,7 +85,7 @@ alter table profiles
       Nama produk/layanan * | Kisaran harga * | Keterangan (optional)
       "Gaun kebaya custom"  | "750k – 2.5jt"  | "tergantung model dan bahan"
       "Alterasi baju"       | "50k – 200k"    | "tergantung jenis pekerjaan"
-      [+ Tambah Produk]
+      [Tambah Produk]
       ```
 
       **Sub-section: Info Operasional**

@@ -453,7 +453,7 @@ export default function DashboardPage() {
             className="h-9 px-3.5 text-xs font-medium gap-1.5 shadow-xs hover:border-primary/50"
           >
             <UserPlus className="w-3.5 h-3.5 text-muted-foreground" />
-            + Tambah Klien
+            Tambah Klien
           </Button>
 
           <Button
@@ -462,7 +462,7 @@ export default function DashboardPage() {
             className="h-9 px-4 text-xs font-medium gap-1.5 shadow-sm"
           >
             <Plus className="w-3.5 h-3.5" />
-            + Pesanan Baru
+            Pesanan Baru
           </Button>
         </div>
       </div>

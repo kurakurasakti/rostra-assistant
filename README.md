@@ -479,7 +479,7 @@ Each stage row:
   Ingatkan X hari sebelum  (number input, default: 2)
   [Hapus row button]
 
-[+ Tambah Tahap Pembayaran button]
+[Tambah Tahap Pembayaran button]
 
 Validation: sum of all stage amounts should equal total_price.
 If mismatch: show warning "Total tahap pembayaran (Rp X) tidak sama dengan harga pesanan (Rp Y)"
@@ -496,7 +496,7 @@ Each appointment row:
   Catatan         (text, optional)
   [Hapus row button]
 
-[+ Tambah Janji Temu button]
+[Tambah Janji Temu button]
 ```
 
 **When order is saved:**
