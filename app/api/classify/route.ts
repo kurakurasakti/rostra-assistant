@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server"
 import { classifyMessage } from "@/lib/openrouter"
+import {
+  checkAIRateLimit,
+  createAIRateLimitResponse,
+  estimateTokens,
+  getClientIp,
+  recordAIUsage,
+} from "@/lib/rate-limit"
 import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
@@ -13,7 +20,16 @@ export async function POST(request: Request) {
   if (!body.message_body)
     return NextResponse.json({ error: "message_body required" }, { status: 400 })
 
+  const ip = getClientIp(new Headers(request.headers))
+  const estTokens = estimateTokens(body.message_body) + 150
+
+  const rateLimit = await checkAIRateLimit(user.id, ip, estTokens)
+  if (!rateLimit.allowed) {
+    return createAIRateLimitResponse(rateLimit.retryAfterSeconds, rateLimit.reason)
+  }
+
   const classification = await classifyMessage(body.message_body)
+  await recordAIUsage(user.id, estTokens, ip)
 
   if (body.message_id) {
     await supabase
@@ -25,3 +41,4 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ classification })
 }
+

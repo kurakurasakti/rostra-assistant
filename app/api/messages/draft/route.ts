@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server"
 import { buildAIContext, draftReply } from "@/lib/openrouter"
+import {
+  checkAIRateLimit,
+  createAIRateLimitResponse,
+  estimateTokens,
+  getClientIp,
+  recordAIUsage,
+} from "@/lib/rate-limit"
 import { validateAIOutput } from "@/lib/security"
 import { createClient } from "@/lib/supabase/server"
 
@@ -19,6 +26,14 @@ export async function POST(request: Request) {
     message_id?: string
   }
   if (!body.message) return NextResponse.json({ error: "message required" }, { status: 400 })
+
+  const ip = getClientIp(new Headers(request.headers))
+  const estTokens = estimateTokens(body.message + (body.hint ?? "")) + 500
+
+  const rateLimit = await checkAIRateLimit(user.id, ip, estTokens)
+  if (!rateLimit.allowed) {
+    return createAIRateLimitResponse(rateLimit.retryAfterSeconds, rateLimit.reason)
+  }
 
   // Fetch profile
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
@@ -47,6 +62,10 @@ export async function POST(request: Request) {
     systemPrompt,
     body.hint,
   )
+
+  const actualTokens = usage ? usage.prompt_tokens + usage.completion_tokens : estTokens
+  await recordAIUsage(user.id, actualTokens, ip)
+
 
   const validation = validateAIOutput(draft)
   if (!validation.safe) {

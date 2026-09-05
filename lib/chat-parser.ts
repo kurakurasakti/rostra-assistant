@@ -15,19 +15,22 @@ export interface ChatAnalysis {
 
 // Format 1 (Android/iOS bracketed): [DD/MM/YY, HH:MM:SS] Sender: msg
 const MSG_REGEX_BRACKETED =
-  /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s+(\d{1,2}[.:]\d{2}(?:[.:]\d{2})?)\]\s+([^:]+):\s+([\s\S]*)/
-// Format 2 (Indonesian dash): DD/MM/YY HH.MM - Sender: msg
+  /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s+(\d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s+[aApP][mM])?)\]\s+([^:]+):\s+([\s\S]*)/
+// Format 2 (Indonesian / International dash): DD/MM/YY, HH.MM - Sender: msg
 const MSG_REGEX_DASH =
-  /^(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}[.:]\d{2})\s+-\s+([^:]+):\s+([\s\S]*)/
+  /^(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s+(\d{1,2}[.:]\d{2}(?:[.:]\d{2})?(?:\s+[aApP][mM])?)\s+-\s+([^:]+):\s+([\s\S]*)/
 
 const SYSTEM_PATTERNS = [
   /end-to-end encrypted/i,
+  /pesan dan panggilan terenkripsi/i,
   /changed their phone number/i,
   /\badded\b/i,
   /\bremoved\b/i,
   /\bleft\b/i,
   /<Media omitted>/i,
+  /<Media tidak disertakan>/i,
   /<image omitted>/i,
+  /<gambar tidak disertakan>/i,
   /changed the subject/i,
   /changed the group/i,
   /joined using this group/i,
@@ -36,6 +39,7 @@ const SYSTEM_PATTERNS = [
   /security number changed/i,
   /missed voice call/i,
   /missed video call/i,
+  /panggilan tak terjawab/i,
 ]
 
 function isSystemMessage(content: string): boolean {
@@ -49,7 +53,9 @@ export function parseWhatsAppExport(text: string): ChatAnalysis {
   const messages: ParsedMessage[] = []
   let current: ParsedMessage | null = null
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    // Strip invisible Unicode formatting characters (iOS LTR \u200e, RTL \u200f, BOM \ufeff)
+    const line = rawLine.replace(/[\u200e\u200f\u202a-\u202e\ufeff]/g, "").trim()
     const match = MSG_REGEX_BRACKETED.exec(line) ?? MSG_REGEX_DASH.exec(line)
     if (match) {
       if (current) messages.push(current)
@@ -59,7 +65,7 @@ export function parseWhatsAppExport(text: string): ChatAnalysis {
         sender: sender.trim(),
         content: content.trim(),
       }
-    } else if (current && line.trim()) {
+    } else if (current && line) {
       current.content += "\n" + line
     }
   }
@@ -176,9 +182,9 @@ export function extractQAPairs(messages: ParsedMessage[], adminSender: string): 
       const customerMsg = curr.content.trim()
       const adminReply = next.content.trim()
 
-      // Filter: too short / too long
-      if (customerMsg.length < 5) break
-      if (adminReply.length < 20 || adminReply.length > 400) break
+      // Filter: too short (< 3 chars for customer, < 8 chars for admin) or too long
+      if (customerMsg.length < 3) break
+      if (adminReply.length < 8 || adminReply.length > 500) break
 
       // Filter: trivial admin replies
       if (TRIVIAL_ADMIN_REPLIES.some((t) => adminReply.toLowerCase() === t)) break

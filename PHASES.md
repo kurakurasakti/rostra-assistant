@@ -1036,6 +1036,62 @@ ALTER TABLE profiles
 
 ---
 
+## Phase 6F — Redesign: Pricing, Settings, Auth ✅ SELESAI (belum di-review user)
+
+> Riset via Mobbin MCP (screenshot diarsipkan, tidak disimpan di repo).
+> fal.ai flux/schnell — 1 texture asset dipakai ulang di 3 tempat.
+
+### Aset baru
+
+- [x] `public/landing/batik-parang.jpg` — texture batik garis jahit, dark aubergine.
+      Dipakai di: pricing Pro panel, `AuthBrandPanel` (login + register).
+
+### 6F-1. Landing Pricing — 3 tier, bukan 1 kartu
+
+- [x] `components/landing/pricing-section.tsx` — baru. Grid asimetris 12-kol:
+      Pro (dominan, gelap, batik texture, badge "Paling banyak dipilih") + Gratis/Bisnis (rail kanan, putih).
+      Billing toggle bulanan/tahunan (yearly default), "Everything in X, plus:" progression.
+- [x] `app/page.tsx` — swap kartu pricing lama → `<PricingSection />`
+- **Belum diverifikasi user di browser** (Chrome extension tidak terhubung saat build — hanya smoke-test via SSR markup)
+- **Angka harga masih asumsi, perlu dikonfirmasi user:**
+      Gratis: 100 draft AI/bulan, 20 klien — tier gratis ini BARU, belum pernah ada sebelumnya
+      Pro: Rp 299rb/bln, Rp 249rb/bln billed yearly (Rp 2.988.000/tahun)
+      Bisnis: "Harga menyesuaikan", CTA → `/register?paket=bisnis` (belum ada handling khusus di register page untuk param ini)
+
+### 6F-2. Settings — dari anchor-scroll ke category panes
+
+- [x] `app/(dashboard)/settings/page.tsx` — rewrite total. Category nav (bukan scroll-spy):
+      **Pengaturan**: Profil Bisnis, Koneksi WhatsApp, Impor Data, Akun
+      **Asisten AI**: Gaya Bicara, Pengetahuan Bisnis, Aturan & Eskalasi, Template Pesan
+      Mobile: chip nav horizontal-scroll (sebelumnya nav SAMA SEKALI tidak muncul di mobile — `hidden lg:block`)
+      Deep-link `?tab=` dipertahankan + alias lama (`?tab=business` → `pengetahuan`, dll) tetap resolve
+- [x] Panel **"Coba Draft AI"** sekarang persistent di ke-4 pane Asisten AI (kanan, sticky di xl) —
+      sebelumnya cuma muncul kondisional di bawah textarea brand voice, gampang terlewat
+- [x] Fix bug: `escalation_keywords` dulu ke-double-write (form Profil DAN AIRulesSection sama-sama nulis field ini).
+      Sekarang Profil hanya nulis `business_name`; Gaya Bicara pane punya tombol simpan sendiri untuk `brand_voice`
+- [x] `components/settings/SettingsAnchorNav.tsx` — dihapus (diganti nav di dalam page.tsx)
+- **Delete-account masih TODO stub** (toast placeholder) — pre-existing, tidak disentuh
+- **Belum diverifikasi user di browser** — build passing, belum ada manual click-through
+
+### 6F-3. Login & Register — modern auth panel
+
+- [x] `components/auth/AuthBrandPanel.tsx` — baru. Shared left panel (dark aubergine + batik texture)
+      dipakai login & register, ganti panel gradient generic sebelumnya.
+- [x] `app/login/page.tsx` — rewrite: chat vignette di brand panel (bukan bullet generic),
+      show/hide password toggle, error message diperjelas ("Email atau password salah" bukan raw Supabase error)
+- [x] `app/register/page.tsx` — rewrite: progress indicator 3 langkah (Bisnis/Akun/Undangan),
+      show/hide password toggle, brand panel copy baru
+- **Belum diverifikasi user di browser**
+
+### Belum dikerjakan / next
+
+- [ ] **User harus buka `/`, `/settings`, `/login`, `/register` di browser dan kasih feedback** — semua di atas baru lolos build, belum ada visual review
+- [ ] Konfirmasi angka pricing (lihat 6F-1) sebelum dianggap final
+- [ ] `?paket=bisnis` query param di register belum di-handle (link ada, tujuan belum)
+- [ ] `pnpm lint` rusak di seluruh repo (Next 16 hapus `next lint`, belum ada `eslint.config.js`) — pre-existing, di luar scope redesign ini, perlu diperbaiki terpisah jika mau CI lint lagi
+
+---
+
 ## Phase 7 — Post-MVP (setelah ada paying customers)
 
 > Jangan build ini sebelum ada minimal 10 paying customers.

@@ -1,20 +1,25 @@
 "use client"
 
-import { LayoutDashboard, MessageSquare, Settings, Users } from "lucide-react"
+import { CreditCard, LayoutDashboard, MessageSquare, Settings, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { NotificationBell } from "@/components/dashboard/notification-bell"
 import { cn } from "@/lib/utils"
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/clients", label: "Klien", icon: Users },
-  { href: "/inbox", label: "Inbox", icon: MessageSquare },
-  { href: "/settings", label: "Setelan", icon: Settings },
-]
+interface MobileNavProps {
+  isAdmin?: boolean
+}
 
-export function MobileNav() {
+export function MobileNav({ isAdmin = false }: MobileNavProps) {
   const pathname = usePathname()
+
+  const navItems = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/clients", label: "Klien", icon: Users },
+    { href: "/inbox", label: "Inbox", icon: MessageSquare },
+    { href: "/billing", label: "Billing", icon: CreditCard },
+    { href: "/settings", label: "Setelan", icon: Settings },
+  ]
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 border-t border-border bg-sidebar/95 backdrop-blur-sm flex items-center px-2">

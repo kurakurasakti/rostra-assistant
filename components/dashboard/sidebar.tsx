@@ -1,6 +1,16 @@
 "use client"
 
-import { LayoutDashboard, LogOut, MessageSquare, Moon, Settings, Sun, Users } from "lucide-react"
+import {
+  CreditCard,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Moon,
+  Settings,
+  ShieldCheck,
+  Sun,
+  Users,
+} from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -11,19 +21,25 @@ import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { APP_VERSION } from "@/lib/version"
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/clients", label: "Klien", icon: Users },
-  { href: "/inbox", label: "Kotak Masuk", icon: MessageSquare },
-  { href: "/settings", label: "Pengaturan", icon: Settings },
-]
+interface SidebarProps {
+  isAdmin?: boolean
+}
 
-export function Sidebar() {
+export function Sidebar({ isAdmin = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  const navItems = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/clients", label: "Klien", icon: Users },
+    { href: "/inbox", label: "Kotak Masuk", icon: MessageSquare },
+    { href: "/billing", label: "Langganan", icon: CreditCard },
+    ...(isAdmin ? [{ href: "/admin/payments", label: "Admin Portal", icon: ShieldCheck }] : []),
+    { href: "/settings", label: "Pengaturan", icon: Settings },
+  ]
 
   async function handleLogout() {
     const supabase = createClient()
