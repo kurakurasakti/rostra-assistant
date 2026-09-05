@@ -2,24 +2,18 @@
 
 import {
   AlertCircle,
-  ArrowRight,
   Check,
   CheckCircle2,
   Clock,
   ExternalLink,
-  Eye,
-  Filter,
   Image as ImageIcon,
   Loader2,
   MessageSquare,
   RefreshCw,
   Search,
   ShieldAlert,
-  ShieldCheck,
   Sparkles,
-  UserCheck,
   X,
-  XCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
@@ -35,7 +29,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { getAdminToCustomerWhatsAppUrl } from "@/lib/payment/utils"
 import type { Invoice } from "@/types"
 
@@ -117,9 +118,7 @@ export default function AdminPaymentsPage() {
       // Update state locally
       setInvoices((prev) =>
         prev.map((i) =>
-          i.id === invoice.id
-            ? { ...i, status: "paid", paid_at: new Date().toISOString() }
-            : i,
+          i.id === invoice.id ? { ...i, status: "paid", paid_at: new Date().toISOString() } : i,
         ),
       )
     } catch (err) {
@@ -173,9 +172,12 @@ export default function AdminPaymentsPage() {
         <div className="w-16 h-16 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center mb-4">
           <ShieldAlert className="w-8 h-8" />
         </div>
-        <h1 className="font-display font-bold text-2xl mb-2 text-foreground">Akses Ditolak (403)</h1>
+        <h1 className="font-display font-bold text-2xl mb-2 text-foreground">
+          Akses Ditolak (403)
+        </h1>
         <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-          Halaman portal verifikasi pembayaran ini hanya dapat diakses oleh akun Administrator Glim yang terdaftar di konfigurasi sistem (ADMIN_EMAILS).
+          Halaman portal verifikasi pembayaran ini hanya dapat diakses oleh akun Administrator Glim
+          yang terdaftar di konfigurasi sistem (ADMIN_EMAILS).
         </p>
         <Link href="/dashboard">
           <Button className="rounded-xl">Kembali ke Dashboard</Button>
@@ -231,42 +233,46 @@ export default function AdminPaymentsPage() {
       {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Waiting Confirmation */}
-        <div
+        <button
+          type="button"
           onClick={() => setStatusFilter("waiting_confirmation")}
-          className={`rounded-2xl p-5 border bg-white shadow-xs cursor-pointer transition-all ${
-            statusFilter === "waiting_confirmation" ? "border-amber-500 ring-2 ring-amber-500/20" : ""
+          className={`text-left w-full rounded-2xl p-5 border bg-card shadow-xs cursor-pointer transition-all ${
+            statusFilter === "waiting_confirmation"
+              ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10"
+              : "border-border hover:border-border/80"
           }`}
-          style={{ borderColor: statusFilter === "waiting_confirmation" ? "#F59E0B" : "#E8E4DC" }}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Perlu Dikonfirmasi
             </span>
-            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <Clock className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="font-display font-bold text-3xl text-foreground">
-              {waitingCount}
+            <span className="font-display font-bold text-3xl text-foreground">{waitingCount}</span>
+            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+              Transaksi menunggu
             </span>
-            <span className="text-xs text-amber-700 font-medium">Transaksi menunggu</span>
           </div>
-        </div>
+        </button>
 
         {/* Paid Invoices */}
-        <div
+        <button
+          type="button"
           onClick={() => setStatusFilter("paid")}
-          className={`rounded-2xl p-5 border bg-white shadow-xs cursor-pointer transition-all ${
-            statusFilter === "paid" ? "border-emerald-500 ring-2 ring-emerald-500/20" : ""
+          className={`text-left w-full rounded-2xl p-5 border bg-card shadow-xs cursor-pointer transition-all ${
+            statusFilter === "paid"
+              ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10"
+              : "border-border hover:border-border/80"
           }`}
-          style={{ borderColor: statusFilter === "paid" ? "#10B981" : "#E8E4DC" }}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Total Pembayaran Lunas
             </span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
@@ -274,15 +280,14 @@ export default function AdminPaymentsPage() {
             <span className="font-display font-bold text-3xl text-foreground">
               {paidInvoices.length}
             </span>
-            <span className="text-xs text-emerald-700 font-medium">User aktif</span>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+              User aktif
+            </span>
           </div>
-        </div>
+        </button>
 
         {/* Total Revenue */}
-        <div
-          className="rounded-2xl p-5 border bg-white shadow-xs"
-          style={{ borderColor: "#E8E4DC" }}
-        >
+        <div className="rounded-2xl p-5 border border-border bg-card shadow-xs">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Total Omset Terverifikasi
@@ -292,18 +297,13 @@ export default function AdminPaymentsPage() {
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="font-display font-bold text-2xl text-primary">
-              {formattedRevenue}
-            </span>
+            <span className="font-display font-bold text-2xl text-primary">{formattedRevenue}</span>
           </div>
         </div>
       </div>
 
       {/* Filter & Search Bar */}
-      <div
-        className="rounded-2xl border bg-white p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3"
-        style={{ borderColor: "#E8E4DC" }}
-      >
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Status Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
@@ -314,12 +314,13 @@ export default function AdminPaymentsPage() {
             { id: "expired", label: "Kedaluwarsa" },
           ].map((tab) => (
             <button
+              type="button"
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
                 statusFilter === tab.id
-                  ? "bg-primary text-white shadow-xs"
-                  : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
               {tab.label}
@@ -336,21 +337,22 @@ export default function AdminPaymentsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && loadInvoices(false)}
-              className="h-8 pl-8 text-xs rounded-xl border-[#E8E4DC]"
-              style={{ backgroundColor: "#FAF8F4" }}
+              className="h-8 pl-8 text-xs rounded-xl bg-muted/30 border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
-          <Button size="sm" variant="outline" onClick={() => loadInvoices(false)} className="h-8 text-xs">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => loadInvoices(false)}
+            className="h-8 text-xs shrink-0"
+          >
             Cari
           </Button>
         </div>
       </div>
 
       {/* Invoices List Table */}
-      <div
-        className="rounded-2xl border bg-white p-6 shadow-xs"
-        style={{ borderColor: "#E8E4DC" }}
-      >
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-bold text-base text-foreground">
             Daftar Transaksi Masuk
@@ -366,11 +368,13 @@ export default function AdminPaymentsPage() {
             <p className="text-xs text-muted-foreground">Memuat data transaksi...</p>
           </div>
         ) : invoices.length === 0 ? (
-          <div className="text-center py-12 border border-dashed rounded-xl" style={{ borderColor: "#E8E4DC" }}>
+          <div className="text-center py-12 border border-dashed border-border rounded-xl">
             <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
             <p className="text-sm font-medium text-foreground">Tidak ada transaksi ditemukan</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {statusFilter !== "all" ? "Coba ganti filter status di atas." : "Belum ada transaksi yang dibuat oleh user."}
+              {statusFilter !== "all"
+                ? "Coba ganti filter status di atas."
+                : "Belum ada transaksi yang dibuat oleh user."}
             </p>
           </div>
         ) : (
@@ -410,7 +414,10 @@ export default function AdminPaymentsPage() {
                   )
 
                   return (
-                    <TableRow key={inv.id} className={isWaiting ? "bg-amber-50/40" : ""}>
+                    <TableRow
+                      key={inv.id}
+                      className={isWaiting ? "bg-amber-500/5 dark:bg-amber-500/10" : ""}
+                    >
                       {/* Invoice & Date */}
                       <TableCell>
                         <p className="font-mono text-xs font-bold text-foreground">
@@ -426,11 +433,13 @@ export default function AdminPaymentsPage() {
                         </p>
                         {inv.sender_name && (
                           <p className="text-[11px] text-muted-foreground">
-                            Pengirim: <span className="font-medium text-foreground">{inv.sender_name}</span> ({inv.sender_bank || "QRIS"})
+                            Pengirim:{" "}
+                            <span className="font-medium text-foreground">{inv.sender_name}</span> (
+                            {inv.sender_bank || "QRIS"})
                           </p>
                         )}
                         {inv.customer_notes && (
-                          <p className="text-[10px] text-amber-800 italic mt-0.5">
+                          <p className="text-[10px] text-amber-700 dark:text-amber-400 italic mt-0.5">
                             "{inv.customer_notes}"
                           </p>
                         )}
@@ -445,7 +454,7 @@ export default function AdminPaymentsPage() {
                       <TableCell>
                         <p className="font-mono font-bold text-xs text-foreground">{amountStr}</p>
                         {inv.unique_code > 0 && (
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 px-1.5 py-0.5 rounded">
                             Kode unik: {inv.unique_code}
                           </span>
                         )}
@@ -481,15 +490,14 @@ export default function AdminPaymentsPage() {
                         )}
                       </TableCell>
 
-
                       {/* Status */}
                       <TableCell>
                         {isPaid ? (
-                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]">
+                          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-medium">
                             Lunas & Aktif
                           </Badge>
                         ) : isWaiting ? (
-                          <Badge className="bg-amber-100 text-amber-900 border-amber-300 font-semibold text-[10px] animate-pulse">
+                          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold text-[10px] animate-pulse">
                             Perlu Verifikasi
                           </Badge>
                         ) : (
@@ -634,10 +642,11 @@ export default function AdminPaymentsPage() {
           </DialogHeader>
 
           <div className="space-y-2 my-2">
-            <label className="text-xs font-medium text-foreground">
+            <label htmlFor="rejectReason" className="text-xs font-medium text-foreground">
               Alasan Penolakan (akan dicatat di invoice):
             </label>
             <Input
+              id="rejectReason"
               placeholder="Contoh: Nominal kurang Rp 500 / Foto struk buram"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}

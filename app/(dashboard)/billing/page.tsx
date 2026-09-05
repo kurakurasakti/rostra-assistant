@@ -24,7 +24,14 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { SUBSCRIPTION_PLANS } from "@/lib/payment/config"
 import type { Invoice, Subscription, SubscriptionPlan } from "@/types"
 
@@ -114,7 +121,10 @@ export default function BillingPage() {
             Perbarui
           </Button>
           <Link href="/checkout">
-            <Button size="sm" className="text-xs h-9 gap-1.5 bg-primary hover:bg-primary/90 text-white">
+            <Button
+              size="sm"
+              className="text-xs h-9 gap-1.5 bg-primary hover:bg-primary/90 text-white"
+            >
               <Sparkles className="w-3.5 h-3.5" />
               Upgrade / Perpanjang
             </Button>
@@ -123,10 +133,7 @@ export default function BillingPage() {
       </div>
 
       {/* Subscription Status Card */}
-      <div
-        className="rounded-2xl border bg-white p-6 sm:p-8 shadow-xs relative overflow-hidden"
-        style={{ borderColor: "#E8E4DC" }}
-      >
+      <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-xs relative overflow-hidden">
         {/* Glow accent */}
         <div
           aria-hidden="true"
@@ -142,13 +149,13 @@ export default function BillingPage() {
           <div>
             <div className="flex items-center gap-2.5 mb-3">
               {isActive ? (
-                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold text-xs py-1 px-3">
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-semibold text-xs py-1 px-3">
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
                   Langganan Aktif
                 </Badge>
               ) : isTrial ? (
-                <Badge className="bg-amber-100 text-amber-900 border-amber-300 font-semibold text-xs py-1 px-3">
-                  <Clock className="w-3.5 h-3.5 mr-1 text-amber-700" />
+                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold text-xs py-1 px-3">
+                  <Clock className="w-3.5 h-3.5 mr-1 text-amber-600 dark:text-amber-400" />
                   Free Trial (14 Hari)
                 </Badge>
               ) : (
@@ -192,7 +199,9 @@ export default function BillingPage() {
           <div className="flex flex-col sm:items-end justify-center gap-3">
             <div className="text-left sm:text-right">
               <p className="text-xs text-muted-foreground">Berlaku sampai</p>
-              <p className="font-display font-bold text-lg text-foreground">{expiryDateFormatted}</p>
+              <p className="font-display font-bold text-lg text-foreground">
+                {expiryDateFormatted}
+              </p>
             </div>
 
             <Link href="/checkout" className="w-full sm:w-auto">
@@ -207,10 +216,7 @@ export default function BillingPage() {
       </div>
 
       {/* Invoice History Section */}
-      <div
-        className="rounded-2xl border bg-white p-6 shadow-xs"
-        style={{ borderColor: "#E8E4DC" }}
-      >
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="font-display font-bold text-lg text-foreground">
@@ -230,7 +236,7 @@ export default function BillingPage() {
         </div>
 
         {invoices.length === 0 ? (
-          <div className="text-center py-10 border border-dashed rounded-xl" style={{ borderColor: "#E8E4DC" }}>
+          <div className="text-center py-10 border border-dashed border-border rounded-xl">
             <CreditCard className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
             <p className="text-sm font-medium text-foreground">Belum ada riwayat tagihan</p>
             <p className="text-xs text-muted-foreground mt-1 mb-4">
@@ -269,26 +275,32 @@ export default function BillingPage() {
                   }).format(inv.total_amount)
 
                   let statusBadge = (
-                    <Badge variant="outline" className="text-amber-800 bg-amber-50 border-amber-200 text-[10px]">
+                    <Badge
+                      variant="outline"
+                      className="text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/30 text-[10px]"
+                    >
                       Menunggu Bayar
                     </Badge>
                   )
 
                   if (inv.status === "paid") {
                     statusBadge = (
-                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]">
+                      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-medium">
                         Lunas
                       </Badge>
                     )
                   } else if (inv.status === "waiting_confirmation") {
                     statusBadge = (
-                      <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">
+                      <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30 text-[10px] font-medium">
                         Menunggu Konfirmasi
                       </Badge>
                     )
                   } else if (inv.status === "expired") {
                     statusBadge = (
-                      <Badge variant="outline" className="text-destructive border-destructive/30 text-[10px]">
+                      <Badge
+                        variant="outline"
+                        className="text-destructive border-destructive/30 text-[10px]"
+                      >
                         Kedaluwarsa
                       </Badge>
                     )
@@ -300,7 +312,9 @@ export default function BillingPage() {
                         {inv.invoice_number}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{invDate}</TableCell>
-                      <TableCell className="text-xs text-foreground font-medium">{inv.plan_name}</TableCell>
+                      <TableCell className="text-xs text-foreground font-medium">
+                        {inv.plan_name}
+                      </TableCell>
                       <TableCell className="text-xs font-mono font-bold text-foreground">
                         {invAmount}
                       </TableCell>
@@ -310,7 +324,11 @@ export default function BillingPage() {
                       <TableCell>{statusBadge}</TableCell>
                       <TableCell className="text-right">
                         <Link href={`/payment/${inv.id}`}>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-primary gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-primary gap-1"
+                          >
                             {inv.status === "paid" ? "Lihat Faktur" : "Bayar Sekarang"}
                             <ExternalLink className="w-3 h-3" />
                           </Button>
@@ -326,10 +344,7 @@ export default function BillingPage() {
       </div>
 
       {/* Payment Support Info */}
-      <div
-        className="rounded-2xl border p-6 bg-[#FAF8F4] flex flex-col sm:flex-row items-center justify-between gap-4"
-        style={{ borderColor: "#E8E4DC" }}
-      >
+      <div className="rounded-2xl border border-border p-6 bg-card dark:bg-card/80 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
             <MessageSquare className="w-5 h-5" />
