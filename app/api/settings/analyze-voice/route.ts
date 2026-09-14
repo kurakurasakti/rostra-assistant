@@ -7,6 +7,7 @@ import {
   selectBestExamples,
 } from "@/lib/chat-parser"
 import { analyzeBrandVoice } from "@/lib/openrouter"
+import { upsertKnowledgeChunks } from "@/lib/rag"
 import {
   checkAIRateLimit,
   createAIRateLimitResponse,
@@ -83,6 +84,27 @@ export async function POST(request: Request) {
     }
   } else {
     console.log("[analyze-voice] Successfully updated brand_voice and examples")
+  }
+
+  // ── RAG re-indexing (fire-and-forget) ────────────────────────────────────
+  // The extracted conversation_examples are now part of the profile and will
+  // be embedded as individual "example" chunks in the vector store.
+  // This means at reply time, the system retrieves only the examples most
+  // semantically similar to the incoming message — rather than injecting
+  // all of them statically.
+  const { data: freshProfile } = await serviceClient
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single()
+
+  if (freshProfile) {
+    upsertKnowledgeChunks(user.id, freshProfile).catch((err) =>
+      console.error("[analyze-voice] RAG re-index failed (non-fatal):", err),
+    )
+    console.log(
+      `[analyze-voice] RAG re-index triggered — ${examples.length} examples will be embedded`,
+    )
   }
 
   const examplesByCategory = examples.reduce<Record<string, number>>(

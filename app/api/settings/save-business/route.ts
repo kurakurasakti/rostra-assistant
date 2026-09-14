@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { upsertKnowledgeChunks } from "@/lib/rag"
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -39,6 +40,22 @@ export async function POST(req: Request) {
     }
   } else {
     console.log("[save-business] Successfully saved business knowledge")
+  }
+
+  // ── RAG re-indexing (fire-and-forget) ───────────────────────────────────
+  // Fetch the latest profile (includes conversation_examples etc.) and
+  // re-embed all knowledge chunks in the background. Errors are logged but
+  // do NOT block the response — the app stays functional without RAG.
+  const { data: freshProfile } = await serviceClient
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single()
+
+  if (freshProfile) {
+    upsertKnowledgeChunks(user.id, freshProfile).catch((err) =>
+      console.error("[save-business] RAG re-index failed (non-fatal):", err),
+    )
   }
 
   return Response.json({ ok: true })

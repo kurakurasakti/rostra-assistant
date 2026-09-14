@@ -1,4 +1,5 @@
 import { validateAIOutput } from "@/lib/security"
+import { getRagContext } from "@/lib/rag"
 import { createServiceClient as createSupabaseClient } from "@/lib/supabase/server"
 import { sendTextMessage } from "@/lib/whatsapp"
 import type {
@@ -314,18 +315,28 @@ ${body}`
 
 // Level 2 — changes only when user saves Settings.
 // Stable across all messages from the same user until settings are updated.
-function buildLevel2(profile: Profile): string {
+// When ragContext is provided (RAG retrieval hit), it replaces the static
+// business knowledge block so the prompt only contains relevant chunks.
+function buildLevel2(profile: Profile, ragContext?: string): string {
   const escalationNote = (profile.escalation_keywords as string[] | null)?.length
     ? `\nEskalasi langsung jika pesan mengandung: ${(profile.escalation_keywords as string[]).join(", ")}`
     : ""
 
+  // RAG path: replace full knowledge dump with retrieved chunks
+  const knowledgeBlock = ragContext
+    ? ragContext
+    : `=== PENGETAHUAN BISNIS ===\n${buildBusinessContext(profile)}`
+
   const businessSection = `=== BISNIS: ${profile.business_name} ===
 ${profile.brand_voice || "Balas dengan sopan, ramah, dan singkat dalam Bahasa Indonesia."}${escalationNote}
 
-=== PENGETAHUAN BISNIS ===
-${buildBusinessContext(profile)}`
+${knowledgeBlock}`
 
-  const examplesSection = buildExamplesSection(profile.conversation_examples)
+  // Examples section: when RAG is active, skip the static sorted examples
+  // (the top-K relevant examples are already inside the retrieved chunks).
+  // Keep the full examples section only on the non-RAG path so that
+  // DeepSeek prefix caching still benefits from a stable Level 2 block.
+  const examplesSection = ragContext ? "" : buildExamplesSection(profile.conversation_examples)
 
   return [businessSection, examplesSection].filter(Boolean).join("\n\n").trim()
 }
@@ -392,6 +403,8 @@ export async function getClientOrderSummary(userId: string, clientId: string): P
 
 // buildSecurePrompt = Level 1 + Level 2 + Level 3, ordered for max cache hits.
 // _businessContext and _brandVoice params kept for API compat; now derived from profile.
+// ragContext: optional pre-retrieved RAG chunks; when present, replaces static
+// business knowledge in Level 2 to reduce prompt size and improve relevance.
 export function buildSecurePrompt(
   profile: Profile,
   client: Client | null,
@@ -399,11 +412,12 @@ export function buildSecurePrompt(
   _brandVoice: string,
   orderSummary?: string,
   message?: string,
+  ragContext?: string,
 ): string {
-  const relevantExamples = message
+  const relevantExamples = message && !ragContext
     ? buildRelevantExamplesSection(profile.conversation_examples, message)
     : ""
-  return [LEVEL1_RULES, buildLevel2(profile), buildLevel3(client, orderSummary, relevantExamples)]
+  return [LEVEL1_RULES, buildLevel2(profile, ragContext), buildLevel3(client, orderSummary, relevantExamples)]
     .filter(Boolean)
     .join("\n\n")
 }
@@ -418,7 +432,18 @@ export async function buildAIContext(
   if (userId && client?.id) {
     orderSummary = await getClientOrderSummary(userId, client.id)
   }
-  return buildSecurePrompt(profile, client, "", "", orderSummary, message)
+
+  // ── RAG retrieval ─────────────────────────────────────────────────────────
+  // When RAG chunks are available, inject only the relevant ones instead of
+  // the full business context, making the prompt smaller and more precise.
+  // Falls back to full context stuffing if RAG is not configured or returns
+  // nothing (graceful degradation — no breaking change to existing flow).
+  let ragContext = ""
+  if (userId && message) {
+    ragContext = await getRagContext(userId, message)
+  }
+
+  return buildSecurePrompt(profile, client, "", "", orderSummary, message, ragContext)
 }
 
 // ── AI CALLERS ────────────────────────────────────────────────────────────────
@@ -882,7 +907,9 @@ export async function classifyAndDraft(
       history = (recent ?? []).reverse()
     }
 
-    const securePrompt = buildSecurePrompt(profile, null, "", "", undefined, messageBody)
+    // AI Call 2: draft reply — uses buildAIContext() which runs RAG retrieval
+    // (replaces static buildSecurePrompt() call that bypassed RAG)
+    const securePrompt = await buildAIContext(profile, null, userId, messageBody)
     const { text: rawDraft } = await callDraftOnly(messageBody, securePrompt, history)
 
     let safeDraft: string | null = rawDraft || null
