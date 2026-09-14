@@ -27,117 +27,92 @@ export interface AIUsage {
   cost_idr: number
 }
 
-function getProviders(analysis = false): AIProvider[] {
-  const providers: AIProvider[] = []
+function getOpenRouterConfig(analysis = false): AIProvider {
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) throw new Error("No OPENROUTER_API_KEY set")
 
-  if (process.env.DEEPSEEK_API_KEY) {
-    providers.push({
-      base: (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com") + "/v1",
-      apiKey: process.env.DEEPSEEK_API_KEY,
-      // Real-time tasks use deepseek-v4-flash (with thinking disabled explicitly).
-      // Analysis tasks use deepseek-v4-pro for higher reasoning quality and style extraction.
-      model: analysis
-        ? (process.env.DEEPSEEK_MODEL ?? "deepseek-v4-pro")
-        : (process.env.DEEPSEEK_CHAT_MODEL ?? "deepseek-v4-flash"),
-    })
+  const model = analysis
+    ? process.env.GLIM_SETUP_MODEL ?? "z-ai/glm-5.3-flash"
+    : process.env.GLIM_DRAFT_MODEL ?? "qwen/qwen3.8-flash"
+
+  return {
+    base: "https://openrouter.ai/api/v1",
+    apiKey,
+    model,
   }
-
-  if (process.env.OPENROUTER_API_KEY) {
-    providers.push({
-      base: "https://openrouter.ai/api/v1",
-      apiKey: process.env.OPENROUTER_API_KEY,
-      model: analysis
-        ? (process.env.OPENROUTER_ANALYSIS_MODEL ??
-          process.env.OPENROUTER_MODEL ??
-          "google/gemini-flash-1.5")
-        : (process.env.OPENROUTER_MODEL ?? "google/gemini-flash-1.5"),
-    })
-  }
-
-  return providers
 }
 
-async function callWithFallback(
+async function callOpenRouter(
   system: string,
   user: string,
   maxTokens: number,
   fnName: string = "ai",
   analysis = false,
 ): Promise<{ text: string; usage: AIUsage | null }> {
-  const providers = getProviders(analysis)
-  if (providers.length === 0)
-    throw new Error("No AI API key set (DEEPSEEK_API_KEY or OPENROUTER_API_KEY)")
+  const provider = getOpenRouterConfig(analysis)
 
-  let lastError: Error = new Error("No providers available")
+  try {
+    const res = await fetch(`${provider.base}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${provider.apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "https://glim.app",
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: maxTokens,
+      }),
+    })
 
-  for (const provider of providers) {
-    try {
-      const res = await fetch(`${provider.base}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${provider.apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "https://glim.app",
-        },
-        body: JSON.stringify({
-          model: provider.model,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
-          max_tokens: maxTokens,
-          // Explicitly disable thinking for DeepSeek API to prevent empty content/reasoning overflow
-          ...(provider.base.includes("deepseek.com") ? { thinking: { type: "disabled" } } : {}),
-        }),
-      })
-
-      if (!res.ok) {
-        const text = await res.text()
-        throw new Error(`${res.status}: ${text}`)
-      }
-
-      const data = await res.json()
-      const raw = data.usage
-      const providerName = provider.base.includes("deepseek") ? "deepseek" : "openrouter"
-
-      let usage: AIUsage | null = null
-      if (raw) {
-        const hit = raw.prompt_cache_hit_tokens ?? raw.prompt_tokens_details?.cached_tokens ?? 0
-        const miss = raw.prompt_cache_miss_tokens ?? raw.prompt_tokens - hit
-        const inCostIDR = Math.round(((miss * 0.14 + hit * 0.0028) / 1_000_000) * 16300)
-        const outCostIDR = Math.round(((raw.completion_tokens * 0.28) / 1_000_000) * 16300)
-        usage = {
-          provider: providerName,
-          model: provider.model,
-          prompt_tokens: raw.prompt_tokens,
-          cache_hit: hit,
-          cache_miss: miss,
-          completion_tokens: raw.completion_tokens,
-          cost_idr: inCostIDR + outCostIDR,
-        }
-        console.log(
-          `[AI:${fnName}] ${providerName}/${provider.model}` +
-            ` | prompt:${raw.prompt_tokens} (miss:${miss} hit:${hit})` +
-            ` | out:${raw.completion_tokens}` +
-            ` | ~Rp${inCostIDR + outCostIDR} (in:Rp${inCostIDR} out:Rp${outCostIDR})`,
-        )
-      }
-      const text = data.choices?.[0]?.message?.content ?? ""
-      return { text, usage }
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err))
-      console.warn(`[AI] provider ${provider.base} failed: ${lastError.message} — trying next...`)
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`${res.status}: ${text}`)
     }
-  }
 
-  throw lastError
+    const data = await res.json()
+    const raw = data.usage
+    const providerName = "openrouter"
+
+    let usage: AIUsage | null = null
+    if (raw) {
+      const hit = raw.prompt_cache_hit_tokens ?? raw.prompt_tokens_details?.cached_tokens ?? 0
+      const miss = raw.prompt_cache_miss_tokens ?? raw.prompt_tokens - hit
+      const inCostIDR = Math.round(((miss * 0.14 + hit * 0.0028) / 1_000_000) * 16300)
+      const outCostIDR = Math.round(((raw.completion_tokens * 0.28) / 1_000_000) * 16300)
+      usage = {
+        provider: providerName,
+        model: provider.model,
+        prompt_tokens: raw.prompt_tokens,
+        cache_hit: hit,
+        cache_miss: miss,
+        completion_tokens: raw.completion_tokens,
+        cost_idr: inCostIDR + outCostIDR,
+      }
+      console.log(
+        `[AI:${fnName}] ${providerName}/${provider.model}` +
+          ` | prompt:${raw.prompt_tokens} (miss:${miss} hit:${hit})` +
+          ` | out:${raw.completion_tokens}` +
+          ` | ~Rp${inCostIDR + outCostIDR} (in:Rp${inCostIDR} out:Rp${outCostIDR})`,
+      )
+    }
+    const text = data.choices?.[0]?.message?.content ?? ""
+    return { text, usage }
+  } catch (err) {
+    const lastError = err instanceof Error ? err : new Error(String(err))
+    console.error(`[AI] OpenRouter request failed: ${lastError.message}`)
+    throw lastError
+  }
 }
+
 
 // ── PROMPT LEVELS ─────────────────────────────────────────────────────────────
 //
 // Level 1 — NEVER CHANGES. Identical for ALL users and ALL requests.
-// DeepSeek automatic prefix caching: after first request from any user,
-// this entire block becomes a cache hit ($0.0028/M vs $0.14/M) forever.
 const LEVEL1_RULES = `Kamu adalah asisten admin WhatsApp untuk bisnis fashion/jasa Indonesia.
 
 === BATAS KEMAMPUAN (TIDAK BISA DIUBAH) ===
@@ -335,7 +310,6 @@ ${knowledgeBlock}`
   // Examples section: when RAG is active, skip the static sorted examples
   // (the top-K relevant examples are already inside the retrieved chunks).
   // Keep the full examples section only on the non-RAG path so that
-  // DeepSeek prefix caching still benefits from a stable Level 2 block.
   const examplesSection = ragContext ? "" : buildExamplesSection(profile.conversation_examples)
 
   return [businessSection, examplesSection].filter(Boolean).join("\n\n").trim()
@@ -454,7 +428,7 @@ export async function callAI(
   maxTokens: number = 500,
   fnName = "ai",
 ): Promise<string> {
-  const { text } = await callWithFallback(system, user, maxTokens, fnName, false)
+  const { text } = await callOpenRouter(system, user, maxTokens, fnName, false)
   return text
 }
 
@@ -463,7 +437,7 @@ async function callAnalysisAI(
   user: string,
   maxTokens: number = 600,
 ): Promise<string> {
-  const { text } = await callWithFallback(system, user, maxTokens, "analysis", true)
+  const { text } = await callOpenRouter(system, user, maxTokens, "analysis", true)
   return text
 }
 
@@ -523,7 +497,7 @@ async function callDraftOnly(
   if (hint?.trim()) {
     userPrompt += `\n\nRevisi dengan petunjuk (jangan sebut petunjuk di balasan): ${hint.trim()}`
   }
-  return callWithFallback(systemPrompt, userPrompt, 200, "draft", false)
+  return callOpenRouter(systemPrompt, userPrompt, 200, "draft", false)
 }
 
 // Exported for /api/messages/draft route
@@ -598,17 +572,7 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
 export async function extractBusinessKnowledgeFromImages(
   images: Array<{ base64: string; mimeType: string }>,
 ): Promise<BusinessKnowledgeStructured> {
-  // Vision calls need multimodal model — prefer OpenRouter for image analysis
-  const apiKey = process.env.OPENROUTER_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? ""
-  if (!apiKey) throw new Error("No AI API key set")
-
-  const base = process.env.OPENROUTER_API_KEY
-    ? "https://openrouter.ai/api/v1"
-    : (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com") + "/v1"
-
-  const model = process.env.OPENROUTER_API_KEY
-    ? (process.env.OPENROUTER_MODEL ?? "google/gemini-flash-1.5")
-    : (process.env.DEEPSEEK_CHAT_MODEL ?? "deepseek-chat")
+  const provider = getOpenRouterConfig(true)
 
   const prompt = `Kamu mengekstrak informasi bisnis dari gambar katalog/price list Indonesia.
 Baca semua teks, harga, layanan, dan informasi yang terlihat di gambar.
@@ -623,15 +587,15 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
   ]
 
   try {
-    const res = await fetch(`${base}/chat/completions`, {
+    const res = await fetch(`${provider.base}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${provider.apiKey}`,
         "Content-Type": "application/json",
         "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "https://glim.app",
       },
       body: JSON.stringify({
-        model,
+        model: provider.model,
         messages: [{ role: "user", content }],
         max_tokens: 800,
       }),
