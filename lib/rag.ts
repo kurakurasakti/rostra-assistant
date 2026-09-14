@@ -42,14 +42,16 @@ const EMBEDDING_MODEL = "text-embedding-3-small"
 const EMBEDDING_DIMS = 1536
 
 function getEmbeddingEndpoint(): { base: string; apiKey: string } | null {
-  // OpenAI is the only supported embedding provider.
-  // OpenRouter does NOT support the /embeddings endpoint.
-  // DeepSeek does NOT have an embeddings API.
-  // → You need a separate OPENAI_API_KEY just for RAG.
   if (process.env.OPENAI_API_KEY) {
     return {
       base: "https://api.openai.com/v1",
       apiKey: process.env.OPENAI_API_KEY,
+    }
+  }
+  if (process.env.OPENROUTER_API_KEY) {
+    return {
+      base: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY,
     }
   }
   return null
