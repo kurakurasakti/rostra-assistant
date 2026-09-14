@@ -110,10 +110,10 @@ export default function LoginPage() {
             style={{ borderColor: "#E8E4DC" }}
           >
             <div className="mb-7">
-              <h2 className="font-display font-bold text-2xl tracking-tight text-foreground">
+              <h2 className="font-display font-bold text-2xl tracking-tight text-zinc-900">
                 Selamat datang kembali 👋
               </h2>
-              <p className="text-muted-foreground text-sm mt-1">Masuk untuk melanjutkan ke Glim</p>
+              <p className="text-zinc-500 text-sm mt-1">Masuk untuk melanjutkan ke Glim</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4" suppressHydrationWarning>
