@@ -38,32 +38,34 @@ export interface KnowledgeChunk {
 
 // ── EMBEDDING ─────────────────────────────────────────────────────────────────
 
-const EMBEDDING_MODEL = "text-embedding-3-small"
 const EMBEDDING_DIMS = 1536
 
-function getEmbeddingEndpoint(): { base: string; apiKey: string } | null {
+function getEmbeddingConfig(): { base: string; apiKey: string; model: string } | null {
   if (process.env.OPENAI_API_KEY) {
     return {
       base: "https://api.openai.com/v1",
       apiKey: process.env.OPENAI_API_KEY,
+      model: "text-embedding-3-small", // Direct OpenAI expects this
     }
   }
   if (process.env.OPENROUTER_API_KEY) {
     return {
       base: "https://openrouter.ai/api/v1",
       apiKey: process.env.OPENROUTER_API_KEY,
+      // OpenRouter requires the provider prefix:
+      model: process.env.OPENROUTER_EMBEDDING_MODEL || "openai/text-embedding-3-small",
     }
   }
   return null
 }
 
 /**
- * Embed a single string using OpenAI text-embedding-3-small.
+ * Embed a single string.
  * Returns null if no embedding key is configured.
  */
 export async function embedText(text: string): Promise<number[] | null> {
-  const endpoint = getEmbeddingEndpoint()
-  if (!endpoint) {
+  const config = getEmbeddingConfig()
+  if (!config) {
     console.warn("[RAG] No embedding API key set — RAG disabled")
     return null
   }
@@ -72,17 +74,17 @@ export async function embedText(text: string): Promise<number[] | null> {
   if (!clean) return null
 
   try {
-    const res = await fetch(`${endpoint.base}/embeddings`, {
+    const res = await fetch(`${config.base}/embeddings`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${endpoint.apiKey}`,
+        Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
         "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "https://glim.app",
       },
       body: JSON.stringify({
-        model: EMBEDDING_MODEL,
+        model: config.model,
         input: clean,
-        dimensions: EMBEDDING_DIMS,
+        dimensions: EMBEDDING_DIMS, // Note: Not all OpenRouter models support the dimensions parameter
       }),
     })
 
