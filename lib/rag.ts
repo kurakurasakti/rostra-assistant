@@ -207,8 +207,8 @@ export async function upsertKnowledgeChunks(
   userId: string,
   profile: Profile,
 ): Promise<{ indexed: number; skipped: number }> {
-  const endpoint = getEmbeddingEndpoint()
-  if (!endpoint) {
+  const config = getEmbeddingConfig()
+  if (!config) {
     console.warn("[RAG] upsertKnowledgeChunks: no embedding key — skipping")
     return { indexed: 0, skipped: 0 }
   }
