@@ -231,7 +231,7 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
+          <p className="text-center text-sm text-zinc-600 mt-6">
             Belum punya akun?{" "}
             <Link href="/register" className="text-primary font-medium hover:underline">
               Daftar di sini

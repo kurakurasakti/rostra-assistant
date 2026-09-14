@@ -163,15 +163,15 @@ export default function RegisterPage() {
                   <MailCheck className="w-7 h-7 text-primary" />
                 </div>
                 <div>
-                  <h2 className="font-display font-bold text-2xl tracking-tight">Cek email kamu</h2>
-                  <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
+                  <h2 className="font-display font-bold text-2xl tracking-tight text-zinc-900">Cek email kamu</h2>
+                  <p className="text-zinc-500 text-sm mt-2 leading-relaxed">
                     Kami kirim link konfirmasi ke{" "}
-                    <span className="font-medium text-foreground">{email}</span>. Klik link tersebut
+                    <span className="font-medium text-zinc-900">{email}</span>. Klik link tersebut
                     untuk mengaktifkan akun, lalu login.
                   </p>
                 </div>
                 <div className="pt-2">
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-zinc-500">
                     Tidak dapat email? Cek folder spam.
                   </p>
                 </div>
@@ -184,10 +184,10 @@ export default function RegisterPage() {
             ) : (
               <>
                 <div className="mb-7">
-                  <h2 className="font-display font-bold text-2xl tracking-tight">
+                  <h2 className="font-display font-bold text-2xl tracking-tight text-zinc-900">
                     Buat akun Glim ✨
                   </h2>
-                  <p className="text-muted-foreground text-sm mt-1">
+                  <p className="text-zinc-500 text-sm mt-1">
                     Gratis 14 hari, nggak perlu kartu kredit
                   </p>
                 </div>
@@ -325,7 +325,7 @@ export default function RegisterPage() {
           </div>
 
           {!needsConfirmation && (
-            <p className="text-center text-sm text-muted-foreground mt-6">
+            <p className="text-center text-sm text-zinc-600 mt-6">
               Sudah punya akun?{" "}
               <Link href="/login" className="text-primary font-medium hover:underline">
                 Masuk
