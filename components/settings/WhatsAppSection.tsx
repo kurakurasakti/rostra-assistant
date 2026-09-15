@@ -140,7 +140,7 @@ export default function WhatsAppSection({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-display font-semibold text-sm">Koneksi WhatsApp</h2>
+            <h2 className="text-xl font-bold font-display tracking-tight text-foreground">Koneksi WhatsApp</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Hubungkan nomor WhatsApp bisnis via QR scan.
             </p>
@@ -258,7 +258,7 @@ export default function WhatsAppSection({
         <div className="flex items-center gap-2">
           <Bell className="w-4 h-4 text-muted-foreground" />
           <div>
-            <h2 className="font-display font-semibold text-sm">Notifikasi Eskalasi</h2>
+            <h2 className="text-lg font-semibold font-display tracking-tight text-foreground">Notifikasi Eskalasi</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Glim kirim WA ke nomor ini saat ada pesan sensitif atau percobaan manipulasi AI.
             </p>
@@ -284,7 +284,7 @@ export default function WhatsAppSection({
           variant="outline"
           onClick={handleSaveNotification}
           disabled={savingNotif}
-          className="h-8 text-xs gap-1.5"
+          className="w-full h-9 text-xs gap-1.5 bg-background"
         >
           {savingNotif ? (
             <Loader2 className="w-3 h-3 animate-spin" />

@@ -323,7 +323,7 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
 
   if (step === "input") {
     return (
-      <div className="space-y-5 border-t border-border pt-5 mt-5">
+      <div className="space-y-6">
         <div>
           <h2 className="font-display font-semibold text-sm">Pengetahuan Bisnis</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Bantu AI memahami bisnis kamu.</p>
@@ -498,7 +498,7 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
     const isLast = currentWizardStep === WIZARD_QUESTIONS.length - 1
 
     return (
-      <div className="space-y-5 border-t border-border pt-5 mt-5">
+      <div className="space-y-6">
         <div>
           <h2 className="font-display font-semibold text-sm">Pengetahuan Bisnis</h2>
         </div>
@@ -592,7 +592,7 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
   // ─── STEP: result ──────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-5 border-t border-border pt-5 mt-5">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display font-semibold text-sm">Pengetahuan Bisnis</h2>
@@ -627,7 +627,7 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
 
       {/* Services table */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium">Produk & Layanan</Label>
+        <h3 className="text-lg font-semibold font-display tracking-tight text-foreground">Produk & Layanan</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
             <thead>
@@ -699,7 +699,7 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
 
       {/* Operational info */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium">Info Operasional</Label>
+        <h3 className="text-lg font-semibold font-display tracking-tight text-foreground">Info Operasional</h3>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Jam Operasional</Label>
@@ -734,7 +734,7 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
 
       {/* Payment methods */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">Metode Pembayaran</Label>
+        <h3 className="text-lg font-semibold font-display tracking-tight text-foreground">Metode Pembayaran</h3>
         <div className="flex flex-wrap gap-2">
           {structured.payment_methods.map((m) => (
             <div
@@ -779,7 +779,7 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
 
       {/* PO status */}
       <div className="space-y-2.5">
-        <Label className="text-sm font-medium">Status PO</Label>
+        <h3 className="text-lg font-semibold font-display tracking-tight text-foreground">Status PO</h3>
         <div className="flex items-center gap-3">
           <Label className="text-xs text-muted-foreground">Open PO</Label>
           <div className="flex items-center gap-2">

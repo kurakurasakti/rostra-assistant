@@ -14,6 +14,7 @@ import {
   Sparkles,
   Trash2,
   X,
+  Save,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -351,14 +352,19 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,640px)_170px] lg:justify-center gap-8 p-6 lg:p-8 animate-enter">
-      <div className="space-y-6">
-        <div>
-          <h1 className="font-display font-bold text-2xl tracking-tight">Pengaturan</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Kelola profil bisnis dan koneksi WhatsApp.
-          </p>
-        </div>
+    <div className="min-h-screen p-6 md:p-8 lg:p-12 animate-enter">
+      <div className="max-w-[1200px] mx-auto">
+        <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="font-display font-bold text-3xl tracking-tight">Pengaturan Dashboard</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Kelola operasional dan identitas AI Anda.
+            </p>
+          </div>
+          <Button onClick={handleSaveProfile} disabled={saving} className="bg-primary hover:opacity-90 text-primary-foreground px-6 py-2.5 rounded-[12px] font-medium flex items-center gap-2 transition-all">
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Simpan Profil
+          </Button>
+        </header>
 
         {/* Onboarding banner */}
         {profile && !profile.onboarding_complete && (
@@ -384,7 +390,8 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <section id="profile" className="scroll-mt-24">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[minmax(200px,auto)] mt-6">
+          <section id="profile" className="md:col-span-12 lg:col-span-8 scroll-mt-24 bg-card border border-border rounded-[24px] p-6 md:p-8 shadow-2xl">
           <form id="business-form" onSubmit={handleSaveProfile} className="space-y-6">
             <InlineEditCard
               title="Nama Bisnis"
@@ -408,7 +415,7 @@ export default function SettingsPage() {
               </div>
             </InlineEditCard>
 
-            <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+            <div className="space-y-5 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-display font-semibold text-sm">Gaya Komunikasi AI</h2>
@@ -753,14 +760,8 @@ export default function SettingsPage() {
           </form>
         </section>
 
-        <section id="whatsapp" className="scroll-mt-24">
-          <InlineEditCard
-            title="Sambungan WhatsApp"
-            subtitle="Hubungkan nomor WhatsApp bisnis Anda untuk mulai membalas pesan secara otomatis."
-            summary={profile?.wa_connected ? "Terhubung ✓" : "Belum terhubung"}
-            defaultExpanded={!profile?.wa_connected}
-            onCollapseRequest={waConnectedAt}
-          >
+        <section id="whatsapp" className="md:col-span-12 lg:col-span-4 scroll-mt-24 bg-gradient-to-br from-card to-muted border border-border rounded-[24px] p-6 md:p-8 shadow-2xl">
+          <div className="space-y-5">
             <WhatsAppSection
               initialNotificationNumber={profile?.notification_wa_number}
               onNotificationSaved={(number) =>
@@ -768,11 +769,11 @@ export default function SettingsPage() {
               }
               onConnected={() => setWaConnectedAt(Date.now())}
             />
-          </InlineEditCard>
+          </div>
         </section>
 
-        <section id="business" className="scroll-mt-24">
-          <div className="rounded-xl border border-border bg-card p-5">
+        <section id="business" className="md:col-span-12 lg:col-span-12 scroll-mt-24 bg-card border border-border rounded-[24px] p-6 md:p-8 shadow-2xl">
+          <div className="space-y-5">
             <BusinessKnowledgeSection
               initialRaw={businessKnowledgeRaw}
               initialStructured={businessKnowledgeStructured}
@@ -784,8 +785,8 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section id="ai" className="scroll-mt-24 space-y-6">
-          <div className="rounded-xl border border-border bg-card p-5">
+        <section id="ai" className="md:col-span-12 lg:col-span-12 scroll-mt-24 space-y-6 bg-card border border-border rounded-[24px] p-6 md:p-8 shadow-2xl">
+          <div className="space-y-5">
             <AIRulesSection
               initialKeywords={escalationKeywords}
               initialLevel={autoReplyLevel}
@@ -794,20 +795,20 @@ export default function SettingsPage() {
               onSave={(keywords) => setEscalationKeywords(keywords)}
             />
           </div>
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="space-y-5">
             <TemplatesSection />
           </div>
         </section>
 
-        <section id="import" className="scroll-mt-24">
-          <div className="rounded-xl border border-border bg-card p-5">
+        <section id="import" className="md:col-span-12 scroll-mt-24 bg-card border border-border rounded-[24px] p-6 md:p-8 shadow-2xl">
+          <div className="space-y-5">
             <ImportDataSection />
           </div>
         </section>
 
         {/* System & Version Information */}
-        <section id="system" className="scroll-mt-24">
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <section id="system" className="md:col-span-12 lg:col-span-6 scroll-mt-24 bg-card border border-border rounded-[24px] p-6 md:p-8 shadow-2xl">
+          <div className="space-y-5 space-y-4">
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 text-muted-foreground" />
               <div>
@@ -846,7 +847,7 @@ export default function SettingsPage() {
         </section>
 
         {/* Danger Zone */}
-        <section id="danger" className="scroll-mt-24">
+        <section id="danger" className="md:col-span-12 lg:col-span-6 scroll-mt-24 bg-card border border-border rounded-[24px] p-6 md:p-8 shadow-2xl">
           <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-card p-5">
             <div className="flex items-center justify-between">
               <div>
@@ -931,10 +932,7 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
-      </div>
-
-      <div className="hidden lg:block">
-        <SettingsAnchorNav />
+        </div>
       </div>
     </div>
   )
