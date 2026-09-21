@@ -1,23 +1,6 @@
-// Load .env file manually — works on all Node versions
+require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
-const envPath = path.join(__dirname, ".env");
-if (fs.existsSync(envPath)) {
-  fs.readFileSync(envPath, "utf8")
-    .split("\n")
-    .forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) return;
-      const eq = trimmed.indexOf("=");
-      if (eq === -1) return;
-      const key = trimmed.slice(0, eq).trim();
-      const val = trimmed
-        .slice(eq + 1)
-        .trim()
-        .replace(/^["']|["']$/g, "");
-      if (key && !(key in process.env)) process.env[key] = val;
-    });
-}
 
 const express = require("express");
 const makeWASocket = require("@whiskeysockets/baileys").default;
@@ -78,15 +61,19 @@ class ContactStore {
   }
 
   save() {
-    try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(this.filePath, JSON.stringify(this.contacts, null, 2), "utf8");
-    } catch (err) {
-      console.error("[ContactStore] failed to save:", err);
-    }
+    const dir = path.dirname(this.filePath);
+    fs.promises
+      .mkdir(dir, { recursive: true })
+      .then(() =>
+        fs.promises.writeFile(
+          this.filePath,
+          JSON.stringify(this.contacts, null, 2),
+          "utf8"
+        )
+      )
+      .catch((err) => {
+        console.error("[ContactStore] failed to save:", err);
+      });
   }
 
   update(list) {
@@ -122,13 +109,17 @@ function extractText(m) {
     m?.imageMessage?.caption ||
     m?.videoMessage?.caption ||
     m?.documentMessage?.caption ||
+    m?.documentWithCaptionMessage?.message?.documentMessage?.caption ||
     m?.ephemeralMessage?.message?.conversation ||
     m?.ephemeralMessage?.message?.extendedTextMessage?.text ||
     m?.viewOnceMessage?.message?.imageMessage?.caption ||
     m?.viewOnceMessage?.message?.videoMessage?.caption ||
+    m?.viewOnceMessageV2?.message?.imageMessage?.caption ||
+    m?.viewOnceMessageV2?.message?.videoMessage?.caption ||
     m?.buttonsResponseMessage?.selectedDisplayText ||
     m?.listResponseMessage?.title ||
     m?.templateButtonReplyMessage?.selectedDisplayText ||
+    m?.reactionMessage?.text ||
     ""
   );
 }
@@ -143,6 +134,46 @@ function extractMedia(m) {
   if (m.viewOnceMessage?.message?.imageMessage) return { type: "image", mimeType: m.viewOnceMessage.message.imageMessage.mimetype || "image/jpeg" };
   if (m.viewOnceMessage?.message?.videoMessage) return { type: "video", mimeType: m.viewOnceMessage.message.videoMessage.mimetype || "video/mp4" };
   return null;
+}
+
+async function downloadAndCacheMedia(userId, msg, mediaInfo, PORT) {
+  if (!mediaInfo) return;
+  try {
+    const session = sessions.get(userId);
+    const buffer = await downloadMediaMessage(
+      msg,
+      "buffer",
+      {},
+      {
+        logger: pino({ level: "silent" }),
+        reuploadRequest: session?.sock?.updateMediaMessage,
+      }
+    );
+    if (buffer && buffer.length < 10 * 1024 * 1024) {
+      const cacheKey = `${userId}:${msg.key.id}`;
+      mediaCache.set(cacheKey, {
+        buffer,
+        mimeType: mediaInfo.mimeType,
+        createdAt: Date.now(),
+      });
+      const waPublicUrl =
+        process.env.WA_SERVICE_PUBLIC_URL ||
+        `http://localhost:${PORT}`;
+      const mediaUrl = `${waPublicUrl}/session/${userId}/media/${msg.key.id}`;
+      console.log(
+        `[wa-service] media cached: ${cacheKey} size=${buffer.length} url=${mediaUrl}`
+      );
+    } else if (buffer) {
+      console.log(
+        `[wa-service] media too large (${buffer.length} bytes), skipping cache`
+      );
+    }
+  } catch (err) {
+    console.error(
+      `[wa-service] media download failed:`,
+      err?.message || err
+    );
+  }
 }
 
 async function forwardHistoryBatch(userId, batch, attempt = 0) {
@@ -348,6 +379,7 @@ async function createSession(userId) {
       // resolves by killing one side with statusCode=401 "Intentional Logout"
       sock.ev.removeAllListeners();
       try {
+        if (sock.ws) sock.ws.close();
         sock.end(undefined);
       } catch {}
 
@@ -358,10 +390,10 @@ async function createSession(userId) {
         body: JSON.stringify({ userId, willReconnect: shouldReconnect }),
       }).catch(() => {});
 
+      sessions.delete(userId);
+
       if (shouldReconnect) {
         setTimeout(() => createSession(userId), 3000);
-      } else {
-        sessions.delete(userId);
       }
     }
   });
@@ -521,47 +553,10 @@ async function createSession(userId) {
       const sender = msg.key.remoteJid ?? "";
       const senderName = resolveContactName(sender, msg.pushName);
 
-      let mediaUrl = null;
       let mediaType = mediaInfo ? mediaInfo.type : null;
-      let mediaSize = null;
 
       if (mediaInfo) {
-        try {
-          const buffer = await downloadMediaMessage(
-            msg,
-            "buffer",
-            {},
-            {
-              logger: pino({ level: "silent" }),
-              reuploadRequest: sock.updateMediaMessage,
-            }
-          );
-          if (buffer && buffer.length < 10 * 1024 * 1024) {
-            const cacheKey = `${userId}:${msg.key.id}`;
-            mediaCache.set(cacheKey, {
-              buffer,
-              mimeType: mediaInfo.mimeType,
-              createdAt: Date.now(),
-            });
-            mediaSize = buffer.length;
-            const waPublicUrl =
-              process.env.WA_SERVICE_PUBLIC_URL ||
-              `http://localhost:${PORT}`;
-            mediaUrl = `${waPublicUrl}/session/${userId}/media/${msg.key.id}`;
-            console.log(
-              `[wa-service] media cached: ${cacheKey} size=${mediaSize} url=${mediaUrl}`
-            );
-          } else if (buffer) {
-            console.log(
-              `[wa-service] media too large (${buffer.length} bytes), skipping cache`
-            );
-          }
-        } catch (err) {
-          console.error(
-            `[wa-service] media download failed:`,
-            err?.message || err
-          );
-        }
+        downloadAndCacheMedia(userId, msg, mediaInfo, PORT);
       }
 
       console.log(
@@ -584,9 +579,10 @@ async function createSession(userId) {
           name: senderName,
           timestamp: msg.messageTimestamp,
           messageId: msg.key.id,
-          media_url: mediaUrl,
+          media_url: null,
           media_type: mediaType,
-          media_size: mediaSize,
+          media_size: null,
+          media_status: mediaInfo ? "downloading" : "none",
         }),
       })
         .then((res) =>
@@ -862,6 +858,18 @@ app.get("/session/:userId/media/:messageId", (req, res) => {
   res.send(entry.buffer);
 });
 
+app.get("/media/:messageId", (req, res) => {
+  const { messageId } = req.params;
+  for (const [key, entry] of mediaCache.entries()) {
+    if (key.endsWith(`:${messageId}`)) {
+      res.set("Content-Type", entry.mimeType);
+      res.set("Cache-Control", "public, max-age=3600");
+      return res.send(entry.buffer);
+    }
+  }
+  res.status(404).json({ error: "not found or expired" });
+});
+
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
@@ -877,9 +885,11 @@ app.get("/health", (req, res) => {
 // single socket error kills every session until someone manually restarts the process
 process.on("uncaughtException", (err) => {
   console.error("[fatal] uncaughtException:", err);
+  process.exit(1);
 });
 process.on("unhandledRejection", (err) => {
   console.error("[fatal] unhandledRejection:", err);
+  process.exit(1);
 });
 
 // Listen first so the API is reachable even if session restore is slow or fails
