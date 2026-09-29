@@ -264,8 +264,15 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
 
       if (!res.ok || data.error) {
         toast.error(data.error ?? "Gagal menyimpan.")
+      } else if (data.warning) {
+        toast.warning(data.warning)
+        onSave?.(rawText, structured)
       } else {
-        toast.success("Pengetahuan bisnis tersimpan ✓ AI siap menjawab")
+        const count = data.reindex?.indexed ?? 0
+        const reused = data.reindex?.reused ?? 0
+        toast.success(
+          `Pengetahuan bisnis tersimpan ✓ ${count + reused} chunk ter-index (${count} baru)`,
+        )
         onSave?.(rawText, structured)
       }
     } catch {

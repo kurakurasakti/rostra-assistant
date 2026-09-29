@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import AIRulesSection from "@/components/settings/AIRulesSection"
 import BusinessKnowledgeSection from "@/components/settings/BusinessKnowledgeSection"
@@ -26,7 +26,6 @@ import TemplatesSection from "@/components/settings/TemplatesSection"
 import TonePresetPicker from "@/components/settings/TonePresetPicker"
 import WhatsAppSection from "@/components/settings/WhatsAppSection"
 import { Button } from "@/components/ui/button"
-import { APP_VERSION } from "@/lib/version"
 import {
   Dialog,
   DialogContent,
@@ -48,9 +47,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
+import { APP_VERSION } from "@/lib/version"
 import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "@/types"
 
 type AnalyzeStep = "idle" | "building" | "analyzing" | "preview"
+
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (mins < 1) return "baru saja"
+  if (mins < 60) return `${mins} menit lalu`
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return `${hours} jam lalu`
+  return `${Math.round(hours / 24)} hari lalu`
+}
 
 interface UploadedFile {
   name: string
@@ -95,6 +104,10 @@ export default function SettingsPage() {
   const [businessKnowledgeRaw, setBusinessKnowledgeRaw] = useState<string | null>(null)
   const [businessKnowledgeStructured, setBusinessKnowledgeStructured] =
     useState<BusinessKnowledgeStructured | null>(null)
+  const [indexInfo, setIndexInfo] = useState<{
+    count: number
+    lastIndexedAt: string | null
+  } | null>(null)
 
   // Section D: Escalation Rules state
   const [escalationKeywords, setEscalationKeywords] = useState<string[]>([])
@@ -106,6 +119,29 @@ export default function SettingsPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
   const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const refreshIndexInfo = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings/reindex")
+      const data = await res.json()
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      let lastIndexedAt: string | null = null
+      if (user) {
+        const { data: p } = await supabase
+          .from("profiles")
+          .select("last_indexed_at")
+          .eq("id", user.id)
+          .single()
+        lastIndexedAt = (p as { last_indexed_at?: string | null } | null)?.last_indexed_at ?? null
+      }
+      setIndexInfo({ count: data.chunk_count ?? 0, lastIndexedAt })
+    } catch {
+      // index status is informational — never break settings
+    }
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -163,9 +199,10 @@ export default function SettingsPage() {
         }
       }
       setLoading(false)
+      void refreshIndexInfo()
     }
     load()
-  }, [])
+  }, [refreshIndexInfo])
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
@@ -275,6 +312,7 @@ export default function SettingsPage() {
     setBrandVoicePreview(data.brand_voice)
     setExamplesCount(data.examples_count ?? 0)
     setExamplesByCategory(data.examples_by_category ?? {})
+    if (data.warning) toast.warning(data.warning)
     setAnalyzeStep("preview")
     setAnalyzeLoading(false)
   }
@@ -319,7 +357,6 @@ export default function SettingsPage() {
   }
 
   // --- Draft test ---
-
   async function handleTestDraft() {
     if (!testMessage.trim()) return
     setDraftLoading(true)
@@ -779,8 +816,15 @@ export default function SettingsPage() {
               onSave={(raw, structured) => {
                 setBusinessKnowledgeRaw(raw)
                 setBusinessKnowledgeStructured(structured)
+                void refreshIndexInfo()
               }}
             />
+            {indexInfo && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Knowledge ter-index: {indexInfo.count} chunk
+                {indexInfo.lastIndexedAt ? ` · terakhir ${timeAgo(indexInfo.lastIndexedAt)}` : ""}
+              </p>
+            )}
           </div>
         </section>
 

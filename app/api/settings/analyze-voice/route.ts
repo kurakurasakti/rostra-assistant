@@ -7,7 +7,7 @@ import {
   selectBestExamples,
 } from "@/lib/chat-parser"
 import { analyzeBrandVoice } from "@/lib/openrouter"
-import { upsertKnowledgeChunks } from "@/lib/rag"
+import { hasEmbeddingKey, type ReindexResult, upsertKnowledgeChunks } from "@/lib/rag"
 import {
   checkAIRateLimit,
   createAIRateLimitResponse,
@@ -49,7 +49,6 @@ export async function POST(request: Request) {
   const brandVoice = await analyzeBrandVoice(messages, conversationContext)
   await recordAIUsage(user.id, estTokens, ip)
 
-
   // Extract few-shot examples from full parsed conversation (both sides)
   const rawPairs = extractQAPairs(analysis.messages, body.sender)
   const examples = selectBestExamples(rawPairs)
@@ -86,26 +85,44 @@ export async function POST(request: Request) {
     console.log("[analyze-voice] Successfully updated brand_voice and examples")
   }
 
-  // ── RAG re-indexing (fire-and-forget) ────────────────────────────────────
+  // ── RAG re-indexing (awaited, with timeout guard) ────────────────────────
   // The extracted conversation_examples are now part of the profile and will
   // be embedded as individual "example" chunks in the vector store.
-  // This means at reply time, the system retrieves only the examples most
-  // semantically similar to the incoming message — rather than injecting
-  // all of them statically.
+  // The response reports the outcome so the UI can surface failures.
   const { data: freshProfile } = await serviceClient
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single()
 
-  if (freshProfile) {
-    upsertKnowledgeChunks(user.id, freshProfile).catch((err) =>
-      console.error("[analyze-voice] RAG re-index failed (non-fatal):", err),
+  const REINDEX_TIMEOUT_MS = 25_000
+  let reindex: ReindexResult | null = null
+  let reindexWarning: string | null = null
+
+  if (freshProfile && hasEmbeddingKey()) {
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("reindex timeout")), REINDEX_TIMEOUT_MS),
     )
-    console.log(
-      `[analyze-voice] RAG re-index triggered — ${examples.length} examples will be embedded`,
-    )
+    try {
+      reindex = await Promise.race([upsertKnowledgeChunks(user.id, freshProfile), timeout])
+      if (reindex.indexed === 0 && reindex.reused === 0) {
+        reindexWarning =
+          "Semua embedding gagal — gaya komunikasi tersimpan tapi index RAG tidak berubah."
+      }
+    } catch (err) {
+      console.error("[analyze-voice] RAG re-index failed:", err)
+      reindexWarning =
+        "Re-index RAG gagal — data tersimpan, index akan diperbarui saat simpan berikutnya."
+    }
+  } else if (freshProfile) {
+    reindexWarning =
+      "Embedding API key belum dikonfigurasi — data tersimpan tapi belum ter-index ke RAG."
   }
+
+  console.log(
+    `[analyze-voice] RAG re-index done — ${examples.length} examples, ` +
+      `indexed=${reindex?.indexed ?? 0} reused=${reindex?.reused ?? 0}`,
+  )
 
   const examplesByCategory = examples.reduce<Record<string, number>>(
     (acc, ex) => {
@@ -120,5 +137,7 @@ export async function POST(request: Request) {
     message_count: messages.length,
     examples_count: examples.length,
     examples_by_category: examplesByCategory,
+    reindex,
+    warning: reindexWarning,
   })
 }

@@ -1,5 +1,7 @@
+import { hasEmbeddingKey, type ReindexResult, upsertKnowledgeChunks } from "@/lib/rag"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { upsertKnowledgeChunks } from "@/lib/rag"
+
+const REINDEX_TIMEOUT_MS = 25_000
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -42,21 +44,39 @@ export async function POST(req: Request) {
     console.log("[save-business] Successfully saved business knowledge")
   }
 
-  // ── RAG re-indexing (fire-and-forget) ───────────────────────────────────
-  // Fetch the latest profile (includes conversation_examples etc.) and
-  // re-embed all knowledge chunks in the background. Errors are logged but
-  // do NOT block the response — the app stays functional without RAG.
+  // ── RAG re-indexing (awaited, with timeout guard) ───────────────────────
+  // The response reports the reindex outcome so the UI can surface failures
+  // instead of showing a false success.
   const { data: freshProfile } = await serviceClient
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single()
 
-  if (freshProfile) {
-    upsertKnowledgeChunks(user.id, freshProfile).catch((err) =>
-      console.error("[save-business] RAG re-index failed (non-fatal):", err),
+  let reindex: ReindexResult | null = null
+  let warning: string | null = null
+
+  if (!freshProfile) {
+    warning = "Profil tidak ditemukan untuk re-index — knowledge tersimpan, coba simpan ulang."
+  } else if (!hasEmbeddingKey()) {
+    warning =
+      "Embedding API key belum dikonfigurasi — knowledge tersimpan tapi belum ter-index ke RAG."
+  } else {
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("reindex timeout")), REINDEX_TIMEOUT_MS),
     )
+    try {
+      reindex = await Promise.race([upsertKnowledgeChunks(user.id, freshProfile), timeout])
+      if (reindex.indexed === 0 && reindex.reused === 0) {
+        warning =
+          "Semua embedding gagal — knowledge tersimpan tapi index RAG tidak berubah. Coba lagi nanti."
+      }
+    } catch (err) {
+      console.error("[save-business] RAG re-index failed:", err)
+      warning =
+        "Re-index RAG gagal — knowledge tersimpan, index akan diperbarui saat simpan berikutnya."
+    }
   }
 
-  return Response.json({ ok: true })
+  return Response.json({ ok: true, reindex, warning })
 }

@@ -21,7 +21,7 @@
  * still works without RAG using the existing context-stuffing path.
  */
 
-import { createHash } from "crypto"
+import { createHash } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "@/types"
 
@@ -54,6 +54,11 @@ function getEmbeddingConfig(): { base: string; apiKey: string; model: string } |
     }
   }
   return null
+}
+
+/** True when an embedding API key is configured (RAG can index). */
+export function hasEmbeddingKey(): boolean {
+  return getEmbeddingConfig() !== null
 }
 
 /**
