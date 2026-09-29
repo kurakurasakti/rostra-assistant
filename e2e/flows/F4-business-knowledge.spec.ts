@@ -21,8 +21,11 @@ test.describe("F4 — Business Knowledge Setup", () => {
     // Save
     await page.click('button:has-text("Simpan")')
 
-    // Success toast
-    await expect(page.locator('[role="status"]')).toBeVisible({ timeout: 5_000 })
+    // Success toast — must mention the reindex outcome (indexed count or
+    // an explicit warning, never a silent fake success)
+    const toast = page.locator('[role="status"]')
+    await expect(toast).toBeVisible({ timeout: 30_000 })
+    await expect(toast).toContainText(/index/i)
   })
 
   test("F4.2 — Extract from PDF/image upload", async ({ page }) => {
