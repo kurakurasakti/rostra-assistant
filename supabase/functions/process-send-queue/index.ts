@@ -75,6 +75,11 @@ Deno.serve(async (_req) => {
                   .update({ status: "dibalas", replied_at: new Date().toISOString() })
                   .eq("id", item.message_id)
               : Promise.resolve(),
+            // Monthly metering: message actually sent (best-effort).
+            supabase.rpc("increment_usage", {
+              p_user_id: item.user_id,
+              p_auto_sent: 1,
+            }),
           ])
           sent++
         } else {

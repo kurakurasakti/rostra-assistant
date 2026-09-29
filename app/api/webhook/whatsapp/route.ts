@@ -1,9 +1,15 @@
 import { timingSafeEqual } from "crypto"
 import { NextResponse } from "next/server"
-import { sendEscalationNotification } from "@/lib/notifications"
+import { sendEscalationNotification, sendQuotaNotification } from "@/lib/notifications"
 import { classifyAndDraft } from "@/lib/openrouter"
 import { scanForInjection } from "@/lib/security"
 import { createServiceClient } from "@/lib/supabase/server"
+import {
+  checkQuota,
+  maybeWarn80Percent,
+  shouldNotifyQuotaToday,
+  trackUsage,
+} from "@/lib/usage"
 import { normalizeWANumber } from "@/lib/whatsapp"
 
 export async function POST(request: Request) {
@@ -164,6 +170,42 @@ async function processIncomingMessage(payload: any) {
     sendEscalationNotification(userId, name || normalizedSender, preview, "media").catch(() => {})
     return
   }
+
+  // Monthly metering: count the incoming message (never throws).
+  void trackUsage(userId, { msgs_in: 1 })
+
+  // Quota enforcement (fail-open): when exhausted, store the message as-is
+  // with status 'quota_exceeded', notify the owner at most once per day,
+  // and skip the AI pipeline entirely. Webhook still returns 200.
+  const quota = await checkQuota(userId)
+  if (!quota.allowed) {
+    try {
+      await supabase
+        .from("inbox_messages")
+        .update({ status: "quota_exceeded" })
+        .eq("id", insertedMessage.id)
+    } catch (err) {
+      console.error("[webhook] quota_exceeded status update failed:", err)
+    }
+    try {
+      const notify = await shouldNotifyQuotaToday(userId, quota.usage.quota_notified_at)
+      if (notify) {
+        await sendQuotaNotification(
+          userId,
+          "Kuota pesan habis",
+          `Kuota ${quota.plan} bulan ini habis (${quota.usage.msgs_in} pesan). Pesan pelanggan tetap tersimpan, tapi AI berhenti membuat draft sampai kuota direset bulan depan.`,
+        )
+      }
+    } catch (err) {
+      console.error("[webhook] quota notification failed:", err)
+    }
+    return
+  }
+
+  // Soft warning at 80% (once per month, never throws).
+  void maybeWarn80Percent(userId, quota, (title, body) =>
+    sendQuotaNotification(userId, title, body),
+  )
 
   // Background: classify and draft (fire-and-forget)
   classifyAndDraft(insertedMessage.id, message, userId).catch((err) =>

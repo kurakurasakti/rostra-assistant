@@ -2,7 +2,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { sendTextMessage } from "@/lib/whatsapp"
 
 type EscalationType = "sensitif" | "injection" | "media"
-type NotifType = "eskalasi" | "injection"
+type NotifType = "eskalasi" | "injection" | "quota"
 
 async function insertNotification(
   userId: string,
@@ -70,4 +70,16 @@ export async function sendEscalationNotification(
   } catch {
     // WA failure must never crash main flow
   }
+}
+
+/**
+ * Quota notification (in-app only — WA alert skipped to avoid extra sends
+ * while the user is over quota). Never throws.
+ */
+export async function sendQuotaNotification(
+  userId: string,
+  title: string,
+  body: string,
+): Promise<void> {
+  await insertNotification(userId, "quota", title, body, "/settings")
 }

@@ -1,6 +1,7 @@
 import { getRagContext, reindexIfDirty } from "@/lib/rag"
 import { validateAIOutput } from "@/lib/security"
 import { createServiceClient as createSupabaseClient } from "@/lib/supabase/server"
+import { trackUsage } from "@/lib/usage"
 import { sendTextMessage } from "@/lib/whatsapp"
 import type {
   BusinessKnowledgeStructured,
@@ -881,7 +882,18 @@ export async function classifyAndDraft(
     // AI Call 2: draft reply — uses buildAIContext() which runs RAG retrieval
     // (replaces static buildSecurePrompt() call that bypassed RAG)
     const securePrompt = await buildAIContext(profile, null, userId, messageBody)
-    const { text: rawDraft } = await callDraftOnly(messageBody, securePrompt, history)
+    const { text: rawDraft, usage: draftUsage } = await callDraftOnly(
+      messageBody,
+      securePrompt,
+      history,
+    )
+
+    // Monthly metering: count the draft + LLM tokens (never throws).
+    void trackUsage(userId, {
+      drafts: 1,
+      tokens_in: draftUsage?.prompt_tokens ?? 0,
+      tokens_out: draftUsage?.completion_tokens ?? 0,
+    })
 
     let safeDraft: string | null = rawDraft || null
     if (safeDraft) {
@@ -921,6 +933,8 @@ export async function classifyAndDraft(
           // Full Auto (level 3): send immediately
           try {
             await sendTextMessage(waNumber, safeDraft, userId)
+            // Monthly metering: message actually sent by AI (never throws).
+            void trackUsage(userId, { auto_sent: 1 })
             await Promise.all([
               supabase
                 .from("inbox_messages")

@@ -23,6 +23,7 @@
 
 import { createHash } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
+import { trackUsage } from "@/lib/usage"
 import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "@/types"
 
 // ── TYPES ─────────────────────────────────────────────────────────────────────
@@ -64,8 +65,12 @@ export function hasEmbeddingKey(): boolean {
 /**
  * Embed a single string.
  * Returns null if no embedding key is configured.
+ * Pass opts.userId to count the call in monthly usage (never throws).
  */
-export async function embedText(text: string): Promise<number[] | null> {
+export async function embedText(
+  text: string,
+  opts?: { userId?: string },
+): Promise<number[] | null> {
   const config = getEmbeddingConfig()
   if (!config) {
     console.warn("[RAG] No embedding API key set — RAG disabled")
@@ -96,7 +101,12 @@ export async function embedText(text: string): Promise<number[] | null> {
     }
 
     const data = await res.json()
-    return data.data?.[0]?.embedding ?? null
+    const embedding = (data.data?.[0]?.embedding ?? null) as number[] | null
+    if (embedding && opts?.userId) {
+      // Monthly metering: count the embedding call (never throws).
+      void trackUsage(opts.userId, { embed_calls: 1 })
+    }
+    return embedding
   } catch (err) {
     console.error("[RAG] embedText failed:", err)
     return null
@@ -311,7 +321,9 @@ export async function upsertKnowledgeChunks(
 
   for (let i = 0; i < diff.toInsert.length; i += BATCH_SIZE) {
     const batch = diff.toInsert.slice(i, i + BATCH_SIZE)
-    const embeddings = await Promise.all(batch.map((c) => embedText(c.chunk_text)))
+    const embeddings = await Promise.all(
+      batch.map((c) => embedText(c.chunk_text, { userId })),
+    )
 
     for (let j = 0; j < batch.length; j++) {
       const emb = embeddings[j]
@@ -463,7 +475,7 @@ export async function retrieveRelevantChunks(
   topK = 5,
   threshold = 0.3,
 ): Promise<string[]> {
-  const embedding = await embedText(query)
+  const embedding = await embedText(query, { userId })
   if (!embedding) return []
 
   try {

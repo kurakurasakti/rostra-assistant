@@ -9,6 +9,7 @@ import {
 } from "@/lib/rate-limit"
 import { validateAIOutput } from "@/lib/security"
 import { createClient } from "@/lib/supabase/server"
+import { trackUsage } from "@/lib/usage"
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -65,6 +66,13 @@ export async function POST(request: Request) {
 
   const actualTokens = usage ? usage.prompt_tokens + usage.completion_tokens : estTokens
   await recordAIUsage(user.id, actualTokens, ip)
+
+  // Monthly metering: count the draft + LLM tokens (never throws).
+  void trackUsage(user.id, {
+    drafts: 1,
+    tokens_in: usage?.prompt_tokens ?? 0,
+    tokens_out: usage?.completion_tokens ?? 0,
+  })
 
 
   const validation = validateAIOutput(draft)
