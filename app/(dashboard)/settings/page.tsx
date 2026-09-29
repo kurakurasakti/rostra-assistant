@@ -108,6 +108,13 @@ export default function SettingsPage() {
     count: number
     lastIndexedAt: string | null
   } | null>(null)
+  const [usageInfo, setUsageInfo] = useState<{
+    plan: string
+    msgs_in: number
+    msgs_limit: number
+    usage_pct: number
+    allowed: boolean
+  } | null>(null)
 
   // Section D: Escalation Rules state
   const [escalationKeywords, setEscalationKeywords] = useState<string[]>([])
@@ -140,6 +147,23 @@ export default function SettingsPage() {
       setIndexInfo({ count: data.chunk_count ?? 0, lastIndexedAt })
     } catch {
       // index status is informational — never break settings
+    }
+  }, [])
+
+  const refreshUsageInfo = useCallback(async () => {
+    try {
+      const res = await fetch("/api/usage/current")
+      if (!res.ok) return
+      const data = await res.json()
+      setUsageInfo({
+        plan: data.plan,
+        msgs_in: data.msgs_in,
+        msgs_limit: data.msgs_limit,
+        usage_pct: data.usage_pct,
+        allowed: data.allowed,
+      })
+    } catch {
+      // usage display is informational — never break settings
     }
   }, [])
 
@@ -202,7 +226,8 @@ export default function SettingsPage() {
       void refreshIndexInfo()
     }
     load()
-  }, [refreshIndexInfo])
+    void refreshUsageInfo()
+  }, [refreshIndexInfo, refreshUsageInfo])
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
@@ -884,6 +909,37 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-foreground">
                   Release Please via GitHub Actions
                 </p>
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/20 p-3.5 space-y-2 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Penggunaan bulan ini
+                  </span>
+                  {usageInfo && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
+                      {usageInfo.plan === "pro" ? "Pro" : "Gratis"}
+                    </span>
+                  )}
+                </div>
+                {usageInfo ? (
+                  <>
+                    <p className="text-sm font-medium text-foreground">
+                      {usageInfo.msgs_in} / {usageInfo.msgs_limit} pesan ({usageInfo.usage_pct}%)
+                      {!usageInfo.allowed && (
+                        <span className="text-red-500"> — kuota habis, AI dijeda</span>
+                      )}
+                    </p>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${usageInfo.allowed ? "bg-primary/60" : "bg-red-500/70"}`}
+                        style={{ width: `${Math.min(100, usageInfo.usage_pct)}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Memuat...</p>
+                )}
               </div>
             </div>
           </div>
