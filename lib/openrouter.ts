@@ -1,5 +1,5 @@
+import { getRagContext, reindexIfDirty } from "@/lib/rag"
 import { validateAIOutput } from "@/lib/security"
-import { getRagContext } from "@/lib/rag"
 import { createServiceClient as createSupabaseClient } from "@/lib/supabase/server"
 import { sendTextMessage } from "@/lib/whatsapp"
 import type {
@@ -32,8 +32,8 @@ function getOpenRouterConfig(analysis = false): AIProvider {
   if (!apiKey) throw new Error("No OPENROUTER_API_KEY set")
 
   const model = analysis
-    ? process.env.GLIM_SETUP_MODEL ?? "z-ai/glm-5.3-flash"
-    : process.env.GLIM_DRAFT_MODEL ?? "qwen/qwen3.8-flash"
+    ? (process.env.GLIM_SETUP_MODEL ?? "z-ai/glm-5.3-flash")
+    : (process.env.GLIM_DRAFT_MODEL ?? "qwen/qwen3.8-flash")
 
   return {
     base: "https://openrouter.ai/api/v1",
@@ -108,7 +108,6 @@ async function callOpenRouter(
     throw lastError
   }
 }
-
 
 // ── PROMPT LEVELS ─────────────────────────────────────────────────────────────
 //
@@ -388,10 +387,15 @@ export function buildSecurePrompt(
   message?: string,
   ragContext?: string,
 ): string {
-  const relevantExamples = message && !ragContext
-    ? buildRelevantExamplesSection(profile.conversation_examples, message)
-    : ""
-  return [LEVEL1_RULES, buildLevel2(profile, ragContext), buildLevel3(client, orderSummary, relevantExamples)]
+  const relevantExamples =
+    message && !ragContext
+      ? buildRelevantExamplesSection(profile.conversation_examples, message)
+      : ""
+  return [
+    LEVEL1_RULES,
+    buildLevel2(profile, ragContext),
+    buildLevel3(client, orderSummary, relevantExamples),
+  ]
     .filter(Boolean)
     .join("\n\n")
 }
@@ -414,6 +418,9 @@ export async function buildAIContext(
   // nothing (graceful degradation — no breaking change to existing flow).
   let ragContext = ""
   if (userId && message) {
+    // Catch-up: a throttled correction may have set rag_dirty_at — reindex
+    // first so the fresh example is visible to this retrieval.
+    await reindexIfDirty(userId, profile)
     ragContext = await getRagContext(userId, message)
   }
 

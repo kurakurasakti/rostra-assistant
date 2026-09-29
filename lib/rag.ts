@@ -380,6 +380,71 @@ async function markIndexed(
   }
 }
 
+// ── THROTTLED REINDEX (correction feedback loop) ─────────────────────────────
+
+export const REINDEX_THROTTLE_MS = 60_000
+
+/** Pure throttle decision: reindex now, or defer via dirty flag? */
+export function shouldReindexNow(
+  lastIndexedAt: string | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!lastIndexedAt) return true
+  return now - new Date(lastIndexedAt).getTime() > REINDEX_THROTTLE_MS
+}
+
+/**
+ * Reindex after an owner correction. Throttled: if the last reindex was less
+ * than REINDEX_THROTTLE_MS ago, only sets profiles.rag_dirty_at — the catch-up
+ * in buildAIContext() picks it up before the next retrieval.
+ * Never throws: on failure it marks the profile dirty for later retry.
+ */
+export async function reindexAfterCorrection(userId: string): Promise<void> {
+  try {
+    const supabase = await createServiceClient()
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single()
+    if (!profile) return
+
+    if (shouldReindexNow(profile.last_indexed_at)) {
+      await upsertKnowledgeChunks(userId, profile as Profile)
+    } else {
+      await supabase
+        .from("profiles")
+        .update({ rag_dirty_at: new Date().toISOString() })
+        .eq("id", userId)
+    }
+  } catch (err) {
+    console.error("[RAG] reindexAfterCorrection failed, marking dirty:", err)
+    try {
+      const supabase = await createServiceClient()
+      await supabase
+        .from("profiles")
+        .update({ rag_dirty_at: new Date().toISOString() })
+        .eq("id", userId)
+    } catch {
+      // give up silently — never break the send flow
+    }
+  }
+}
+
+/**
+ * Catch-up before retrieval: if a correction arrived while throttled,
+ * reindex now so the fresh example is visible to RAG.
+ * Never throws — a failed reindex falls back to the stale index.
+ */
+export async function reindexIfDirty(
+  userId: string,
+  profile: Profile & { rag_dirty_at?: string | null },
+): Promise<void> {
+  if (!profile.rag_dirty_at) return
+  try {
+    console.log("[RAG] rag_dirty_at set — catch-up reindex for user:", userId)
+    await upsertKnowledgeChunks(userId, profile)
+  } catch (err) {
+    console.warn("[RAG] catch-up reindex failed, continuing with stale index:", err)
+  }
+}
+
 // ── RETRIEVAL ─────────────────────────────────────────────────────────────────
 
 /**

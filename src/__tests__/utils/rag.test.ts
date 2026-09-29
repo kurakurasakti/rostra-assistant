@@ -10,7 +10,14 @@
 
 import { describe, expect, it } from "vitest"
 import { buildSecurePrompt } from "@/lib/openrouter"
-import { chunkProfile, diffChunks, type HashedChunk, hashChunk } from "@/lib/rag"
+import {
+  chunkProfile,
+  diffChunks,
+  type HashedChunk,
+  hashChunk,
+  REINDEX_THROTTLE_MS,
+  shouldReindexNow,
+} from "@/lib/rag"
 import type { Profile } from "@/types"
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -350,5 +357,34 @@ describe("diffChunks()", () => {
     expect(diff.reused).toBe(0)
     expect(diff.toInsert).toHaveLength(desired.length)
     expect(diff.toDeleteIds).toEqual(["legacy-1"])
+  })
+})
+
+// ── shouldReindexNow() — correction reindex throttle ─────────────────────────
+
+describe("shouldReindexNow()", () => {
+  const NOW = 1_700_000_000_000
+
+  it("reindexes immediately when never indexed", () => {
+    expect(shouldReindexNow(null, NOW)).toBe(true)
+    expect(shouldReindexNow(undefined, NOW)).toBe(true)
+  })
+
+  it("reindexes when last index is older than the throttle window", () => {
+    const old = new Date(NOW - REINDEX_THROTTLE_MS - 1000).toISOString()
+    expect(shouldReindexNow(old, NOW)).toBe(true)
+  })
+
+  it("defers (dirty flag) when last index is within the throttle window", () => {
+    const recent = new Date(NOW - REINDEX_THROTTLE_MS + 1000).toISOString()
+    expect(shouldReindexNow(recent, NOW)).toBe(false)
+  })
+
+  it("two corrections <60s apart: first reindexes, second defers", () => {
+    const first = shouldReindexNow(null, NOW)
+    expect(first).toBe(true)
+    // after first reindex, last_indexed_at = NOW
+    const second = shouldReindexNow(new Date(NOW).toISOString(), NOW + 30_000)
+    expect(second).toBe(false)
   })
 })
