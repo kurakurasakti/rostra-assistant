@@ -9,8 +9,8 @@
  */
 
 import { describe, expect, it } from "vitest"
-import { chunkProfile } from "@/lib/rag"
 import { buildSecurePrompt } from "@/lib/openrouter"
+import { chunkProfile, diffChunks, type HashedChunk, hashChunk } from "@/lib/rag"
 import type { Profile } from "@/types"
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -244,5 +244,111 @@ describe("buildSecurePrompt() — RAG integration", () => {
     )
     // Static examples section header should NOT appear when RAG is active
     expect(prompt).not.toContain("=== CONTOH BALASAN NYATA BISNIS INI ===")
+  })
+})
+
+// ── hashChunk() + diffChunks() — diff-based reindex ──────────────────────────
+
+function hashed(profile: Profile): HashedChunk[] {
+  return chunkProfile(profile).map((c) => ({
+    ...c,
+    content_hash: hashChunk(c.chunk_type, c.chunk_text),
+  }))
+}
+
+function fakeExisting(chunks: HashedChunk[]): Array<{ id: string; content_hash: string }> {
+  return chunks.map((c, i) => ({ id: `row-${i}`, content_hash: c.content_hash }))
+}
+
+describe("hashChunk()", () => {
+  it("is deterministic and produces a 64-char hex digest", () => {
+    const a = hashChunk("service", "Layanan: Kebaya")
+    const b = hashChunk("service", "Layanan: Kebaya")
+    expect(a).toBe(b)
+    expect(a).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it("changes when chunk_type or text changes", () => {
+    const base = hashChunk("service", "text")
+    expect(hashChunk("meta", "text")).not.toBe(base)
+    expect(hashChunk("service", "text2")).not.toBe(base)
+  })
+})
+
+describe("diffChunks()", () => {
+  it("unchanged profile → 0 insert, 0 delete, all reused", () => {
+    const desired = hashed(PROFILE_WITH_EXAMPLES)
+    const diff = diffChunks(fakeExisting(desired), desired)
+    expect(diff.toInsert).toHaveLength(0)
+    expect(diff.toDeleteIds).toHaveLength(0)
+    expect(diff.reused).toBe(desired.length)
+  })
+
+  it("one service changed → exactly 1 insert", () => {
+    const before = hashed(PROFILE_WITH_STRUCTURED)
+    const after = hashed({
+      ...PROFILE_WITH_STRUCTURED,
+      business_knowledge_structured: {
+        ...PROFILE_WITH_STRUCTURED.business_knowledge_structured!,
+        services: [
+          { name: "Kebaya Modern", price_range: "900rb–2jt", description: "Bahan premium" },
+          { name: "Gaun Pesta", price_range: "1jt–3jt" },
+        ],
+      },
+    })
+    const diff = diffChunks(fakeExisting(before), after)
+    expect(diff.toInsert).toHaveLength(1)
+    expect(diff.toInsert[0].chunk_text).toContain("900rb")
+    expect(diff.toDeleteIds).toHaveLength(1) // old kebaya chunk
+    expect(diff.reused).toBe(after.length - 1)
+  })
+
+  it("service removed → its row deleted, no insert", () => {
+    const before = hashed(PROFILE_WITH_STRUCTURED)
+    const after = hashed({
+      ...PROFILE_WITH_STRUCTURED,
+      business_knowledge_structured: {
+        ...PROFILE_WITH_STRUCTURED.business_knowledge_structured!,
+        services: [
+          { name: "Kebaya Modern", price_range: "750rb–2jt", description: "Bahan premium" },
+        ],
+      },
+    })
+    const diff = diffChunks(fakeExisting(before), after)
+    expect(diff.toInsert).toHaveLength(0)
+    expect(diff.toDeleteIds).toHaveLength(1)
+    expect(diff.reused).toBe(after.length)
+  })
+
+  it("empty desired → all existing rows deleted", () => {
+    const before = hashed(PROFILE_WITH_STRUCTURED)
+    const diff = diffChunks(fakeExisting(before), [])
+    expect(diff.toInsert).toHaveLength(0)
+    expect(diff.toDeleteIds).toHaveLength(before.length)
+    expect(diff.reused).toBe(0)
+  })
+
+  it("duplicate identical chunks match as a multiset, not a set", () => {
+    // Two identical desired chunks, one existing row → 1 reused + 1 insert
+    const chunk: HashedChunk = {
+      chunk_type: "example",
+      chunk_text: 'Pertanyaan pelanggan: "x"\nJawaban admin: "y"',
+      metadata: {},
+      content_hash: "",
+    }
+    chunk.content_hash = hashChunk(chunk.chunk_type, chunk.chunk_text)
+    const diff = diffChunks([{ id: "row-0", content_hash: chunk.content_hash }], [chunk, chunk])
+    expect(diff.reused).toBe(1)
+    expect(diff.toInsert).toHaveLength(1)
+    expect(diff.toDeleteIds).toHaveLength(0)
+  })
+
+  it("rows with null content_hash (legacy) are deleted, not matched", () => {
+    const desired = hashed(PROFILE_WITH_STRUCTURED)
+    const existing = [{ id: "legacy-1", content_hash: null }]
+    const diff = diffChunks(existing, desired)
+    expect(diff.reused).toBe(0)
+    expect(diff.toInsert).toHaveLength(desired.length)
+    expect(diff.toDeleteIds).toEqual(["legacy-1"])
   })
 })

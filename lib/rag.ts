@@ -21,12 +21,9 @@
  * still works without RAG using the existing context-stuffing path.
  */
 
+import { createHash } from "crypto"
 import { createServiceClient } from "@/lib/supabase/server"
-import type {
-  BusinessKnowledgeStructured,
-  ConversationExample,
-  Profile,
-} from "@/types"
+import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "@/types"
 
 // ── TYPES ─────────────────────────────────────────────────────────────────────
 
@@ -116,10 +113,7 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
   const chunks: KnowledgeChunk[] = []
 
   // ── 1. Structured knowledge ──────────────────────────────────────────────
-  const s = profile.business_knowledge_structured as
-    | BusinessKnowledgeStructured
-    | null
-    | undefined
+  const s = profile.business_knowledge_structured as BusinessKnowledgeStructured | null | undefined
 
   if (s) {
     // Service chunks — one per service so retrieval is precise
@@ -179,10 +173,7 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
   }
 
   // ── 3. Conversation examples ─────────────────────────────────────────────
-  const examples = profile.conversation_examples as
-    | ConversationExample[]
-    | null
-    | undefined
+  const examples = profile.conversation_examples as ConversationExample[] | null | undefined
 
   for (const ex of examples ?? []) {
     chunks.push({
@@ -198,36 +189,123 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
 // ── INDEXING ──────────────────────────────────────────────────────────────────
 
 /**
- * Re-index all knowledge chunks for a user.
- * Strategy: delete-all-then-insert to keep implementation simple.
- * For very large knowledge bases a diff-based upsert would be more efficient,
- * but for small businesses this is fast enough.
+ * sha256(chunk_type + "\n" + chunk_text) — must match the backfill in
+ * migration 011 exactly (digest(chunk_type || E'\n' || chunk_text, 'sha256')).
+ */
+export function hashChunk(chunkType: string, chunkText: string): string {
+  return createHash("sha256").update(`${chunkType}\n${chunkText}`).digest("hex")
+}
+
+export type HashedChunk = KnowledgeChunk & { content_hash: string }
+
+export interface ChunkDiff {
+  toInsert: HashedChunk[]
+  toDeleteIds: string[]
+  reused: number
+}
+
+/**
+ * Multiset diff between existing DB rows and desired chunks.
+ * Identical (type+text) chunks produce identical hashes, so matching is done
+ * per-hash-bucket: each desired chunk consumes at most one existing row.
+ */
+export function diffChunks(
+  existing: Array<{ id: string; content_hash: string | null }>,
+  desired: HashedChunk[],
+): ChunkDiff {
+  const buckets = new Map<string, string[]>()
+  const nullHashIds: string[] = []
+  for (const row of existing) {
+    if (!row.content_hash) {
+      // Legacy rows without a hash can never match — delete them.
+      nullHashIds.push(row.id)
+      continue
+    }
+    const bucket = buckets.get(row.content_hash) ?? []
+    bucket.push(row.id)
+    buckets.set(row.content_hash, bucket)
+  }
+
+  const toInsert: HashedChunk[] = []
+  let reused = 0
+
+  for (const chunk of desired) {
+    const bucket = buckets.get(chunk.content_hash)
+    if (bucket && bucket.length > 0) {
+      bucket.shift()
+      reused++
+    } else {
+      toInsert.push(chunk)
+    }
+  }
+
+  const toDeleteIds: string[] = [...nullHashIds]
+  for (const bucket of buckets.values()) {
+    toDeleteIds.push(...bucket)
+  }
+
+  return { toInsert, toDeleteIds, reused }
+}
+
+export interface ReindexResult {
+  indexed: number
+  reused: number
+  deleted: number
+  skipped: number
+}
+
+/**
+ * Re-index knowledge chunks for a user (diff-based).
+ *
+ * Chunks whose content_hash already exists in the DB are reused as-is
+ * (zero embedding calls). Only new/changed chunks are embedded and inserted;
+ * chunks that disappeared from the profile are deleted. Deletes only happen
+ * when all required embeddings succeeded (or nothing needed embedding), so a
+ * transient embedding API failure can never wipe the index.
  */
 export async function upsertKnowledgeChunks(
   userId: string,
   profile: Profile,
-): Promise<{ indexed: number; skipped: number }> {
+): Promise<ReindexResult> {
+  const empty: ReindexResult = { indexed: 0, reused: 0, deleted: 0, skipped: 0 }
+
   const config = getEmbeddingConfig()
   if (!config) {
     console.warn("[RAG] upsertKnowledgeChunks: no embedding key — skipping")
-    return { indexed: 0, skipped: 0 }
+    return empty
   }
 
   const supabase = await createServiceClient()
-  const chunks = chunkProfile(profile)
+  const desired: HashedChunk[] = chunkProfile(profile).map((c) => ({
+    ...c,
+    content_hash: hashChunk(c.chunk_type, c.chunk_text),
+  }))
 
-  if (chunks.length === 0) {
-    console.log("[RAG] No chunks to index for user:", userId)
-    return { indexed: 0, skipped: 0 }
+  const { data: existingRows, error: fetchErr } = await supabase
+    .from("knowledge_chunks")
+    .select("id, content_hash")
+    .eq("user_id", userId)
+
+  if (fetchErr) {
+    console.error("[RAG] Fetch existing chunks failed:", fetchErr)
+    throw fetchErr
   }
 
-  // Embed all chunks in parallel (rate-limit-friendly: batch of 10 at a time)
+  const diff = diffChunks(existingRows ?? [], desired)
+
+  if (diff.toInsert.length === 0 && diff.toDeleteIds.length === 0) {
+    console.log(`[RAG] No changes for user ${userId} (${diff.reused} reused)`)
+    await markIndexed(supabase, userId)
+    return { ...empty, reused: diff.reused }
+  }
+
+  // Embed only new/changed chunks (batch of 10 at a time)
   const BATCH_SIZE = 10
-  const embedded: Array<KnowledgeChunk & { embedding: number[] }> = []
+  const embedded: Array<HashedChunk & { embedding: number[] }> = []
   let skipped = 0
 
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE)
+  for (let i = 0; i < diff.toInsert.length; i += BATCH_SIZE) {
+    const batch = diff.toInsert.slice(i, i + BATCH_SIZE)
     const embeddings = await Promise.all(batch.map((c) => embedText(c.chunk_text)))
 
     for (let j = 0; j < batch.length; j++) {
@@ -240,42 +318,66 @@ export async function upsertKnowledgeChunks(
     }
   }
 
-  if (embedded.length === 0) {
+  // Abort on embedding failure: never shrink the index on transient errors.
+  if (diff.toInsert.length > 0 && embedded.length === 0) {
     console.warn("[RAG] All embedding calls failed for user:", userId)
-    return { indexed: 0, skipped: skipped }
+    return { ...empty, reused: diff.reused, skipped }
   }
 
-  // Delete old chunks for this user
-  const { error: deleteErr } = await supabase
-    .from("knowledge_chunks")
-    .delete()
-    .eq("user_id", userId)
+  if (embedded.length > 0) {
+    const rows = embedded.map((c) => ({
+      user_id: userId,
+      chunk_type: c.chunk_type,
+      chunk_text: c.chunk_text,
+      metadata: c.metadata,
+      content_hash: c.content_hash,
+      embedding: JSON.stringify(c.embedding), // Supabase accepts JSON array for vector
+    }))
 
-  if (deleteErr) {
-    console.error("[RAG] Delete old chunks failed:", deleteErr)
-    throw deleteErr
+    const { error: insertErr } = await supabase.from("knowledge_chunks").insert(rows)
+
+    if (insertErr) {
+      console.error("[RAG] Insert chunks failed:", insertErr)
+      throw insertErr
+    }
   }
 
-  // Insert new chunks
-  const rows = embedded.map((c) => ({
-    user_id: userId,
-    chunk_type: c.chunk_type,
-    chunk_text: c.chunk_text,
-    metadata: c.metadata,
-    embedding: JSON.stringify(c.embedding), // Supabase accepts JSON array for vector
-  }))
+  let deleted = 0
+  if (diff.toDeleteIds.length > 0) {
+    const { error: deleteErr } = await supabase
+      .from("knowledge_chunks")
+      .delete()
+      .in("id", diff.toDeleteIds)
 
-  const { error: insertErr } = await supabase.from("knowledge_chunks").insert(rows)
-
-  if (insertErr) {
-    console.error("[RAG] Insert chunks failed:", insertErr)
-    throw insertErr
+    if (deleteErr) {
+      console.error("[RAG] Delete stale chunks failed:", deleteErr)
+      throw deleteErr
+    }
+    deleted = diff.toDeleteIds.length
   }
+
+  await markIndexed(supabase, userId)
 
   console.log(
-    `[RAG] Indexed ${embedded.length} chunks for user ${userId} (${skipped} skipped)`,
+    `[RAG] Indexed ${embedded.length} new chunks for user ${userId} ` +
+      `(${diff.reused} reused, ${deleted} deleted, ${skipped} skipped)`,
   )
-  return { indexed: embedded.length, skipped }
+  return { indexed: embedded.length, reused: diff.reused, deleted, skipped }
+}
+
+/** Best-effort bookkeeping: last_indexed_at = now, clear rag_dirty_at. */
+async function markIndexed(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  userId: string,
+): Promise<void> {
+  try {
+    await supabase
+      .from("profiles")
+      .update({ last_indexed_at: new Date().toISOString(), rag_dirty_at: null })
+      .eq("id", userId)
+  } catch (err) {
+    console.warn("[RAG] markIndexed failed (non-fatal):", err)
+  }
 }
 
 // ── RETRIEVAL ─────────────────────────────────────────────────────────────────
@@ -331,10 +433,7 @@ export async function retrieveRelevantChunks(
  * High-level helper: retrieve and format chunks into a prompt section.
  * Returns empty string if nothing found (caller falls back to full context).
  */
-export async function getRagContext(
-  userId: string,
-  message: string,
-): Promise<string> {
+export async function getRagContext(userId: string, message: string): Promise<string> {
   const chunks = await retrieveRelevantChunks(userId, message)
   if (chunks.length === 0) return ""
 
