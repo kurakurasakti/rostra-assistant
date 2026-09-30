@@ -23,11 +23,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("[Webhook/Xendit] Error handling webhook:", error)
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Webhook processing failed",
-      },
-      { status: 400 },
-    )
+    // Do not echo internal error text back to the caller: this is an
+    // unauthenticated endpoint and the messages reveal configuration
+    // state to anyone probing it.
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 400 })
   }
 }

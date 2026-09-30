@@ -21,6 +21,8 @@ import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { motion } from "framer-motion"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Logo } from "@/components/logo"
 import { QrisDisplay } from "@/components/payment/qris-display"
 import { Badge } from "@/components/ui/badge"
@@ -51,10 +53,6 @@ export default function PaymentInvoicePage() {
   const [proofUrl, setProofUrl] = useState("")
   const [notes, setNotes] = useState("")
   const [proofFile, setProofFile] = useState<File | null>(null)
-
-  // Admin instant confirmation state (for beta convenience)
-  const [adminKey, setAdminKey] = useState("")
-  const [adminConfirming, setAdminConfirming] = useState(false)
 
   // Countdown timer
   const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number } | null>(
@@ -161,36 +159,6 @@ export default function PaymentInvoicePage() {
     }
   }
 
-  // Admin Quick Confirmation for Beta
-
-  async function handleAdminQuickConfirm() {
-    setAdminConfirming(true)
-    try {
-      const res = await fetch("/api/payment/confirm-manual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          invoiceId: invoice!.id,
-          adminKey: adminKey || "glim-beta-pass",
-          adminNotes: "Konfirmasi instan via Admin Quick Bar",
-        }),
-      })
-
-      const data = await res.json()
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Gagal konfirmasi admin")
-      }
-
-      toast.success("Pembayaran berhasil dikonfirmasi! Langganan sekarang AKTIF.")
-      setInvoice(data.invoice)
-    } catch (err) {
-      console.error("[AdminConfirm] Error:", err)
-      toast.error(err instanceof Error ? err.message : "Konfirmasi gagal")
-    } finally {
-      setAdminConfirming(false)
-    }
-  }
-
   function copyText(text: string, label: string) {
     navigator.clipboard.writeText(text)
     toast.success(`${label} disalin ke clipboard!`)
@@ -198,9 +166,29 @@ export default function PaymentInvoicePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "#F8F6F2" }}>
-        <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
-        <p className="text-sm text-muted-foreground">Memuat tagihan pembayaran...</p>
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#F8F6F2" }}>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="w-full max-w-lg bg-white rounded-2xl shadow-sm border p-8 space-y-6"
+        >
+          <div className="flex justify-between items-center mb-8">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-8 w-24 rounded-full" />
+          </div>
+          
+          <div className="space-y-4">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-12 w-full max-w-xs" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+
+          <div className="pt-8 border-t space-y-4">
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <Skeleton className="h-16 w-full rounded-xl" />
+          </div>
+        </motion.div>
       </div>
     )
   }
@@ -270,7 +258,7 @@ export default function PaymentInvoicePage() {
                 </div>
                 <div>
                   <h2 className="font-display font-bold text-lg text-emerald-950">
-                    Pembayaran Berhasil & Akun Telah Aktif! 🎉
+                    Pembayaran Berhasil & Akun Telah Aktif!
                   </h2>
                   <p className="text-xs text-emerald-800 mt-0.5">
                     Terima kasih! Paket {invoice.plan_name} kamu sudah aktif dan siap digunakan.
@@ -538,41 +526,6 @@ export default function PaymentInvoicePage() {
                   )}
                 </Button>
               </form>
-            </div>
-
-            {/* Admin / Developer Beta Testing Toolbar */}
-            <div
-              className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/50 p-4 text-xs text-amber-950"
-            >
-              <div className="flex items-center gap-1.5 font-bold mb-1">
-                <ShieldAlert className="w-4 h-4 text-amber-700" />
-                <span>Beta Admin Quick Confirmation</span>
-              </div>
-              <p className="text-[11px] text-amber-800 mb-3 leading-relaxed">
-                Fitur pengembang untuk mencoba simulasi verifikasi manual tanpa harus buka database.
-              </p>
-
-              <div className="flex items-center gap-2">
-                <Input
-                  type="password"
-                  placeholder="Admin key (opsional)"
-                  value={adminKey}
-                  onChange={(e) => setAdminKey(e.target.value)}
-                  className="h-8 text-[11px] rounded-lg bg-white border-amber-200"
-                />
-                <Button
-                  size="sm"
-                  onClick={handleAdminQuickConfirm}
-                  disabled={adminConfirming || isPaid}
-                  className="h-8 text-xs bg-amber-700 hover:bg-amber-800 text-white rounded-lg flex-shrink-0"
-                >
-                  {adminConfirming ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    "Set Lunas (Approve)"
-                  )}
-                </Button>
-              </div>
             </div>
           </div>
         </div>

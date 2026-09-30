@@ -6,9 +6,12 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronsUp,
+  ExternalLink,
   EyeOff,
   FileText,
+  Image as ImageIcon,
   Loader2,
+  Mic,
   MessageSquare,
   Pencil,
   RefreshCw,
@@ -243,6 +246,25 @@ export default function InboxPage() {
   const [realtimeNonce, setRealtimeNonce] = useState(0)
   const [mobileView, setMobileView] = useState<"list" | "thread">("list")
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+
+  /**
+   * media_url originates from an inbound WhatsApp payload. The webhook
+   * now rejects non-https and non-storage hosts, but rows stored before
+   * that check still exist, and a javascript: value rendered into an href
+   * executes on click. Re-validate at render time so old rows cannot
+   * trigger it either.
+   */
+  function safeMediaUrl(raw: string | null | undefined): string | null {
+    if (!raw) return null
+    try {
+      const parsed = new URL(raw)
+      if (parsed.protocol !== "https:") return null
+      if (parsed.hostname !== "dpeyfucyrhyuhliitcfd.supabase.co") return null
+      return parsed.toString()
+    } catch {
+      return null
+    }
+  }
   // Level 2 queue state
   const [queuedEntry, setQueuedEntry] = useState<{
     queue_id: string
@@ -1025,7 +1047,7 @@ export default function InboxPage() {
       if (queueTimerRef.current) clearInterval(queueTimerRef.current)
       setQueuedEntry(null)
       if (wasCorrected) {
-        toast.success("Pesan terkirim · Koreksi dicatat untuk tingkatkan AI ✓")
+        toast.success("Pesan terkirim · Koreksi dicatat untuk tingkatkan AI")
       } else {
         toast.success("Pesan terkirim")
       }
@@ -1465,13 +1487,13 @@ export default function InboxPage() {
                   )}
                 >
                   {/* Image media */}
-                  {msg.media_type === "image" && msg.media_url && (
+                  {msg.media_type === "image" && safeMediaUrl(msg.media_url) && (
                     <div className="mb-1.5">
                       <img
-                        src={msg.media_url}
+                        src={safeMediaUrl(msg.media_url)!}
                         alt="Foto"
                         className="rounded-xl cursor-pointer object-cover max-w-[200px] max-h-[200px] w-full block"
-                        onClick={() => setLightboxUrl(msg.media_url!)}
+                        onClick={() => setLightboxUrl(safeMediaUrl(msg.media_url))}
                         onError={(e) => {
                           const el = e.target as HTMLImageElement
                           el.style.display = "none"
@@ -1481,33 +1503,42 @@ export default function InboxPage() {
                       <p className="hidden text-[11px] text-muted-foreground italic py-1">
                         Gambar tidak dapat dimuat
                       </p>
-                      <p className="text-[10px] text-muted-foreground mt-1">📷 Foto</p>
+                      <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3 shrink-0" />
+                        <span>Foto</span>
+                      </p>
                     </div>
                   )}
 
                   {/* Document media */}
-                  {msg.media_type === "document" && msg.media_url && (
+                  {msg.media_type === "document" && safeMediaUrl(msg.media_url) && (
                     <a
-                      href={msg.media_url}
+                      href={safeMediaUrl(msg.media_url)!}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center gap-2 mb-1.5 text-[12px] underline underline-offset-2"
                     >
                       <FileText className="w-4 h-4 flex-shrink-0" />
-                      {decodeURIComponent(msg.media_url.split("/").pop() ?? "Dokumen")}
+                      {decodeURIComponent(
+                        (safeMediaUrl(msg.media_url) ?? "").split("/").pop() || "Dokumen",
+                      )}
                     </a>
                   )}
 
                   {/* Image placeholder when URL unavailable */}
                   {msg.media_type === "image" && !msg.media_url && (
-                    <p className="text-[12px] italic text-muted-foreground mb-1">
-                      📷 Foto (tidak dapat dimuat)
+                    <p className="text-[12px] italic text-muted-foreground mb-1 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+                      <span>Foto (tidak dapat dimuat)</span>
                     </p>
                   )}
 
                   {/* Audio indicator */}
                   {msg.media_type === "audio" && (
-                    <p className="text-[12px] italic mb-1">🎵 Pesan suara</p>
+                    <p className="text-[12px] italic mb-1 flex items-center gap-1.5">
+                      <Mic className="w-3.5 h-3.5 shrink-0" />
+                      <span>Pesan suara</span>
+                    </p>
                   )}
 
                   {/* Text / caption — hide placeholder if media already shown */}
@@ -1895,9 +1926,10 @@ export default function InboxPage() {
                 href={lightboxUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-white/70 hover:text-white underline"
+                className="text-xs text-white/70 hover:text-white underline inline-flex items-center gap-1"
               >
-                Buka di tab baru ↗
+                <span>Buka di tab baru</span>
+                <ExternalLink className="w-3.5 h-3.5" />
               </a>
               <button
                 onClick={() => setLightboxUrl(null)}

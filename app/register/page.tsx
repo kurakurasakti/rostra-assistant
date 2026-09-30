@@ -185,7 +185,7 @@ export default function RegisterPage() {
               <>
                 <div className="mb-7">
                   <h2 className="font-display font-bold text-2xl tracking-tight text-zinc-900">
-                    Buat akun Glim ✨
+                    Buat akun Glim
                   </h2>
                   <p className="text-zinc-500 text-sm mt-1">
                     Gratis 14 hari, nggak perlu kartu kredit

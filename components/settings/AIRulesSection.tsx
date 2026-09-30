@@ -1,6 +1,6 @@
 "use client"
 
-import { Loader2, X } from "lucide-react"
+import { Check, Loader2, Lock, Sparkles, X } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -221,11 +221,19 @@ export default function AIRulesSection({
                 className={`rounded-lg border ${isActive ? "border-primary/30 bg-primary/5" : "border-border bg-muted/20"} p-3 space-y-2 ${locked ? "opacity-60" : ""}`}
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium">
-                    ● Level {item.level} — {item.label}
-                    {isActive && <span className="text-emerald-600 ml-2">✓ AKTIF SEKARANG</span>}
+                  <p className="text-xs font-medium flex items-center gap-1.5 flex-wrap">
+                    <span>● Level {item.level} — {item.label}</span>
+                    {isActive && (
+                      <span className="inline-flex items-center gap-1 text-emerald-600 ml-1">
+                        <Check className="w-3 h-3" />
+                        AKTIF SEKARANG
+                      </span>
+                    )}
                     {locked && (
-                      <span className="text-amber-600 ml-2">🔒 Butuh {item.threshold} koreksi</span>
+                      <span className="inline-flex items-center gap-1 text-amber-600 ml-1">
+                        <Lock className="w-3 h-3" />
+                        Butuh {item.threshold} koreksi
+                      </span>
                     )}
                   </p>
                   {canActivate && (
@@ -259,8 +267,9 @@ export default function AIRulesSection({
                   </>
                 )}
                 {item.level === 2 && hasAnalyzedVoice && (
-                  <p className="text-xs text-emerald-600 font-medium">
-                    ✨ Terbuka otomatis karena kamu sudah menganalisa chat WhatsApp!
+                  <p className="text-xs text-emerald-600 font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    <span>Terbuka otomatis karena kamu sudah menganalisa chat WhatsApp!</span>
                   </p>
                 )}
               </div>

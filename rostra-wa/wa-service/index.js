@@ -31,7 +31,7 @@ setInterval(() => {
 
 const NEXT_APP_URL = process.env.NEXT_APP_URL || "http://localhost:3000";
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3100;
 const HISTORY_BATCH_LIMIT = 10;
 
 // messageTimestamp can be a plain number or a protobuf Long — normalize to a JSON-safe number

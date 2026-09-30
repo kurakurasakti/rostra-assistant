@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react"
+import { Check, Sparkles } from "lucide-react"
 
 export function WaMockup() {
   return (
@@ -44,7 +44,7 @@ export function WaMockup() {
           style={{ backgroundColor: "#fff" }}
         >
           <p className="text-sm leading-relaxed" style={{ color: "#1A1A18" }}>
-            Halo kak, mau tanya soal kebaya custom dong, ada nggak? 🙏
+            Halo kak, mau tanya soal kebaya custom dong, ada nggak?
           </p>
           <p className="text-right text-[10px] mt-1" style={{ color: "#9B9590" }}>
             11:23
@@ -72,11 +72,11 @@ export function WaMockup() {
           <div className="flex items-center gap-1.5 mb-2">
             <Sparkles className="animate-amber-pulse w-3.5 h-3.5" style={{ color: "#E8A33D" }} />
             <span className="text-xs font-semibold" style={{ color: "#B8720A" }}>
-              Draft AI
+               Draft AI
             </span>
           </div>
           <p className="text-sm leading-relaxed mb-3" style={{ color: "#1A1A18" }}>
-            Halo Rina! Ada kok kak 😊 Kebaya custom kami mulai dari{" "}
+            Halo Rina! Ada kok kak. Kebaya custom kami mulai dari{" "}
             <span className="font-medium">Rp 850.000</span> untuk size M. Bisa konsultasi gratis
             dulu soal desain dan bahan...
           </p>
@@ -88,10 +88,11 @@ export function WaMockup() {
               Ubah
             </div>
             <div
-              className="flex-1 text-center text-xs font-semibold py-1.5 rounded-lg"
+              className="flex-1 inline-flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg"
               style={{ backgroundColor: "#703c8b", color: "#fff" }}
             >
-              ✓ Kirim
+              <Check className="w-3.5 h-3.5" />
+              Kirim
             </div>
           </div>
         </div>

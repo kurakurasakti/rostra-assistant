@@ -124,7 +124,7 @@ BEGIN
       NEW.id,
       'konfirmasi_pesanan',
       'Konfirmasi Pesanan',
-      $t1$Halo {{client_name}}, terima kasih sudah memesan dari {{business_name}}! 🎉
+      $t1$Halo {{client_name}}, terima kasih sudah memesan dari {{business_name}}!
 
 Pesanan kamu: {{order_description}}
 Total: {{total_price}}
@@ -136,7 +136,7 @@ Kami akan segera menghubungi kamu untuk detail selanjutnya. Terima kasih!$t1$,
       NEW.id,
       'pengingat_pembayaran',
       'Pengingat Pembayaran',
-      $t2$Halo {{client_name}} 👋
+      $t2$Halo {{client_name}},
 
 Mengingatkan bahwa {{stage_name}} sebesar {{amount}} untuk pesanan "{{order_description}}" jatuh tempo pada {{due_date}}.
 
@@ -149,11 +149,11 @@ Mohon segera melakukan pembayaran. Terima kasih!
       NEW.id,
       'pengingat_janji_temu',
       'Pengingat Janji Temu',
-      $t3$Halo {{client_name}} 😊
+      $t3$Halo {{client_name}},
 
 Mengingatkan jadwal {{appointment_title}} kamu bersama {{business_name}} pada:
-📅 {{scheduled_date}}
-📍 {{location}}
+- Waktu: {{scheduled_date}}
+- Lokasi: {{location}}
 
 Sampai jumpa!$t3$,
       TRUE

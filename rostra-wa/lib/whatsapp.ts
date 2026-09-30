@@ -1,4 +1,4 @@
-const WA_SERVICE_URL = process.env.WA_SERVICE_URL || 'http://localhost:3001'
+const WA_SERVICE_URL = process.env.WA_SERVICE_URL || 'http://localhost:3100'
 
 export async function sendTextMessage(
   to: string,

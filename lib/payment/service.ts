@@ -514,16 +514,16 @@ export class PaymentService {
       maximumFractionDigits: 0,
     }).format(invoice.total_amount)
 
-    const text = `Halo Kak ${businessName ? `(${businessName})` : ""} 👋
+    const text = `Halo Kak ${businessName ? `(${businessName})` : ""}
 Kabar baik! Pembayaran kamu sebesar ${formattedTotal} untuk tagihan *${invoice.invoice_number}* (${invoice.plan_name}) telah berhasil kami verifikasi.
 
-🎉 *Akun Glim Pro kamu sekarang sudah AKTIF!*
+*Akun Glim Pro kamu sekarang sudah AKTIF!*
 Kamu sudah bisa menikmati seluruh fitur auto-reply AI WhatsApp & pengingat jadwal tanpa batas.
 
 Silakan akses dashboard kamu di:
-👉 https://rostra.app/dashboard
+https://rostra.app/dashboard
 
-Jika butuh panduan setup, tim kami siap membantu kapan saja. Sukses selalu untuk bisnisnya! 🚀`
+Jika butuh panduan setup, tim kami siap membantu kapan saja. Sukses selalu untuk bisnisnya!`
 
     let phone = customerPhone ? customerPhone.replace(/\D/g, "") : ""
     if (phone.startsWith("08")) {

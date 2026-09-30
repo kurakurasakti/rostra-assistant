@@ -1,7 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PaymentService } from "@/lib/payment/service"
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminUser } from "@/lib/auth/admin"
+import { logSecurityEvent } from "@/lib/auth/rate-limiter"
 
+/**
+ * Manually confirm a payment and activate the subscription.
+ *
+ * Admin-only. Requires an authenticated session that passes
+ * requireAdminUser — there is deliberately no shared-secret bypass,
+ * because this endpoint activates paid subscriptions and previously
+ * accepted a hardcoded key that was also inlined into the public
+ * payment page bundle.
+ */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -9,26 +20,27 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    const body = await request.json()
-    const { invoiceId, adminNotes, adminKey } = body
-
-    if (!invoiceId) {
-      return NextResponse.json({ error: "Invoice ID is required" }, { status: 400 })
+    const { authorized, reason } = await requireAdminUser(user)
+    if (!authorized) {
+      if (user) {
+        await logSecurityEvent({
+          eventType: "admin_confirm_denied",
+          email: user.email ?? undefined,
+        })
+      }
+      return NextResponse.json({ error: reason ?? "Unauthorized" }, { status: 403 })
     }
 
-    // Security check: allow if logged in user or matching adminKey
-    const validAdminKey =
-      process.env.ADMIN_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "glim-admin-secret"
-    const isAuthorized =
-      Boolean(user) || (adminKey && (adminKey === validAdminKey || adminKey === "glim-beta-pass"))
+    const body = await request.json()
+    const { invoiceId, adminNotes } = body
 
-    if (!isAuthorized) {
-      return NextResponse.json({ error: "Unauthorized access" }, { status: 401 })
+    if (!invoiceId || typeof invoiceId !== "string") {
+      return NextResponse.json({ error: "Invoice ID is required" }, { status: 400 })
     }
 
     const result = await PaymentService.confirmPaymentManual({
       invoiceId,
-      adminNotes: adminNotes || (user ? `Dikonfirmasi oleh ${user.email}` : "Dikonfirmasi via Admin API"),
+      adminNotes: adminNotes || `Dikonfirmasi oleh ${user?.email ?? "admin"}`,
     })
 
     return NextResponse.json({
@@ -37,11 +49,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("[api/payment/confirm-manual] Error:", error)
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Internal Server Error",
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

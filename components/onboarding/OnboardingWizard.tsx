@@ -22,7 +22,7 @@ type WizardStep = {
 
 const STEPS: WizardStep[] = [
   {
-    title: "Selamat datang di Glim 👋",
+    title: "Selamat datang di Glim",
     description:
       "Glim membantu kamu membalas chat WhatsApp pelanggan secara otomatis dengan AI, mengelola client, dan melacak pesanan — semua dalam satu tempat. Yuk siapkan dalam 5 langkah singkat.",
   },

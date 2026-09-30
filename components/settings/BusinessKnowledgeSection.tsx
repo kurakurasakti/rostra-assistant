@@ -5,9 +5,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clipboard,
   FileText,
   Image as ImageIcon,
   Loader2,
+  Paperclip,
+  PenLine,
   Plus,
   RotateCcw,
   Sparkles,
@@ -271,7 +274,7 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
         const count = data.reindex?.indexed ?? 0
         const reused = data.reindex?.reused ?? 0
         toast.success(
-          `Pengetahuan bisnis tersimpan ✓ ${count + reused} chunk ter-index (${count} baru)`,
+          `Pengetahuan bisnis tersimpan · ${count + reused} chunk ter-index (${count} baru)`,
         )
         onSave?.(rawText, structured)
       }
@@ -340,35 +343,38 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
           <button
             type="button"
             onClick={() => setInputMode("upload")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
               inputMode === "upload"
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            📎 Upload File
+            <Paperclip className="w-3.5 h-3.5" />
+            Upload File
           </button>
           <button
             type="button"
             onClick={() => setInputMode("free")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
               inputMode === "free"
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            ✏️ Ceritakan
+            <PenLine className="w-3.5 h-3.5" />
+            Ceritakan
           </button>
           <button
             type="button"
             onClick={() => setInputMode("paste")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
               inputMode === "paste"
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            📋 Paste
+            <Clipboard className="w-3.5 h-3.5" />
+            Paste
           </button>
         </div>
 
@@ -425,10 +431,20 @@ export default function BusinessKnowledgeSection({ initialRaw, initialStructured
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {uploadedCatalog.mode === "text"
-                    ? `✓ Teks terdeteksi (${uploadedCatalog.rawText?.length.toLocaleString()} karakter) — analisa teks`
-                    : `🖼️ PDF gambar / foto katalog — analisa dengan AI Vision`}
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  {uploadedCatalog.mode === "text" ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>
+                        Teks terdeteksi ({uploadedCatalog.rawText?.length.toLocaleString()} karakter) — analisa teks
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <span>PDF gambar / foto katalog — analisa dengan AI Vision</span>
+                    </>
+                  )}
                 </p>
               </div>
             )}

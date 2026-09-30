@@ -34,6 +34,34 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true }, { status: 200 })
 }
 
+/**
+ * media_url is rendered straight into <img src> and <a href> in the inbox,
+ * so a javascript: or data: value stored here becomes stored XSS for any
+ * dashboard user who views the thread. Only allow the storage origins we
+ * actually serve media from.
+ */
+const ALLOWED_MEDIA_HOSTS = new Set([
+  "dpeyfucyrhyuhliitcfd.supabase.co",
+  "supabase.co",
+])
+
+function validateMediaUrl(value: unknown): string | null {
+  const raw = String(value).trim()
+  if (!raw) return null
+
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return null
+  }
+
+  if (parsed.protocol !== "https:") return null
+  if (!ALLOWED_MEDIA_HOSTS.has(parsed.hostname)) return null
+
+  return parsed.toString()
+}
+
 async function processIncomingMessage(payload: any) {
   // Baileys payload: { userId, sender, message, name, timestamp, messageId, media_url?, media_type?, media_size? }
   const userId = String(payload.userId ?? "").trim()
@@ -41,7 +69,7 @@ async function processIncomingMessage(payload: any) {
   const message = String(payload.message ?? "").trim()
   const name = String(payload.name ?? "").trim()
   const messageId = String(payload.messageId ?? "").trim()
-  const mediaUrl = payload.media_url ? String(payload.media_url) : null
+  const mediaUrl = payload.media_url ? validateMediaUrl(payload.media_url) : null
   const mediaType = payload.media_type ? String(payload.media_type) : null
   const mediaSize = payload.media_size ? Number(payload.media_size) : null
   const isMedia = !!mediaUrl || !!mediaType

@@ -21,6 +21,7 @@ import {
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { motion, AnimatePresence } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -66,15 +67,6 @@ export default function BillingPage() {
     loadData()
   }, [])
 
-  if (loading) {
-    return (
-      <div className="p-6 max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
-        <p className="text-sm text-muted-foreground">Memuat info langganan...</p>
-      </div>
-    )
-  }
-
   const isTrial = subscription?.status === "trialing"
   const isActive = subscription?.status === "active"
   const isExpired = subscription?.status === "expired" || subscription?.status === "past_due"
@@ -97,26 +89,64 @@ export default function BillingPage() {
       : "Glim Pro Bulanan"
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-8 animate-fade-up">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
-            Langganan & Pembayaran
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Kelola paket langganan Glim Assistant, masa aktif akun, dan riwayat faktur.
-          </p>
-        </div>
+    <AnimatePresence mode="wait">
+      {loading ? (
+        <motion.div
+          key="loading"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-8"
+        >
+          {/* Header Skeleton */}
+          <div className="flex flex-col sm:flex-row justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-96 max-w-full" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-24" />
+              <Skeleton className="h-9 w-40" />
+            </div>
+          </div>
+          
+          {/* Main Card Skeleton */}
+          <Skeleton className="h-[250px] w-full rounded-2xl" />
+          
+          {/* Table Skeleton */}
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-[200px] w-full rounded-2xl" />
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="content"
+          initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-8"
+        >
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
+                Langganan & Pembayaran
+              </h1>
+              <p className="text-muted-foreground text-sm mt-1">
+                Kelola paket langganan Glim Assistant, masa aktif akun, dan riwayat faktur.
+              </p>
+            </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => loadData(false)}
-            disabled={refreshing}
-            className="text-xs h-9 gap-1.5"
-          >
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadData(false)}
+                disabled={refreshing}
+                className="text-xs h-9 gap-1.5"
+              >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
             Perbarui
           </Button>
@@ -370,6 +400,9 @@ export default function BillingPage() {
           </Button>
         </a>
       </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
+

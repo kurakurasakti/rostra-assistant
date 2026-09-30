@@ -2,7 +2,9 @@
 
 import { differenceInDays, format, parseISO } from "date-fns"
 import {
+  AlertTriangle,
   CalendarDays,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -30,8 +32,9 @@ interface OrderCardProps {
 function stageStatusBadge(stage: PaymentStage) {
   if (stage.paid)
     return (
-      <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0 text-xs">
-        Lunas ✓
+      <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0 text-xs inline-flex items-center gap-1">
+        <Check className="w-3 h-3" />
+        <span>Lunas</span>
       </Badge>
     )
   const daysLeft = differenceInDays(parseISO(stage.due_date), new Date())
@@ -126,9 +129,12 @@ export default function OrderCard({
                 Timeline Pembayaran
               </h3>
               {totalStagesAmount(order) !== order.total_price && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
-                  ⚠ Total tahap Rp {formatRupiah(totalStagesAmount(order))} ≠ harga pesanan Rp{" "}
-                  {formatRupiah(order.total_price)}
+                <p className="text-xs text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Total tahap Rp {formatRupiah(totalStagesAmount(order))} ≠ harga pesanan Rp{" "}
+                    {formatRupiah(order.total_price)}
+                  </span>
                 </p>
               )}
               <div className="space-y-2">

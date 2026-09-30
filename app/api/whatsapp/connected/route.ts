@@ -1,10 +1,34 @@
+import { timingSafeEqual } from "crypto"
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 
-// Called by rostra-wa service when a Baileys session connects
+/**
+ * Called by the rostra-wa service when a Baileys session connects.
+ *
+ * This is a server-to-server callback, not a user request, so it is
+ * authenticated with the shared webhook secret. It writes through the
+ * service-role client (which bypasses RLS) keyed on a caller-supplied
+ * userId, so without this check any anonymous caller could flip
+ * wa_connected for an arbitrary tenant.
+ */
+function isAuthorized(request: Request): boolean {
+  const secret = process.env.WEBHOOK_SECRET ?? ""
+  const sig = request.headers.get("x-webhook-secret") ?? ""
+
+  if (!secret.length) return false
+  if (sig.length !== secret.length) return false
+
+  return timingSafeEqual(Buffer.from(sig), Buffer.from(secret))
+}
+
 export async function POST(request: Request) {
-  const body = await request.json()
-  const { userId, number } = body
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => null)
+  const userId = typeof body?.userId === "string" ? body.userId.trim() : ""
+  const number = typeof body?.number === "string" ? body.number.trim() : ""
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 })
 
   const supabase = await createServiceClient()

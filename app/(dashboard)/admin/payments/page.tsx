@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   Sparkles,
   X,
+  XCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
@@ -308,24 +309,55 @@ export default function AdminPaymentsPage() {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
             { id: "all", label: "Semua" },
-            { id: "waiting_confirmation", label: `🟡 Perlu Konfirmasi (${waitingCount})` },
-            { id: "paid", label: "🟢 Lunas" },
-            { id: "pending", label: "⏳ Menunggu Bayar" },
-            { id: "expired", label: "Kedaluwarsa" },
-          ].map((tab) => (
-            <button
-              type="button"
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
-                statusFilter === tab.id
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+            {
+              id: "waiting_confirmation",
+              label: `Perlu Konfirmasi (${waitingCount})`,
+              icon: AlertCircle,
+              iconColor: "text-amber-500 dark:text-amber-400",
+            },
+            {
+              id: "paid",
+              label: "Lunas",
+              icon: CheckCircle2,
+              iconColor: "text-emerald-500 dark:text-emerald-400",
+            },
+            {
+              id: "pending",
+              label: "Menunggu Bayar",
+              icon: Clock,
+              iconColor: "text-sky-500 dark:text-sky-400",
+            },
+            {
+              id: "expired",
+              label: "Kedaluwarsa",
+              icon: XCircle,
+              iconColor: "text-rose-500/80 dark:text-rose-400",
+            },
+          ].map((tab) => {
+            const Icon = tab.icon
+            const isActive = statusFilter === tab.id
+            return (
+              <button
+                type="button"
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {Icon && (
+                  <Icon
+                    className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                      isActive ? "text-primary-foreground" : tab.iconColor
+                    }`}
+                  />
+                )}
+                <span>{tab.label}</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Search */}

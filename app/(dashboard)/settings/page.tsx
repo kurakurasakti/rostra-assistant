@@ -510,7 +510,7 @@ export default function SettingsPage() {
 
                     <Textarea
                       id="brandVoice"
-                      placeholder="Contoh: Selalu sapa dengan 'Halo Kak 😊'. Pesan singkat 1-2 kalimat. Gunakan emoji 🙏 di akhir pesan."
+                      placeholder="Contoh: Selalu sapa dengan 'Halo Kak'. Pesan singkat 1-2 kalimat. Akhiri pesan dengan sopan."
                       value={brandVoice}
                       onChange={(e) => setBrandVoice(e.target.value)}
                       rows={3}
@@ -819,7 +819,7 @@ export default function SettingsPage() {
           <InlineEditCard
             title="Sambungan WhatsApp"
             subtitle="Hubungkan nomor WhatsApp bisnis Anda untuk mulai membalas pesan secara otomatis."
-            summary={profile?.wa_connected ? "Terhubung ✓" : "Belum terhubung"}
+            summary={profile?.wa_connected ? "Terhubung" : "Belum terhubung"}
             defaultExpanded={!profile?.wa_connected}
             onCollapseRequest={waConnectedAt}
           >

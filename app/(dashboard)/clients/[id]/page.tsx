@@ -3,11 +3,13 @@
 import { format, formatDistanceToNow, parseISO } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import {
+  AlertTriangle,
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
   CalendarClock,
   ChevronDown,
+  MapPin,
   MessageSquare,
   Plus,
   ShoppingBag,
@@ -573,7 +575,10 @@ export default function ClientDetailPage() {
                       {format(parseISO(appt.scheduled_at), "d MMM yyyy, HH:mm")}
                     </p>
                     {appt.location && (
-                      <p className="text-xs text-muted-foreground">📍 {appt.location}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span>{appt.location}</span>
+                      </p>
                     )}
                     {appt.notes && (
                       <p className="text-xs text-muted-foreground mt-1 italic">{appt.notes}</p>
@@ -696,9 +701,14 @@ export default function ClientDetailPage() {
                               classificationColors[msg.classification],
                             )}
                           >
-                            {msg.classification === "injection_attempt"
-                              ? "⚠️ injection"
-                              : msg.classification}
+                            {msg.classification === "injection_attempt" ? (
+                              <span className="inline-flex items-center gap-1">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                <span>injection</span>
+                              </span>
+                            ) : (
+                              msg.classification
+                            )}
                           </span>
                         )}
                       </div>

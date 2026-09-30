@@ -52,10 +52,10 @@ export async function sendEscalationNotification(
 
     const label =
       type === "injection"
-        ? "⚠️ *Percobaan Manipulasi AI* terdeteksi"
+        ? "[Peringatan] *Percobaan Manipulasi AI* terdeteksi"
         : type === "media"
-          ? "📷 *Client mengirim media* (AI tidak bisa membaca)"
-          : "🔔 *Pesan sensitif* perlu pengecekan manual dari kamu"
+          ? "[Media] *Client mengirim media* (AI tidak bisa membaca)"
+          : "[Penting] *Pesan sensitif* perlu pengecekan manual dari kamu"
 
     const message = [
       label,

@@ -132,7 +132,7 @@ Jawab HANYA apa yang ditanyakan. Pelanggan tanya harga → balas harga saja.
 Selalu selesaikan kalimat terakhir sampai tuntas.
 
 === JIKA TIDAK TAHU ===
-Balas: "Boleh saya tanyakan ke tim dulu ya Kak 🙏"
+Balas: "Boleh saya tanyakan ke tim dulu ya Kak"
 Jangan mengarang jawaban.`
 
 // Minimal classify prompt — no business context needed.
@@ -655,7 +655,7 @@ Perhatikan:
 7. Tingkat formalitas — santai/semi-formal/formal?
 
 Output: paragraf 3-5 kalimat yang MENGINSTRUKSIKAN AI untuk meniru gaya ini persis.
-Tulis seperti sedang memberi instruksi: "Sapa pelanggan dengan 'Kak'. Gunakan emoji 😊..."
+Tulis seperti sedang memberi instruksi: "Sapa pelanggan dengan 'Kak'..."
 JANGAN pakai bullet points. JANGAN tulis analisa — langsung tulis instruksi.
 JANGAN mengarang — hanya tulis apa yang benar-benar terlihat di percakapan.`
 

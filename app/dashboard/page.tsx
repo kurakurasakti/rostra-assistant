@@ -23,6 +23,7 @@ import {
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { type CSSProperties, useEffect, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -325,37 +326,51 @@ export default function DashboardPage() {
     load()
   }, [])
 
-  if (loading) {
-    return (
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6 animate-enter">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-4 w-96" />
+  return (
+    <AnimatePresence mode="wait">
+      {loading ? (
+        <motion.div
+          key="loading"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6"
+        >
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-96 max-w-full" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-32 rounded-lg" />
+              <Skeleton className="h-9 w-32 rounded-lg" />
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Skeleton className="h-9 w-32 rounded-lg" />
-            <Skeleton className="h-9 w-32 rounded-lg" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-xl" />
+            ))}
           </div>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-xl" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 space-y-6">
-            <Skeleton className="h-72 rounded-xl" />
-            <Skeleton className="h-72 rounded-xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8 space-y-6">
+              <Skeleton className="h-72 rounded-xl" />
+              <Skeleton className="h-72 rounded-xl" />
+            </div>
+            <div className="lg:col-span-4 space-y-6">
+              <Skeleton className="h-64 rounded-xl" />
+              <Skeleton className="h-64 rounded-xl" />
+            </div>
           </div>
-          <div className="lg:col-span-4 space-y-6">
-            <Skeleton className="h-64 rounded-xl" />
-            <Skeleton className="h-64 rounded-xl" />
-          </div>
-        </div>
-      </div>
-    )
-  }
+        </motion.div>
+      ) : (
+        <motion.div
+          key="content"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8"
+        >
 
   const statCards = [
     {
@@ -398,7 +413,7 @@ export default function DashboardPage() {
       label: "Pesan Masuk",
       value: stats?.unreadMessages?.toString() ?? "0",
       icon: MessageSquare,
-      description: stats?.unreadMessages ? `${stats.unreadMessages} pesan belum dibalas` : "Inbox bersih ✨",
+      description: stats?.unreadMessages ? `${stats.unreadMessages} pesan belum dibalas` : "Inbox bersih",
       color: "text-violet-600 dark:text-violet-400",
       bg: "bg-violet-500/10 border-violet-500/20",
       iconBg: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
@@ -556,7 +571,7 @@ export default function DashboardPage() {
                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
                   <MessageSquare className="w-6 h-6 text-muted-foreground/60" />
                 </div>
-                <p className="text-sm font-medium text-foreground">Inbox WhatsApp Bersih ✨</p>
+                <p className="text-sm font-medium text-foreground">Inbox WhatsApp Bersih</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm">
                   Pesan masuk baru dari pelanggan akan langsung muncul di sini secara otomatis.
                 </p>
@@ -805,7 +820,7 @@ export default function DashboardPage() {
                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mb-2.5">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <p className="text-xs font-semibold text-foreground">Semua Urusan Terkendali ✨</p>
+                <p className="text-xs font-semibold text-foreground">Semua Urusan Terkendali</p>
                 <p className="text-[11px] text-muted-foreground mt-1 max-w-xs">
                   Tidak ada tagihan pembayaran overdue atau jadwal janji temu tertunda untuk hari ini.
                 </p>
@@ -988,6 +1003,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

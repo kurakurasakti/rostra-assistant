@@ -221,11 +221,16 @@ export class XenditProvider implements PaymentProviderAdapter {
     const callbackTokenHeader =
       headers?.["x-callback-token"] || headers?.["X-CALLBACK-TOKEN"]
 
-    // Verify token if configured
-    if (
-      PAYMENT_CONFIG.xendit.webhookVerificationToken &&
-      callbackTokenHeader !== PAYMENT_CONFIG.xendit.webhookVerificationToken
-    ) {
+    // Fail closed: an unset verification token must reject, never accept.
+    // Skipping the check when the env var is empty let anyone POST a
+    // "PAID" payload and activate a subscription for free.
+    if (!PAYMENT_CONFIG.xendit.webhookVerificationToken) {
+      throw new Error(
+        "Xendit webhook verification is not configured (XENDIT_WEBHOOK_VERIFICATION_TOKEN missing)",
+      )
+    }
+
+    if (callbackTokenHeader !== PAYMENT_CONFIG.xendit.webhookVerificationToken) {
       throw new Error("Invalid Xendit webhook callback token")
     }
 
