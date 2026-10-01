@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Glim — RAG Foundation: Onboarding Ingest vs Live Retrieval",
+    "subtitle": "What is actually embedded at business setup, and what each reply reads back",
+    "locale": "en",
+    "output": ".archify/architecture-rag-onboarding-20260929-143402/glim-rag-foundation.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/kurakurasakti/rostra-assistant.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "653c8ae25233664645099bafc8f3d1b30cdd88bf"
+    }
+  },
+  "components": [
+    {
+      "id": "owner",
+      "type": "external",
+      "label": "Business Owner",
+      "sublabel": "new signup",
+      "pos": [40, 60],
+      "size": [170, 60],
+      "sources": [{ "path": "app/register/page.tsx", "line": 81 }]
+    },
+    {
+      "id": "upload",
+      "type": "frontend",
+      "label": "Settings",
+      "sublabel": "chat export + business text",
+      "pos": [40, 190],
+      "size": [190, 60],
+      "sources": [{ "path": "app/(dashboard)/settings/page.tsx", "line": 253, "label": "analyze-voice call" }]
+    },
+    {
+      "id": "analyze",
+      "type": "backend",
+      "label": "analyze-voice",
+      "sublabel": "chat-parser + LLM voice",
+      "pos": [40, 330],
+      "size": [190, 70],
+      "sources": [
+        { "path": "app/api/settings/analyze-voice/route.ts", "line": 41, "end_line": 56 },
+        { "path": "app/api/settings/analyze-voice/route.ts", "line": 95, "end_line": 108 }
+      ]
+    },
+    {
+      "id": "savebiz",
+      "type": "backend",
+      "label": "extract-business + save-business",
+      "sublabel": "raw text / images to JSON",
+      "pos": [280, 330],
+      "size": [210, 70],
+      "sources": [
+        { "path": "app/api/settings/extract-business/route.ts", "line": 35, "end_line": 52 },
+        { "path": "app/api/settings/save-business/route.ts", "line": 11, "end_line": 43 }
+      ]
+    },
+    {
+      "id": "profile",
+      "type": "database",
+      "label": "profiles",
+      "sublabel": "JSONB knowledge + examples",
+      "pos": [150, 560],
+      "size": [200, 70],
+      "sources": [
+        { "path": "app/api/settings/analyze-voice/route.ts", "line": 60, "end_line": 68 },
+        { "path": "app/api/settings/save-business/route.ts", "line": 15, "end_line": 23 }
+      ]
+    },
+    {
+      "id": "chunk",
+      "type": "backend",
+      "label": "chunkProfile",
+      "sublabel": "service / meta / example / raw",
+      "pos": [470, 560],
+      "size": [190, 60],
+      "sources": [{ "path": "lib/rag.ts", "line": 115, "end_line": 196 }]
+    },
+    {
+      "id": "embed",
+      "type": "backend",
+      "label": "embedText",
+      "sublabel": "text-embedding-3-small, 1536d",
+      "pos": [470, 680],
+      "size": [190, 60],
+      "sources": [{ "path": "lib/rag.ts", "line": 43, "end_line": 102 }]
+    },
+    {
+      "id": "embedapi",
+      "type": "external",
+      "label": "Embeddings API",
+      "sublabel": "OpenAI or OpenRouter",
+      "pos": [770, 680],
+      "size": [190, 60],
+      "sources": [{ "path": "lib/rag.ts", "line": 44, "end_line": 58 }]
+    },
+    {
+      "id": "chunks",
+      "type": "database",
+      "label": "knowledge_chunks",
+      "sublabel": "pgvector ivfflat, per user_id",
+      "pos": [470, 800],
+      "size": [210, 70],
+      "sources": [{ "path": "supabase/migrations/010_rag_knowledge_chunks.sql", "line": 12, "end_line": 74 }]
+    },
+    {
+      "id": "wa",
+      "type": "external",
+      "label": "WhatsApp",
+      "sublabel": "customer chat",
+      "pos": [980, 60],
+      "size": [170, 60],
+      "sources": [{ "path": "app/api/webhook/whatsapp/route.ts", "line": 9 }]
+    },
+    {
+      "id": "webhook",
+      "type": "backend",
+      "label": "WA Webhook",
+      "sublabel": "inbound message",
+      "pos": [980, 190],
+      "size": [180, 60],
+      "sources": [{ "path": "app/api/webhook/whatsapp/route.ts", "line": 121, "end_line": 171 }]
+    },
+    {
+      "id": "inbox",
+      "type": "database",
+      "label": "inbox_messages",
+      "sublabel": "raw chat archive",
+      "pos": [980, 320],
+      "size": [180, 70],
+      "sources": [{ "path": "app/api/webhook/whatsapp/route.ts", "line": 122, "end_line": 140 }]
+    },
+    {
+      "id": "retrieve",
+      "type": "backend",
+      "label": "retrieveRelevantChunks",
+      "sublabel": "topK 5, threshold 0.3",
+      "pos": [980, 450],
+      "size": [190, 70],
+      "sources": [{ "path": "lib/rag.ts", "line": 288, "end_line": 342 }]
+    },
+    {
+      "id": "prompt",
+      "type": "backend",
+      "label": "buildSecurePrompt",
+      "sublabel": "Level 1 + 2 + 3",
+      "pos": [980, 580],
+      "size": [190, 70],
+      "sources": [{ "path": "lib/openrouter.ts", "line": 295, "end_line": 316 }]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "OpenRouter LLM",
+      "sublabel": "qwen / glm draft",
+      "pos": [980, 710],
+      "size": [190, 60],
+      "sources": [{ "path": "lib/openrouter.ts", "line": 30, "end_line": 43 }]
+    },
+    {
+      "id": "send",
+      "type": "backend",
+      "label": "send + feedback loop",
+      "sublabel": "queue, draft, correction",
+      "pos": [980, 830],
+      "size": [190, 60],
+      "sources": [{ "path": "app/api/messages/send/route.ts", "line": 17, "end_line": 67 }]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Next.js App (Vercel)",
+      "wraps": ["upload", "analyze", "savebiz", "chunk", "embed", "webhook", "retrieve", "prompt", "send"]
+    },
+    {
+      "kind": "region",
+      "label": "Supabase",
+      "wraps": ["profile", "chunks", "inbox"]
+    },
+    {
+      "kind": "region",
+      "label": "External",
+      "wraps": ["owner", "embedapi", "wa", "llm"]
+    }
+  ],
+  "connections": [
+    { "id": "e1", "from": "owner", "to": "upload", "label": "onboarding", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e2", "from": "upload", "to": "analyze", "label": "chat export", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e3", "from": "upload", "to": "savebiz", "label": "business text", "fromSide": "right", "toSide": "top", "via": [[385, 220]] },
+    { "id": "e4", "from": "analyze", "to": "profile", "label": "voice + examples", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[135, 520], [250, 520]] },
+    { "id": "e5", "from": "savebiz", "to": "profile", "label": "raw + structured", "fromSide": "bottom", "toSide": "top", "via": [[385, 480], [250, 480]] },
+    { "id": "e6", "from": "profile", "to": "chunk", "label": "re-index", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelDx": 4 },
+    { "id": "e7", "from": "chunk", "to": "embed", "label": "1 chunk / call", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e8", "from": "embed", "to": "embedapi", "label": "POST /embeddings", "variant": "dashed", "fromSide": "right", "toSide": "left" },
+    { "id": "e9", "from": "embed", "to": "chunks", "label": "replace all", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e10", "from": "retrieve", "to": "chunks", "label": "cosine top-5", "variant": "security", "fromSide": "left", "toSide": "right", "via": [[972, 485], [972, 835]] },
+    { "id": "e11", "from": "inbox", "to": "retrieve", "label": "classify", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e12", "from": "retrieve", "to": "prompt", "label": "ragContext", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e13", "from": "prompt", "to": "llm", "label": "system prompt", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e14", "from": "llm", "to": "send", "label": "draft", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e15", "from": "send", "to": "profile", "label": "correction examples", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom", "via": [[1075, 960], [250, 960]], "labelAt": [650, 975] },
+    { "id": "e16", "from": "webhook", "to": "inbox", "label": "insert", "fromSide": "bottom", "toSide": "top", "labelDy": 30 },
+    { "id": "e17", "from": "wa", "to": "webhook", "label": "inbound", "fromSide": "bottom", "toSide": "top", "labelDy": 30 }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "What onboarding actually indexes",
+      "items": [
+        "chunkProfile reads one profile row, never the chat archive",
+        "Only 4 shapes are embedded: one chunk per service, one meta chunk, one chunk per conversation_example, or raw paragraphs when no structured JSON exists",
+        "selectBestExamples caps the uploaded chat at 14 pairs across 6 categories before embedding"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap versus Dify",
+      "items": [
+        "inbox_messages is a write-only archive: no code path embeds a real customer conversation",
+        "Feedback corrections from send mutate profiles but never call upsertKnowledgeChunks, so the vector store stays stale until the owner re-saves Settings",
+        "Retrieval is vector-only at a fixed 0.3 threshold: no hybrid keyword search, no rerank stage, no metadata filter, no retrieval test surface"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Ingest mechanics",
+      "items": [
+        "Both writes re-embed the whole set, then delete-all-then-insert",
+        "Fire-and-forget: re-index failures are logged only, never surfaced to the owner",
+        "RLS scopes rows by user_id, and the SQL match function filters on the same column"
+      ]
+    }
+  ]
+}
