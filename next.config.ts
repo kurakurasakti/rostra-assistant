@@ -57,6 +57,15 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },
+  async redirects() {
+    return [
+      {
+        source: "/cookie-policy",
+        destination: "/cookies-policy",
+        permanent: true,
+      },
+    ]
+  },
   async headers() {
     return [
       {

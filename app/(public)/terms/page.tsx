@@ -1,11 +1,15 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 
 export const metadata: Metadata = {
   title: "Syarat & Ketentuan — Glim",
+  description:
+    "Syarat dan Ketentuan Layanan Glim sesuai dengan hukum dan peraturan perundang-undangan Republik Indonesia.",
 }
 
 export default function TermsPage() {
   const email = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "support@glim.id"
+  const company = process.env.NEXT_PUBLIC_COMPANY_NAME || "Glim"
   const today = new Date().toLocaleDateString("id-ID", {
     year: "numeric",
     month: "long",
@@ -14,268 +18,260 @@ export default function TermsPage() {
 
   return (
     <article className="prose prose-sm prose-gray max-w-none">
-      <h1 className="font-display text-2xl font-bold tracking-tight mb-1">Syarat & Ketentuan</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight mb-1 text-gray-900">
+        Syarat & Ketentuan Layanan
+      </h1>
       <p className="text-sm text-gray-500 mb-8">Terakhir diperbarui: {today}</p>
 
-      <Section title="1. Penerimaan Syarat">
+      <Section title="1. Penerimaan Syarat & Perjanjian yang Mengikat">
         <p>
-          Dengan mendaftar, mengakses, atau menggunakan layanan Glim, kamu menyatakan telah membaca,
-          memahami, dan menyetujui seluruh syarat dan ketentuan ini. Jika kamu tidak menyetujui,
-          harap tidak menggunakan layanan Glim.
+          Selamat datang di {company} (&quot;Glim&quot;, &quot;kami&quot;, atau &quot;kita&quot;).
+          Dengan mendaftar, mengakses, atau menggunakan situs web, perangkat lunak, dan platform
+          asisten AI WhatsApp kami, kamu menyatakan bahwa kamu telah membaca, memahami, dan
+          menyetujui untuk terikat secara hukum oleh Syarat &amp; Ketentuan ini, bersama dengan{" "}
+          <Link href="/privacy-policy" className="text-primary font-medium hover:underline">
+            Kebijakan Privasi
+          </Link>{" "}
+          dan{" "}
+          <Link href="/cookies-policy" className="text-primary font-medium hover:underline">
+            Kebijakan Cookie
+          </Link>{" "}
+          kami.
+        </p>
+        <p>
+          Jika kamu tidak menyetujui salah satu atau seluruh ketentuan ini, kamu tidak diperkenankan
+          mengakses atau menggunakan layanan Glim.
         </p>
       </Section>
 
-      <Section title="2. Layanan Glim">
+      <Section title="2. Deskripsi Layanan Glim">
         <p>
-          Glim adalah platform AI WhatsApp assistant untuk UMKM Indonesia. Layanan mencakup inbox
-          terpusat, reminder otomatis, draft balasan AI, manajemen Client, dan integrasi bisnis.
-          Glim tersedia dalam dua paket langganan:
+          Glim adalah platform perangkat lunak berbasis cloud (SaaS) yang dirancang untuk membantu
+          Usaha Mikro, Kecil, dan Menengah (UMKM) serta pemilik bisnis mengelola komunikasi WhatsApp
+          pelanggan secara efisien. Fitur platform mencakup:
         </p>
         <ul>
           <li>
-            <strong>Basic (Rp 299.000/bulan)</strong> — AI assistant, dashboard bisnis, 1 koneksi
-            WhatsApp
+            Kotak masuk terpadu (<em>unified inbox</em>) untuk mengelola obrolan pelanggan
           </li>
+          <li>Pembuatan saran draft balasan otomatis berbasis kecerdasan buatan (AI)</li>
           <li>
-            <strong>Pro (Rp 399.000/bulan)</strong> — Semua fitur Basic + integrasi Google
-            (Calendar, Sheets, dan layanan Google lainnya)
+            Pengingat pembayaran (<em>payment reminder</em>) dan penjadwalan janji temu otomatis
           </li>
-        </ul>
-        <p>
-          Harga dapat berubah dengan pemberitahuan minimal 30 hari sebelum periode langganan
-          berikutnya.
-        </p>
-      </Section>
-
-      <Section title="3. Akun dan Tanggung Jawab Pengguna">
-        <ul>
-          <li>Kamu bertanggung jawab penuh atas keamanan akun dan kata sandi</li>
-          <li>Kamu bertanggung jawab atas semua konten yang dikirim melalui platform ke Client kamu</li>
-          <li>Kamu tidak boleh menggunakan Glim untuk spam, penipuan, atau aktivitas ilegal</li>
-          <li>Satu akun diperuntukkan untuk satu bisnis</li>
-          <li>
-            Kamu wajib memberikan informasi yang akurat saat pendaftaran dan memperbaruinya jika ada
-            perubahan
-          </li>
+          <li>Manajemen kontak pelanggan (CRM) dan pencatatan pesanan</li>
+          <li>Integrasi produktivitas dengan layanan Google (khusus paket Pro)</li>
         </ul>
       </Section>
 
-      <Section title="4. WhatsApp dan Kebijakan Meta">
-        <p>
-          Glim menggunakan koneksi WhatsApp <strong>tidak resmi</strong> (melalui library Baileys).
-          Koneksi ini bukan bagian dari WhatsApp Business API resmi dari Meta. Dengan menggunakan
-          Glim, kamu memahami dan menerima risiko berikut:
-        </p>
+      <Section title="3. Pendaftaran Akun & Kewajiban Pengguna">
         <ul>
           <li>
-            Meta/WhatsApp dapat memblokir atau membatasi nomor WhatsApp yang terhubung kapan saja
-            tanpa pemberitahuan
+            <strong>Kelayakan:</strong> Kamu harus berusia minimal 18 tahun atau telah cakap
+            melakukan tindakan hukum untuk membuat akun di platform Glim.
           </li>
           <li>
-            Glim <strong>tidak bertanggung jawab</strong> atas pemblokiran nomor WhatsApp oleh Meta
+            <strong>Akurasi Informasi:</strong> Kamu wajib memberikan informasi pendaftaran yang
+            benar, akurat, dan mutakhir.
           </li>
           <li>
-            Kami sangat menyarankan menggunakan <strong>nomor bisnis khusus</strong>, bukan nomor
-            pribadi utama kamu
+            <strong>Kerahasiaan Akun:</strong> Kamu bertanggung jawab penuh menjaga kerahasiaan kata
+            sandi dan kredensial akun kamu. Setiap aktivitas yang terjadi di bawah akun kamu
+            sepenuhnya menjadi tanggung jawab kamu.
           </li>
           <li>
-            Fitur dan kompatibilitas koneksi dapat berubah sewaktu-waktu mengikuti perubahan
-            kebijakan atau infrastruktur Meta
+            <strong>Satu Akun per Bisnis:</strong> Setiap akun diperuntukkan untuk satu entitas
+            bisnis dan tidak boleh dialihkan kepada pihak lain tanpa persetujuan tertulis dari Glim.
           </li>
         </ul>
       </Section>
 
-      <Section title="5. Data dan AI">
+      <Section title="4. Kebijakan Penggunaan yang Diperbolehkan (Acceptable Use Policy)">
+        <p>
+          Demi menjaga integritas sistem dan kepatuhan hukum, kamu setuju untuk{" "}
+          <strong>TIDAK MENGGUNAKAN</strong> Glim untuk:
+        </p>
         <ul>
           <li>
-            Percakapan Client kamu diproses oleh AI untuk menghasilkan draft balasan dan klasifikasi
-            pesan
+            Mengirimkan pesan massal tanpa persetujuan (<em>unsolicited bulk spam</em>) atau
+            melakukan <em>blast</em> ke nomor yang tidak memiliki hubungan bisnis dengan kamu
           </li>
           <li>
-            Kamu bertanggung jawab memastikan Client kamu mengetahui bahwa percakapan mereka diproses
-            oleh sistem otomatis
+            Melakukan penipuan, phishing, pemerasan, atau menyebarkan informasi palsu (
+            <em>hoaks</em>)
           </li>
           <li>
-            Glim tidak bertanggung jawab atas kesalahan draft AI yang dikirim tanpa review manual
-            oleh pengguna
+            Mempromosikan konten terlarang, perjudian online, narkotika, obat terlarang, pornografi,
+            atau produk/jasa ilegal lainnya menurut hukum Republik Indonesia
+          </li>
+          <li>Mengirimkan ujaran kebencian, pelecehan, ancaman, atau diskriminasi SARA</li>
+          <li>
+            Mencoba meretas, melakukan rekayasa balik (<em>reverse engineering</em>), atau
+            menyusupkan kode berbahaya (virus, bot manipulasi, prompt injection berbahaya) ke sistem
+            Glim
           </li>
           <li>
-            Percakapan dan media disimpan maksimal 90 hari, setelah itu dihapus secara otomatis
+            Mengumpulkan data pribadi pelanggan secara melawan hukum atau melanggar hak privasi
+            pihak ketiga
+          </li>
+        </ul>
+        <p className="text-xs text-rose-700 bg-rose-50 p-3 rounded-lg border border-rose-200 mt-2">
+          Pelanggaran terhadap ketentuan penggunaan ini dapat mengakibatkan penangguhan atau
+          pemutusan akun secara permanen tanpa pengembalian dana, serta pelaporan kepada pihak
+          berwajib jika terdapat indikasi tindak pidana.
+        </p>
+      </Section>
+
+      <Section title="5. WhatsApp & Pengakuan Risiko Pihak Ketiga">
+        <p>
+          Glim menghubungkan WhatsApp melalui protokol antarmuka non-resmi (library Baileys) dan
+          bukan merupakan bagian dari WhatsApp Business API resmi dari Meta Platforms, Inc. Dengan
+          menggunakan layanan ini, kamu memahami, menyetujui, dan menerima sepenuhnya ketentuan
+          berikut:
+        </p>
+        <ul>
+          <li>
+            Meta/WhatsApp memiliki kebijakan independen terkait aktivitas otomatisasi dan berhak
+            memblokir, menangguhkan, atau membatasi nomor WhatsApp kamu kapan saja
           </li>
           <li>
-            Data bisnis kamu (produk, jam operasional, template) digunakan untuk mempersonalisasi
-            draft AI dan tidak dibagikan ke pengguna lain
+            Glim <strong>TIDAK BERTANGGUNG JAWAB</strong> atas tindakan pemblokiran atau pembatasan
+            nomor WhatsApp yang dilakukan oleh Meta/WhatsApp
+          </li>
+          <li>
+            Kamu sangat disarankan menggunakan{" "}
+            <strong>nomor WhatsApp operasional bisnis khusus</strong> dan bukan nomor pribadi utama
+            kamu
+          </li>
+          <li>
+            Kamu bertanggung jawab mematuhi Ketentuan Layanan WhatsApp dan Kebijakan Perdagangan
+            WhatsApp yang berlaku
           </li>
         </ul>
       </Section>
 
-      <Section title="6. Pembayaran dan Langganan">
-        <p>Glim menyediakan dua paket langganan bulanan:</p>
+      <Section title="6. Tanggung Jawab Penggunaan AI & Data Pelanggan">
         <ul>
           <li>
-            <strong>Basic:</strong> Rp 299.000/bulan per akun
+            <strong>Human-in-the-Loop:</strong> Fitur draft AI dirancang sebagai asisten pemberi
+            saran. Kamu memiliki kewajiban untuk memeriksa ketepatan draft balasan sebelum
+            mengirimkannya kepada pelanggan.
           </li>
           <li>
-            <strong>Pro:</strong> Rp 399.000/bulan per akun
-          </li>
-        </ul>
-        <p>Ketentuan pembayaran:</p>
-        <ul>
-          <li>
-            Pembayaran dilakukan secara <strong>manual</strong> melalui QRIS atau transfer bank.
-            Layanan baru aktif setelah pembayaran dikonfirmasi oleh admin Glim
+            <strong>Pemberitahuan kepada Pelanggan:</strong> Sebagai Pengendali Data atas pelanggan
+            kamu, kamu bertanggung jawab memastikan bahwa pelanggan kamu mengetahui bahwa komunikasi
+            mereka diproses oleh sistem asisten digital.
           </li>
           <li>
-            <strong>Tidak ada auto-renewal</strong> — layanan aktif selama 1 (satu) bulan terhitung
-            dari tanggal konfirmasi pembayaran. Untuk melanjutkan, pengguna perlu melakukan
-            pembayaran ulang sebelum masa aktif berakhir
-          </li>
-          <li>
-            Layanan akan dihentikan jika pembayaran tidak dilakukan dalam 7 hari setelah tanggal
-            jatuh tempo
-          </li>
-        </ul>
-        <p>
-          <strong>Kebijakan Pengembalian Dana (Refund):</strong>
-        </p>
-        <ul>
-          <li>
-            Pembayaran pada dasarnya <strong>non-refundable</strong>, kecuali dalam kondisi berikut:
-          </li>
-          <li>
-            (a) Gangguan layanan dari pihak Glim yang berkepanjangan (lebih dari 48 jam berturut-
-            turut) yang menyebabkan layanan tidak dapat digunakan
-          </li>
-          <li>
-            (b) Pembayaran ganda (<em>double payment</em>) yang terbukti melalui bukti transfer
-          </li>
-          <li>
-            (c) Pembatalan yang diajukan sebelum layanan diaktifkan oleh admin (sebelum konfirmasi
-            pembayaran)
-          </li>
-          <li>
-            Pengajuan refund dikirim ke{" "}
-            <a href={`mailto:${email}`} className="text-primary font-medium">
-              {email}
-            </a>{" "}
-            dengan menyertakan bukti pendukung. Proses refund maksimal 14 hari kerja
+            <strong>Retensi Data 90 Hari:</strong> Pesan WhatsApp dan berkas media disimpan maksimal
+            selama <strong>90 hari kalender</strong>, setelah itu akan dihapus secara otomatis demi
+            keamanan privasi.
           </li>
         </ul>
       </Section>
 
-      <Section title="7. Fitur Pro dan Integrasi Google">
+      <Section title="7. Langganan, Pembayaran & Kebijakan Refund">
         <p>
-          Pengguna paket Pro mendapatkan akses ke integrasi dengan layanan Google, termasuk namun
-          tidak terbatas pada Google Calendar dan Google Sheets. Ketentuan integrasi:
+          Glim menyediakan paket langganan bulanan tanpa perpanjangan otomatis paksa (
+          <em>no hidden auto-charge</em>):
         </p>
         <ul>
           <li>
-            Pengguna wajib memberikan akses OAuth yang diminta saat menghubungkan akun Google.
-            Tanpa izin tersebut, fitur integrasi tidak dapat berfungsi
+            <strong>Metode Pembayaran:</strong> Pembayaran dilakukan secara manual via transfer Bank
+            atau QRIS. Layanan aktif setelah bukti pembayaran diverifikasi oleh admin.
           </li>
           <li>
-            Data yang disinkronkan meliputi: jadwal/event (Calendar), data spreadsheet yang
-            dipilih (Sheets), dan metadata terkait
+            <strong>Masa Aktif:</strong> Akun aktif selama 30 hari kalender sejak tanggal
+            konfirmasi. Pengguna dapat memperpanjang dengan melakukan pembayaran ulang menjelang
+            akhir periode.
           </li>
           <li>
-            Glim <strong>tidak menyimpan kredensial Google</strong> (username/password). Akses
-            dilakukan melalui token OAuth yang dapat dicabut kapan saja oleh pengguna melalui
-            pengaturan akun Google
+            <strong>Kebijakan Pengembalian Dana (Refund):</strong> Pembayaran pada dasarnya bersifat
+            final dan <em>non-refundable</em>, kecuali jika terjadi:
+            <ul className="list-disc pl-4 mt-1 space-y-1">
+              <li>
+                Gangguan sistem total dari pihak Glim yang berlangsung lebih dari 48 jam
+                berturut-turut
+              </li>
+              <li>
+                Pembayaran ganda (<em>double transfer</em>) yang terbukti sah
+              </li>
+              <li>Pembatalan sebelum verifikasi dan aktivasi layanan oleh admin</li>
+            </ul>
+          </li>
+        </ul>
+      </Section>
+
+      <Section title="8. Fitur Integrasi Google (Paket Pro)">
+        <p>Bagi pengguna paket Pro yang mengaktifkan integrasi Google Calendar dan Sheets:</p>
+        <ul>
+          <li>Akses dilakukan secara aman melalui protokol OAuth 2.0 resmi Google</li>
+          <li>Glim tidak pernah melihat atau menyimpan kata sandi akun Google kamu</li>
+          <li>
+            Kamu dapat mencabut izin akses kapan saja melalui pengaturan keamanan akun Google kamu
           </li>
           <li>
-            Penggunaan data dari layanan Google tunduk pada{" "}
+            Penggunaan data yang diterima dari Google API tunduk pada{" "}
             <a
-              href="https://policies.google.com/terms"
+              href="https://developers.google.com/terms/api-services-user-data-policy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary font-medium"
+              className="text-primary hover:underline"
             >
-              Persyaratan Layanan Google
-            </a>{" "}
-            dan{" "}
-            <a
-              href="https://policies.google.com/privacy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary font-medium"
-            >
-              Kebijakan Privasi Google
+              Kebijakan Data Pengguna Layanan Google API
             </a>
           </li>
         </ul>
       </Section>
 
-      <Section title="8. Batasan Tanggung Jawab">
+      <Section title="9. Batasan Tanggung Jawab & Jaminan">
         <p>
-          Glim tidak bertanggung jawab atas kerugian bisnis yang timbul dari gangguan layanan,
-          kesalahan draft AI, pemblokiran WhatsApp oleh Meta, atau ketidaktersediaan layanan pihak
-          ketiga (termasuk layanan Google). Layanan disediakan &quot;sebagaimana adanya&quot;
-          (<em>as is</em>) tanpa jaminan ketersediaan 100%.
+          Layanan Glim disediakan atas dasar &quot;sebagaimana adanya&quot; (<em>as is</em>) dan
+          &quot;sebagaimana tersedia&quot; (<em>as available</em>). Sejauh diizinkan oleh hukum yang
+          berlaku di Indonesia, Glim tidak memberikan jaminan tersirat atas kelayakan komersial atau
+          ketiadaan gangguan sistem secara sempurna.
+        </p>
+        <p>
+          Glim tidak bertanggung jawab atas kerugian tidak langsung, kehilangan keuntungan bisnis,
+          kehilangan pelanggan, atau kerugian data akibat pemblokiran nomor oleh pihak ketiga
+          (WhatsApp/Meta), kelalaian pengguna dalam memeriksa draft AI, atau peristiwa keadaan kahar
+          (<em>force majeure</em>).
         </p>
       </Section>
 
-      <Section title="9. Penghentian Layanan">
+      <Section title="10. Kepatuhan UU Pelindungan Data Pribadi (UU PDP)">
         <p>
-          Kami berhak menghentikan atau menangguhkan akun yang melanggar ketentuan ini tanpa
-          pemberitahuan sebelumnya. Pengguna juga dapat menghentikan langganan kapan saja dengan
-          tidak melakukan perpanjangan pembayaran.
+          Ketentuan mengenai perolehan, pemrosesan, penyimpanan, dan penghapusan data pribadi diatur
+          secara terperinci dalam{" "}
+          <Link href="/privacy-policy" className="text-primary font-medium hover:underline">
+            Kebijakan Privasi Glim
+          </Link>
+          . Kedua pihak sepakat untuk mematuhi seluruh kewajiban masing-masing berdasarkan UU No. 27
+          Tahun 2022 tentang Pelindungan Data Pribadi.
         </p>
       </Section>
 
-      <Section title="10. Perubahan Ketentuan">
+      <Section title="11. Hukum yang Berlaku & Penyelesaian Sengketa">
         <p>
-          Ketentuan ini dapat berubah sewaktu-waktu. Pengguna akan diberitahu melalui email atau
-          notifikasi di platform minimal 14 hari sebelum perubahan berlaku. Penggunaan layanan
-          setelah perubahan berlaku dianggap sebagai persetujuan terhadap ketentuan baru.
+          Syarat &amp; Ketentuan ini diatur dan ditafsirkan sesuai dengan hukum Negara Republik
+          Indonesia. Setiap perselisihan yang timbul sehubungan dengan pelaksanaan perjanjian ini
+          akan diselesaikan secara musyawarah untuk mufakat. Apabila tidak tercapai mufakat dalam
+          waktu 30 (tiga puluh) hari, sengketa akan diselesaikan melalui yurisdiksi Pengadilan
+          Negeri yang berwenang di wilayah hukum Republik Indonesia.
         </p>
       </Section>
 
-      <Section title="11. Kepatuhan UU Pelindungan Data Pribadi (UU No. 27 Tahun 2022)">
+      <Section title="12. Kontak & Layanan Dukungan">
         <p>
-          Glim berkomitmen mematuhi Undang-Undang Nomor 27 Tahun 2022 tentang Pelindungan Data
-          Pribadi (UU PDP). Sebagai pengguna Glim, kamu memiliki hak berikut:
+          Jika kamu memiliki pertanyaan mengenai Syarat &amp; Ketentuan ini, silakan hubungi tim
+          kami di:
         </p>
-        <ul>
-          <li>
-            <strong>Hak akses:</strong> meminta salinan data pribadi yang kami simpan tentang kamu
-          </li>
-          <li>
-            <strong>Hak perbaikan:</strong> meminta koreksi data yang tidak akurat atau tidak
-            lengkap
-          </li>
-          <li>
-            <strong>Hak penghapusan:</strong> meminta penghapusan akun dan seluruh data pribadi kamu
-            dari sistem kami
-          </li>
-          <li>
-            <strong>Hak portabilitas:</strong> meminta data kamu dalam format yang dapat dibaca mesin
-          </li>
-        </ul>
-        <p>
-          Pemrosesan data pribadi dilakukan sesuai dengan Kebijakan Privasi kami. Untuk mengajukan
-          permintaan terkait hak data pribadi, hubungi:{" "}
-          <a href={`mailto:${email}`} className="text-primary font-medium">
+        <p className="font-medium text-gray-800">
+          Email:{" "}
+          <a href={`mailto:${email}`} className="text-primary hover:underline">
             {email}
           </a>
-          . Kami akan merespons permintaan kamu dalam waktu maksimal 3×24 jam kerja.
         </p>
       </Section>
-
-      <Section title="12. Hukum yang Berlaku">
-        <p>
-          Ketentuan ini tunduk pada dan ditafsirkan berdasarkan hukum Republik Indonesia. Setiap
-          perselisihan yang timbul akan diselesaikan secara musyawarah terlebih dahulu, dan jika
-          tidak tercapai kesepakatan, akan diselesaikan melalui pengadilan yang berwenang di
-          Indonesia.
-        </p>
-      </Section>
-
-      <p className="text-sm text-gray-500 mt-8">
-        Pertanyaan:{" "}
-        <a href={`mailto:${email}`} className="text-primary font-medium">
-          {email}
-        </a>
-      </p>
     </article>
   )
 }
@@ -283,7 +279,9 @@ export default function TermsPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-8">
-      <h2 className="font-display font-semibold text-base tracking-tight mb-2">{title}</h2>
+      <h2 className="font-display font-semibold text-base tracking-tight mb-2 text-gray-900">
+        {title}
+      </h2>
       <div className="text-sm text-gray-600 leading-relaxed space-y-2">{children}</div>
     </section>
   )

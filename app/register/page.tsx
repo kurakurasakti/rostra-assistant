@@ -290,9 +290,9 @@ export default function RegisterPage() {
                         rel="noopener noreferrer"
                         className="text-primary font-medium hover:underline"
                       >
-                        Syarat & Ketentuan
-                      </a>{" "}
-                      dan{" "}
+                        Syarat &amp; Ketentuan
+                      </a>
+                      {", "}
                       <a
                         href="/privacy-policy"
                         target="_blank"
@@ -300,6 +300,15 @@ export default function RegisterPage() {
                         className="text-primary font-medium hover:underline"
                       >
                         Kebijakan Privasi
+                      </a>
+                      {", dan "}
+                      <a
+                        href="/cookies-policy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary font-medium hover:underline"
+                      >
+                        Kebijakan Cookie
                       </a>{" "}
                       Glim
                     </span>
