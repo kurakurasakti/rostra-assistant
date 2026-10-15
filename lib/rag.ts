@@ -10,7 +10,7 @@
  *
  * 2. RETRIEVAL (happens on every incoming message)
  *    Message → embedText() → match_knowledge_chunks() → top-K chunks
- *    → injected into the system prompt instead of the full context
+ *    → injected per-message (Level 3) alongside the full business knowledge
  *
  * Embedding model
  * ───────────────
@@ -29,7 +29,7 @@ import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "
 // ── TYPES ─────────────────────────────────────────────────────────────────────
 
 export interface KnowledgeChunk {
-  chunk_type: "service" | "meta" | "example" | "raw"
+  chunk_type: "example" | "raw"
   chunk_text: string
   metadata: Record<string, unknown>
 }
@@ -71,14 +71,30 @@ export async function embedText(
   text: string,
   opts?: { userId?: string },
 ): Promise<number[] | null> {
+  const [embedding] = await embedTexts([text], opts)
+  return embedding ?? null
+}
+
+/**
+ * Embed many strings in a single API request (the embeddings endpoint
+ * accepts an array input). Result is index-aligned with `texts`; an entry is
+ * null when its text was empty or the whole request failed.
+ * Pass opts.userId to count the call in monthly usage (never throws).
+ */
+export async function embedTexts(
+  texts: string[],
+  opts?: { userId?: string },
+): Promise<Array<number[] | null>> {
+  const results: Array<number[] | null> = texts.map(() => null)
   const config = getEmbeddingConfig()
   if (!config) {
     console.warn("[RAG] No embedding API key set — RAG disabled")
-    return null
+    return results
   }
 
-  const clean = text.replace(/\s+/g, " ").trim().slice(0, 8000) // token safety
-  if (!clean) return null
+  const cleaned = texts.map((t) => t.replace(/\s+/g, " ").trim().slice(0, 8000)) // token safety
+  const inputIdx = cleaned.flatMap((t, i) => (t ? [i] : []))
+  if (inputIdx.length === 0) return results
 
   try {
     const res = await fetch(`${config.base}/embeddings`, {
@@ -90,7 +106,7 @@ export async function embedText(
       },
       body: JSON.stringify({
         model: config.model,
-        input: clean,
+        input: inputIdx.map((i) => cleaned[i]),
         dimensions: EMBEDDING_DIMS, // Note: Not all OpenRouter models support the dimensions parameter
       }),
     })
@@ -101,15 +117,21 @@ export async function embedText(
     }
 
     const data = await res.json()
-    const embedding = (data.data?.[0]?.embedding ?? null) as number[] | null
-    if (embedding && opts?.userId) {
-      // Monthly metering: count the embedding call (never throws).
+    const items = (data.data ?? []) as Array<{ index?: number; embedding?: number[] }>
+    items.forEach((item, pos) => {
+      // Providers return `index` per item; fall back to response order.
+      const target = inputIdx[item.index ?? pos]
+      if (target !== undefined && item.embedding) results[target] = item.embedding
+    })
+
+    if (opts?.userId && results.some(Boolean)) {
+      // Monthly metering: count the embedding API call (never throws).
       void trackUsage(opts.userId, { embed_calls: 1 })
     }
-    return embedding
+    return results
   } catch (err) {
-    console.error("[RAG] embedText failed:", err)
-    return null
+    console.error("[RAG] embedTexts failed:", err)
+    return results
   }
 }
 
@@ -119,59 +141,23 @@ export async function embedText(
  * Split a profile into discrete, embeddable knowledge chunks.
  *
  * Chunk strategy:
- * - One chunk per service/product → precise price/availability retrieval
- * - One "meta" chunk for hours, location, payment, PO status, special notes
- * - One chunk per conversation_example → style/tone retrieval
+ * - One chunk per conversation_example → answer/style retrieval
  * - One "raw" chunk per paragraph of business_knowledge_raw (if no structured)
+ *
+ * Structured knowledge (services, hours, location, payment, PO) is NOT
+ * chunked: it is small and always included in full in the cached Level 2
+ * prompt (see buildLevel2 in lib/openrouter.ts). Indexing it too would only
+ * duplicate it and crowd examples out of the top-K. Legacy "service"/"meta"
+ * rows are removed by the diff-based reindex.
  */
 export function chunkProfile(profile: Profile): KnowledgeChunk[] {
   const chunks: KnowledgeChunk[] = []
 
-  // ── 1. Structured knowledge ──────────────────────────────────────────────
   const s = profile.business_knowledge_structured as BusinessKnowledgeStructured | null | undefined
 
-  if (s) {
-    // Service chunks — one per service so retrieval is precise
-    for (const svc of s.services ?? []) {
-      const text = [
-        `Layanan: ${svc.name}`,
-        `Harga: ${svc.price_range}`,
-        svc.description ? `Keterangan: ${svc.description}` : null,
-      ]
-        .filter(Boolean)
-        .join("\n")
-
-      chunks.push({
-        chunk_type: "service",
-        chunk_text: text,
-        metadata: { service_name: svc.name, category: "harga" },
-      })
-    }
-
-    // Meta chunk — one combined chunk for operational info
-    const metaParts: string[] = []
-    if (s.operating_hours) metaParts.push(`Jam operasional: ${s.operating_hours}`)
-    if (s.location) metaParts.push(`Lokasi: ${s.location}`)
-    if (s.payment_methods?.length)
-      metaParts.push(`Metode pembayaran: ${s.payment_methods.join(", ")}`)
-    metaParts.push(
-      s.po_status
-        ? `Open PO: Buka${s.po_close_date ? ` sampai ${s.po_close_date}` : ""}`
-        : "Open PO: Tutup",
-    )
-    if (s.special_notes) metaParts.push(`Catatan khusus: ${s.special_notes}`)
-
-    if (metaParts.length > 0) {
-      chunks.push({
-        chunk_type: "meta",
-        chunk_text: metaParts.join("\n"),
-        metadata: { category: "meta" },
-      })
-    }
-  }
-
-  // ── 2. Raw knowledge fallback ────────────────────────────────────────────
-  // Only use raw if there's no structured data (to avoid duplication)
+  // ── 1. Raw knowledge fallback ────────────────────────────────────────────
+  // Only use raw if there's no structured data (to avoid duplication).
+  // The static prompt caps raw text at 500 chars, so retrieval surfaces the rest.
   if (!s && profile.business_knowledge_raw) {
     const paragraphs = profile.business_knowledge_raw
       .split(/\n{2,}/)
@@ -187,7 +173,7 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
     }
   }
 
-  // ── 3. Conversation examples ─────────────────────────────────────────────
+  // ── 2. Conversation examples ─────────────────────────────────────────────
   const examples = profile.conversation_examples as ConversationExample[] | null | undefined
 
   for (const ex of examples ?? []) {
@@ -314,15 +300,16 @@ export async function upsertKnowledgeChunks(
     return { ...empty, reused: diff.reused }
   }
 
-  // Embed only new/changed chunks (batch of 10 at a time)
-  const BATCH_SIZE = 10
+  // Embed only new/changed chunks — one API request per batch of inputs
+  const BATCH_SIZE = 64
   const embedded: Array<HashedChunk & { embedding: number[] }> = []
   let skipped = 0
 
   for (let i = 0; i < diff.toInsert.length; i += BATCH_SIZE) {
     const batch = diff.toInsert.slice(i, i + BATCH_SIZE)
-    const embeddings = await Promise.all(
-      batch.map((c) => embedText(c.chunk_text, { userId })),
+    const embeddings = await embedTexts(
+      batch.map((c) => c.chunk_text),
+      { userId },
     )
 
     for (let j = 0; j < batch.length; j++) {
@@ -338,6 +325,7 @@ export async function upsertKnowledgeChunks(
   // Abort on embedding failure: never shrink the index on transient errors.
   if (diff.toInsert.length > 0 && embedded.length === 0) {
     console.warn("[RAG] All embedding calls failed for user:", userId)
+    await markDirty(supabase, userId)
     return { ...empty, reused: diff.reused, skipped }
   }
 
@@ -357,6 +345,18 @@ export async function upsertKnowledgeChunks(
       console.error("[RAG] Insert chunks failed:", insertErr)
       throw insertErr
     }
+  }
+
+  // Partial embedding failure: a changed chunk's old row would be deleted while
+  // its replacement never got inserted (e.g. a service vanishes after a price
+  // edit). Keep stale rows and leave the profile dirty so the next retrieval
+  // retries; the retry reuses everything inserted above.
+  if (skipped > 0) {
+    console.warn(
+      `[RAG] ${skipped} embeddings failed for user ${userId} — keeping stale rows, marked dirty`,
+    )
+    await markDirty(supabase, userId)
+    return { indexed: embedded.length, reused: diff.reused, deleted: 0, skipped }
   }
 
   let deleted = 0
@@ -394,6 +394,21 @@ async function markIndexed(
       .eq("id", userId)
   } catch (err) {
     console.warn("[RAG] markIndexed failed (non-fatal):", err)
+  }
+}
+
+/** Best-effort: set rag_dirty_at so the next retrieval retries the reindex. */
+async function markDirty(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  userId: string,
+): Promise<void> {
+  try {
+    await supabase
+      .from("profiles")
+      .update({ rag_dirty_at: new Date().toISOString() })
+      .eq("id", userId)
+  } catch (err) {
+    console.warn("[RAG] markDirty failed (non-fatal):", err)
   }
 }
 
@@ -519,7 +534,10 @@ export async function getRagContext(userId: string, message: string): Promise<st
   const chunks = await retrieveRelevantChunks(userId, message)
   if (chunks.length === 0) return ""
 
-  return `=== INFORMASI RELEVAN (DIAMBIL OTOMATIS) ===\n${chunks.join("\n\n")}`
+  return `=== INFORMASI RELEVAN (DIAMBIL OTOMATIS) ===
+Jika pesan pelanggan sama atau sangat mirip dengan contoh berikut, ikuti isi jawabannya — boleh sesuaikan sapaan/nama saja, JANGAN ubah informasi inti (harga/tanggal/status).
+
+${chunks.join("\n\n")}`
 }
 
 // ── CHUNK COUNT ───────────────────────────────────────────────────────────────

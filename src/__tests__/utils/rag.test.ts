@@ -8,11 +8,12 @@
  * They test: chunking logic, prompt assembly, and fallback behaviour.
  */
 
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { buildSecurePrompt } from "@/lib/openrouter"
 import {
   chunkProfile,
   diffChunks,
+  embedTexts,
   type HashedChunk,
   hashChunk,
   REINDEX_THROTTLE_MS,
@@ -79,42 +80,9 @@ const PROFILE_WITH_RAW_ONLY: Profile = {
 // ── chunkProfile() ────────────────────────────────────────────────────────────
 
 describe("chunkProfile()", () => {
-  it("produces one service chunk per service", () => {
+  it("does NOT chunk structured knowledge (it is always in the static prompt)", () => {
     const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const serviceChunks = chunks.filter((c) => c.chunk_type === "service")
-    expect(serviceChunks).toHaveLength(2)
-  })
-
-  it("service chunk contains name and price", () => {
-    const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const kebaya = chunks.find((c) => c.chunk_text.includes("Kebaya Modern"))
-    expect(kebaya).toBeDefined()
-    expect(kebaya!.chunk_text).toContain("750rb–2jt")
-    expect(kebaya!.chunk_text).toContain("Bahan premium")
-    expect(kebaya!.metadata.category).toBe("harga")
-  })
-
-  it("service chunk without description omits the description line", () => {
-    const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const gaun = chunks.find((c) => c.chunk_text.includes("Gaun Pesta"))
-    expect(gaun).toBeDefined()
-    expect(gaun!.chunk_text).not.toContain("Keterangan:")
-  })
-
-  it("produces exactly one meta chunk", () => {
-    const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const metaChunks = chunks.filter((c) => c.chunk_type === "meta")
-    expect(metaChunks).toHaveLength(1)
-  })
-
-  it("meta chunk includes hours, location, payment, and PO status", () => {
-    const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const meta = chunks.find((c) => c.chunk_type === "meta")!
-    expect(meta.chunk_text).toContain("Senin–Sabtu 09.00–17.00")
-    expect(meta.chunk_text).toContain("Jakarta")
-    expect(meta.chunk_text).toContain("BCA")
-    expect(meta.chunk_text).toContain("Open PO: Buka sampai 2026-10-31")
-    expect(meta.chunk_text).toContain("Minimal DP 50%")
+    expect(chunks).toHaveLength(0)
   })
 
   it("produces example chunks equal to conversation_examples count", () => {
@@ -167,8 +135,7 @@ describe("buildSecurePrompt() — RAG integration", () => {
     expect(prompt).toContain(ragContext)
   })
 
-  it("does NOT include static buildBusinessContext when ragContext is provided", () => {
-    // The static block starts with '=== PENGETAHUAN BISNIS ==='
+  it("keeps full static business knowledge when ragContext is provided", () => {
     const ragContext = "=== INFORMASI RELEVAN ===\nsome chunk"
     const prompt = buildSecurePrompt(
       PROFILE_WITH_STRUCTURED,
@@ -176,10 +143,39 @@ describe("buildSecurePrompt() — RAG integration", () => {
       "",
       "",
       undefined,
-      "berapa harga",
+      "halo kak",
       ragContext,
     )
-    expect(prompt).not.toContain("=== PENGETAHUAN BISNIS ===")
+    expect(prompt).toContain("=== PENGETAHUAN BISNIS ===")
+    expect(prompt).toContain("Senin–Sabtu 09.00–17.00")
+    expect(prompt).toContain("Kebaya Modern")
+  })
+
+  it("places ragContext after the static prefix so the prefix stays cacheable", () => {
+    const withRag = buildSecurePrompt(
+      PROFILE_WITH_EXAMPLES,
+      null,
+      "",
+      "",
+      undefined,
+      "berapa harga",
+      "=== INFORMASI RELEVAN ===\nchunk A",
+    )
+    const otherRag = buildSecurePrompt(
+      PROFILE_WITH_EXAMPLES,
+      null,
+      "",
+      "",
+      undefined,
+      "kapan fitting",
+      "=== INFORMASI RELEVAN ===\nchunk B",
+    )
+    const prefix = withRag.slice(0, withRag.indexOf("=== INFORMASI RELEVAN ==="))
+    expect(prefix.length).toBeGreaterThan(0)
+    expect(otherRag.startsWith(prefix)).toBe(true)
+    expect(withRag.indexOf("=== INFORMASI RELEVAN ===")).toBeGreaterThan(
+      withRag.indexOf("=== PENGETAHUAN BISNIS ==="),
+    )
   })
 
   it("falls back to static business context when ragContext is empty string", () => {
@@ -291,44 +287,46 @@ describe("diffChunks()", () => {
     expect(diff.reused).toBe(desired.length)
   })
 
-  it("one service changed → exactly 1 insert", () => {
-    const before = hashed(PROFILE_WITH_STRUCTURED)
+  it("one example corrected → exactly 1 insert", () => {
+    const examples = PROFILE_WITH_EXAMPLES.conversation_examples ?? []
+    const before = hashed(PROFILE_WITH_EXAMPLES)
     const after = hashed({
-      ...PROFILE_WITH_STRUCTURED,
-      business_knowledge_structured: {
-        ...PROFILE_WITH_STRUCTURED.business_knowledge_structured!,
-        services: [
-          { name: "Kebaya Modern", price_range: "900rb–2jt", description: "Bahan premium" },
-          { name: "Gaun Pesta", price_range: "1jt–3jt" },
-        ],
-      },
+      ...PROFILE_WITH_EXAMPLES,
+      conversation_examples: [
+        { ...examples[0], admin: "Harga kebaya mulai 900rb Kak 😊" },
+        examples[1],
+      ],
     })
     const diff = diffChunks(fakeExisting(before), after)
     expect(diff.toInsert).toHaveLength(1)
     expect(diff.toInsert[0].chunk_text).toContain("900rb")
-    expect(diff.toDeleteIds).toHaveLength(1) // old kebaya chunk
+    expect(diff.toDeleteIds).toHaveLength(1) // old answer
     expect(diff.reused).toBe(after.length - 1)
   })
 
-  it("service removed → its row deleted, no insert", () => {
-    const before = hashed(PROFILE_WITH_STRUCTURED)
-    const after = hashed({
-      ...PROFILE_WITH_STRUCTURED,
-      business_knowledge_structured: {
-        ...PROFILE_WITH_STRUCTURED.business_knowledge_structured!,
-        services: [
-          { name: "Kebaya Modern", price_range: "750rb–2jt", description: "Bahan premium" },
-        ],
-      },
-    })
+  it("example removed → its row deleted, no insert", () => {
+    const examples = PROFILE_WITH_EXAMPLES.conversation_examples ?? []
+    const before = hashed(PROFILE_WITH_EXAMPLES)
+    const after = hashed({ ...PROFILE_WITH_EXAMPLES, conversation_examples: [examples[0]] })
     const diff = diffChunks(fakeExisting(before), after)
     expect(diff.toInsert).toHaveLength(0)
     expect(diff.toDeleteIds).toHaveLength(1)
     expect(diff.reused).toBe(after.length)
   })
 
+  it("legacy service/meta rows are deleted once structured knowledge is no longer chunked", () => {
+    const legacy = [
+      { id: "svc-1", content_hash: hashChunk("service", "Layanan: Kebaya Modern") },
+      { id: "meta-1", content_hash: hashChunk("meta", "Jam operasional: 09.00") },
+    ]
+    const desired = hashed(PROFILE_WITH_EXAMPLES)
+    const diff = diffChunks(legacy, desired)
+    expect(diff.toDeleteIds.sort()).toEqual(["meta-1", "svc-1"])
+    expect(diff.toInsert).toHaveLength(desired.length)
+  })
+
   it("empty desired → all existing rows deleted", () => {
-    const before = hashed(PROFILE_WITH_STRUCTURED)
+    const before = hashed(PROFILE_WITH_EXAMPLES)
     const diff = diffChunks(fakeExisting(before), [])
     expect(diff.toInsert).toHaveLength(0)
     expect(diff.toDeleteIds).toHaveLength(before.length)
@@ -351,12 +349,52 @@ describe("diffChunks()", () => {
   })
 
   it("rows with null content_hash (legacy) are deleted, not matched", () => {
-    const desired = hashed(PROFILE_WITH_STRUCTURED)
+    const desired = hashed(PROFILE_WITH_EXAMPLES)
     const existing = [{ id: "legacy-1", content_hash: null }]
     const diff = diffChunks(existing, desired)
     expect(diff.reused).toBe(0)
     expect(diff.toInsert).toHaveLength(desired.length)
     expect(diff.toDeleteIds).toEqual(["legacy-1"])
+  })
+})
+
+// ── embedTexts() — batched embedding ─────────────────────────────────────────
+
+describe("embedTexts()", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  it("sends one request and maps results back by index, skipping empty inputs", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          // returned out of order on purpose — must be mapped via `index`
+          data: [
+            { index: 1, embedding: [2] },
+            { index: 0, embedding: [1] },
+          ],
+        }),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await embedTexts(["a", "   ", "c"])
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body.input).toEqual(["a", "c"])
+    expect(result).toEqual([[1], null, [2]])
+  })
+
+  it("returns all nulls when the request fails", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("boom", { status: 500 })))
+
+    expect(await embedTexts(["a", "b"])).toEqual([null, null])
   })
 })
 

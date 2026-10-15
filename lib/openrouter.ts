@@ -289,28 +289,25 @@ ${body}`
 }
 
 // Level 2 — changes only when user saves Settings.
-// Stable across all messages from the same user until settings are updated.
-// When ragContext is provided (RAG retrieval hit), it replaces the static
-// business knowledge block so the prompt only contains relevant chunks.
-function buildLevel2(profile: Profile, ragContext?: string): string {
+// Stable across all messages from the same user until settings are updated,
+// so it must never contain per-message content (that would break prompt caching).
+// Business knowledge is always included in full: it is small, and dropping it
+// when retrieval misses (greetings, vague questions) lets the model invent
+// hours/prices. Retrieval only adds per-message examples in Level 3.
+function buildLevel2(profile: Profile, ragActive: boolean): string {
   const escalationNote = (profile.escalation_keywords as string[] | null)?.length
     ? `\nEskalasi langsung jika pesan mengandung: ${(profile.escalation_keywords as string[]).join(", ")}`
     : ""
 
-  // RAG path: replace full knowledge dump with retrieved chunks
-  const knowledgeBlock = ragContext
-    ? ragContext
-    : `=== PENGETAHUAN BISNIS ===\n${buildBusinessContext(profile)}`
-
   const businessSection = `=== BISNIS: ${profile.business_name} ===
 ${profile.brand_voice || "Balas dengan sopan, ramah, dan singkat dalam Bahasa Indonesia."}${escalationNote}
 
-${knowledgeBlock}`
+=== PENGETAHUAN BISNIS ===
+${buildBusinessContext(profile)}`
 
   // Examples section: when RAG is active, skip the static sorted examples
-  // (the top-K relevant examples are already inside the retrieved chunks).
-  // Keep the full examples section only on the non-RAG path so that
-  const examplesSection = ragContext ? "" : buildExamplesSection(profile.conversation_examples)
+  // (the top-K relevant examples are retrieved into Level 3 instead).
+  const examplesSection = ragActive ? "" : buildExamplesSection(profile.conversation_examples)
 
   return [businessSection, examplesSection].filter(Boolean).join("\n\n").trim()
 }
@@ -320,10 +317,12 @@ function buildLevel3(
   client: Client | null,
   orderSummary?: string,
   relevantExamples?: string,
+  ragContext?: string,
 ): string {
   const parts: string[] = []
   if (client?.ai_notes) parts.push(`=== KONTEKS KLIEN ===\n${client.ai_notes}`)
   if (orderSummary) parts.push(`=== PESANAN AKTIF KLIEN INI ===\n${orderSummary}`)
+  if (ragContext) parts.push(ragContext)
   if (relevantExamples) parts.push(relevantExamples)
   return parts.join("\n\n")
 }
@@ -377,8 +376,8 @@ export async function getClientOrderSummary(userId: string, clientId: string): P
 
 // buildSecurePrompt = Level 1 + Level 2 + Level 3, ordered for max cache hits.
 // _businessContext and _brandVoice params kept for API compat; now derived from profile.
-// ragContext: optional pre-retrieved RAG chunks; when present, replaces static
-// business knowledge in Level 2 to reduce prompt size and improve relevance.
+// ragContext: optional pre-retrieved RAG chunks (examples + raw paragraphs);
+// injected per-message in Level 3, so Level 2 stays cacheable.
 export function buildSecurePrompt(
   profile: Profile,
   client: Client | null,
@@ -394,8 +393,8 @@ export function buildSecurePrompt(
       : ""
   return [
     LEVEL1_RULES,
-    buildLevel2(profile, ragContext),
-    buildLevel3(client, orderSummary, relevantExamples),
+    buildLevel2(profile, Boolean(ragContext)),
+    buildLevel3(client, orderSummary, relevantExamples, ragContext),
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -413,10 +412,9 @@ export async function buildAIContext(
   }
 
   // ── RAG retrieval ─────────────────────────────────────────────────────────
-  // When RAG chunks are available, inject only the relevant ones instead of
-  // the full business context, making the prompt smaller and more precise.
-  // Falls back to full context stuffing if RAG is not configured or returns
-  // nothing (graceful degradation — no breaking change to existing flow).
+  // Retrieved chunks (relevant examples / raw paragraphs) are added per-message
+  // on top of the always-present business knowledge. Falls back to the static
+  // examples section if RAG is not configured or returns nothing.
   let ragContext = ""
   if (userId && message) {
     // Catch-up: a throttled correction may have set rag_dirty_at — reindex
