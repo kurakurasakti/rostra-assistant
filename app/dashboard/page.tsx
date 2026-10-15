@@ -1,1010 +1,723 @@
 "use client"
 
-import {
-  AlertCircle,
-  ArrowRight,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  CreditCard,
-  ExternalLink,
-  MessageSquare,
-  Plus,
-  Radio,
-  Send,
-  ShoppingBag,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-  UserPlus,
-  Users,
-  Wand2,
-} from "lucide-react"
+import { CheckCircle2 } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { type CSSProperties, useEffect, useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
+import { useEffect, useState } from "react"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 
-interface DashboardStats {
+interface DashboardData {
+  businessName: string
+  waConnected: boolean
   totalClients: number
+  newClients30d: number
   activeOrders: number
-  totalUnpaid: number
-  unpaidOrderCount: number
+  hasAnyOrder: boolean
   unreadMessages: number
-  clientTrend: number
-  orderTrend: number
-  messageTrend: number
+  dueTotal: number
+  duePayments: DuePayment[]
+  appointments: TodayAppointment[]
+  recentMessages: RecentMessage[]
+  recentClients: RecentClient[]
 }
 
-interface PendingItem {
-  type: "payment" | "appointment"
+interface DuePayment {
+  stageName: string
+  amount: number
+  dueDate: string
+  clientName: string
+  clientPhone: string | null
+}
+
+interface TodayAppointment {
   title: string
-  description: string
-  severity: "danger" | "warning"
-  clientPhone?: string
-  clientName?: string
-  amount?: number
+  scheduledAt: string
+  clientName: string
 }
 
 interface RecentMessage {
   id: string
-  whatsapp_number: string
-  contact_name: string | null
-  message_body: string
-  received_at: string
-  classification: string
+  displayName: string
+  body: string
+  receivedAt: string
+  classification: string | null
+  hasDraft: boolean
 }
 
 interface RecentClient {
   id: string
   name: string
-  whatsapp_number: string
-  created_at: string
-  latest_order_status: string | null
+  createdAt: string
+  latestOrderStatus: string | null
 }
 
-function getGreeting(): string {
-  const hour = new Date().getHours()
-  if (hour >= 4 && hour < 11) return "Selamat Pagi"
-  if (hour >= 11 && hour < 15) return "Selamat Siang"
-  if (hour >= 15 && hour < 18) return "Selamat Sore"
-  return "Selamat Malam"
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  aktif: "Pesanan berjalan",
+  selesai: "Selesai",
+  lunas: "Lunas",
+  dibatalkan: "Dibatalkan",
+}
+
+const CLASSIFICATION_NOTE: Record<string, string> = {
+  sensitif: "Perlu kamu cek",
+  tidak_diketahui: "AI belum yakin",
+}
+
+const rupiah = (n: number) => `Rp ${n.toLocaleString("id-ID")}`
+
+function localDateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function digitsOnly(phone: string): string {
+  return phone.replace(/@s\.whatsapp\.net$/, "").replace(/\D/g, "")
+}
+
+/** 62812… / 0812… → 0812… for display. */
+function displayPhone(phone: string): string {
+  const d = digitsOnly(phone)
+  return d.startsWith("62") ? `0${d.slice(2)}` : d
+}
+
+/** Any Indonesian variant → 62812… for wa.me links and matching. */
+function waMeNumber(phone: string): string {
+  const d = digitsOnly(phone)
+  if (d.startsWith("0")) return `62${d.slice(1)}`
+  if (d.startsWith("8")) return `62${d}`
+  return d
+}
+
+function relativeTime(iso: string): string {
+  const then = new Date(iso)
+  const diffMin = Math.floor((Date.now() - then.getTime()) / 60_000)
+  if (diffMin < 1) return "baru saja"
+  if (diffMin < 60) return `${diffMin} mnt`
+  if (localDateKey(then) === localDateKey(new Date())) return `${Math.floor(diffMin / 60)} jam`
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (localDateKey(then) === localDateKey(yesterday)) return "kemarin"
+  return then.toLocaleDateString("id-ID", { day: "numeric", month: "short" })
+}
+
+function dueLabel(dueDate: string): string {
+  if (dueDate === localDateKey(new Date())) return "jatuh tempo hari ini"
+  const date = new Date(`${dueDate}T00:00:00`).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+  })
+  return `lewat tempo sejak ${date}`
+}
+
+function joinIndonesian(parts: string[]): string {
+  if (parts.length <= 1) return parts.join("")
+  return `${parts.slice(0, -1).join(", ")} dan ${parts[parts.length - 1]}`
+}
+
+function buildBriefing(data: DashboardData): string {
+  const parts: string[] = []
+  if (data.unreadMessages > 0) parts.push(`${data.unreadMessages} pesan belum dibalas`)
+  if (data.duePayments.length > 0)
+    parts.push(`${data.duePayments.length} tagihan jatuh tempo senilai ${rupiah(data.dueTotal)}`)
+  if (data.appointments.length > 0) parts.push(`${data.appointments.length} janji temu`)
+  if (parts.length === 0) return "Tidak ada yang perlu ditindaklanjuti hari ini."
+  return `Hari ini ada ${joinIndonesian(parts)}.`
+}
+
+async function loadDashboard(): Promise<DashboardData | null> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const now = new Date()
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+  // Local-day bounds (WIB for our users), not UTC date strings.
+  const startOfToday = new Date(now)
+  startOfToday.setHours(0, 0, 0, 0)
+  const startOfTomorrow = new Date(startOfToday)
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
+
+  const [
+    profileRes,
+    clientCountRes,
+    oldClientCountRes,
+    activeOrderRes,
+    anyOrderRes,
+    unreadRes,
+    dueRes,
+    apptRes,
+    messagesRes,
+    recentClientsRes,
+  ] = await Promise.all([
+    supabase.from("profiles").select("wa_connected, business_name").eq("id", user.id).single(),
+    supabase.from("clients").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+    supabase
+      .from("clients")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .lt("created_at", thirtyDaysAgo.toISOString()),
+    supabase
+      .from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "aktif"),
+    supabase.from("orders").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+    supabase
+      .from("inbox_messages")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "baru")
+      .eq("direction", "masuk"),
+    supabase
+      .from("payment_stages")
+      .select("amount, due_date, name, orders!inner(user_id, clients!inner(name, whatsapp_number))")
+      .eq("paid", false)
+      .eq("orders.user_id", user.id)
+      .lte("due_date", localDateKey(now))
+      .order("due_date", { ascending: true }),
+    supabase
+      .from("appointments")
+      .select("title, scheduled_at, clients!inner(name, user_id)")
+      .eq("clients.user_id", user.id)
+      .gte("scheduled_at", startOfToday.toISOString())
+      .lt("scheduled_at", startOfTomorrow.toISOString())
+      .order("scheduled_at", { ascending: true }),
+    supabase
+      .from("inbox_messages")
+      .select(
+        "id, whatsapp_number, sender_name, message_body, received_at, classification, ai_draft_reply",
+      )
+      .eq("user_id", user.id)
+      .eq("status", "baru")
+      .eq("direction", "masuk")
+      .order("received_at", { ascending: false })
+      .limit(6),
+    supabase
+      .from("clients")
+      .select("id, name, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ])
+
+  let waConnected = profileRes.data?.wa_connected ?? false
+  let businessName = profileRes.data?.business_name ?? ""
+
+  if (profileRes.error?.code === "PGRST116") {
+    const { data: inserted } = await supabase
+      .from("profiles")
+      .insert({ id: user.id, business_name: "", brand_voice: "Ramah, profesional, dan informatif" })
+      .select("wa_connected, business_name")
+      .single()
+    if (inserted) {
+      waConnected = inserted.wa_connected
+      businessName = inserted.business_name ?? ""
+    }
+  }
+
+  const duePayments: DuePayment[] = (dueRes.data ?? []).map((ps) => {
+    const client = (
+      ps as unknown as { orders: { clients: { name: string; whatsapp_number: string | null } } }
+    ).orders?.clients
+    return {
+      stageName: ps.name || "Pembayaran",
+      amount: Number(ps.amount),
+      dueDate: ps.due_date,
+      clientName: client?.name ?? "Klien",
+      clientPhone: client?.whatsapp_number ?? null,
+    }
+  })
+
+  const appointments: TodayAppointment[] = (apptRes.data ?? []).map((apt) => ({
+    title: apt.title || "Janji temu",
+    scheduledAt: apt.scheduled_at,
+    clientName: (apt as unknown as { clients: { name: string } }).clients?.name ?? "Klien",
+  }))
+
+  // Resolve contact names only for the numbers on screen, not the whole client list.
+  const msgs = messagesRes.data ?? []
+  const phoneVariants = new Set<string>()
+  for (const m of msgs) {
+    const d = digitsOnly(m.whatsapp_number)
+    phoneVariants.add(d)
+    phoneVariants.add(displayPhone(d))
+    phoneVariants.add(waMeNumber(d))
+  }
+  const nameByPhone: Record<string, string> = {}
+  if (phoneVariants.size > 0) {
+    const { data: matched } = await supabase
+      .from("clients")
+      .select("name, whatsapp_number")
+      .eq("user_id", user.id)
+      .in("whatsapp_number", [...phoneVariants])
+    for (const c of matched ?? []) {
+      if (c.whatsapp_number) nameByPhone[waMeNumber(c.whatsapp_number)] = c.name
+    }
+  }
+
+  const recentMessages: RecentMessage[] = msgs.map((m) => ({
+    id: m.id,
+    displayName:
+      nameByPhone[waMeNumber(m.whatsapp_number)] ||
+      m.sender_name ||
+      displayPhone(m.whatsapp_number),
+    body: m.message_body,
+    receivedAt: m.received_at,
+    classification: m.classification,
+    hasDraft: Boolean(m.ai_draft_reply),
+  }))
+
+  const recentCl = recentClientsRes.data ?? []
+  const latestStatus: Record<string, string> = {}
+  if (recentCl.length > 0) {
+    const { data: orders } = await supabase
+      .from("orders")
+      .select("client_id, status")
+      .in(
+        "client_id",
+        recentCl.map((c) => c.id),
+      )
+      .order("created_at", { ascending: false })
+    for (const o of orders ?? []) {
+      if (!latestStatus[o.client_id]) latestStatus[o.client_id] = o.status
+    }
+  }
+
+  const totalClients = clientCountRes.count ?? 0
+
+  return {
+    businessName,
+    waConnected,
+    totalClients,
+    newClients30d: totalClients - (oldClientCountRes.count ?? 0),
+    activeOrders: activeOrderRes.count ?? 0,
+    hasAnyOrder: (anyOrderRes.count ?? 0) > 0,
+    unreadMessages: unreadRes.count ?? 0,
+    dueTotal: duePayments.reduce((sum, p) => sum + p.amount, 0),
+    duePayments,
+    appointments,
+    recentMessages,
+    recentClients: recentCl.map((c) => ({
+      id: c.id,
+      name: c.name,
+      createdAt: c.created_at,
+      latestOrderStatus: latestStatus[c.id] ?? null,
+    })),
+  }
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
-  const [recentMessages, setRecentMessages] = useState<RecentMessage[]>([])
-  const [recentClients, setRecentClients] = useState<RecentClient[]>([])
-  const [businessName, setBusinessName] = useState<string>("")
-  const [waConnected, setWaConnected] = useState<boolean>(false)
-  const [waPhoneNumber, setWaPhoneNumber] = useState<string>("")
+  const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [onboarding, setOnboarding] = useState<{
-    wa: boolean
-    clients: boolean
-    orders: boolean
-  } | null>(null)
 
   useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
-
-      const today = new Date()
-      const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
-
-      const [
-        profileRes,
-        clientRes,
-        orderRes,
-        messagesRes,
-        allOrdersRes,
-        prevClientRes,
-        prevOrderRes,
-        prevMessageRes,
-        clientsListRes,
-      ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("wa_connected, business_name, notification_wa_number")
-          .eq("id", user.id)
-          .single(),
-        supabase.from("clients").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase
-          .from("orders")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("status", "aktif"),
-        supabase
-          .from("inbox_messages")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("status", "baru")
-          .eq("direction", "masuk"),
-        supabase.from("orders").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase
-          .from("clients")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .lt("created_at", thirtyDaysAgo.toISOString()),
-        supabase
-          .from("orders")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("status", "aktif")
-          .lt("created_at", thirtyDaysAgo.toISOString()),
-        supabase
-          .from("inbox_messages")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("status", "baru")
-          .eq("direction", "masuk")
-          .lt("received_at", thirtyDaysAgo.toISOString()),
-        supabase.from("clients").select("id, name, whatsapp_number").eq("user_id", user.id),
-      ])
-
-      let isConnected = profileRes.data?.wa_connected ?? false
-      let bName = profileRes.data?.business_name ?? ""
-      const waNumber = profileRes.data?.notification_wa_number ?? ""
-
-      if (profileRes.error && profileRes.error.code === "PGRST116") {
-        const { data: insertedData, error: insertError } = await supabase
-          .from("profiles")
-          .insert({
-            id: user.id,
-            business_name: "",
-            brand_voice: "Ramah, profesional, dan informatif",
-          })
-          .select("wa_connected, business_name")
-          .single()
-        if (!insertError && insertedData) {
-          isConnected = insertedData.wa_connected
-          bName = insertedData.business_name ?? ""
-        }
-      }
-
-      setWaConnected(isConnected)
-      setBusinessName(bName)
-      setWaPhoneNumber(waNumber)
-
-      // Map client numbers to names
-      const phoneToNameMap: Record<string, string> = {}
-      for (const cl of clientsListRes.data ?? []) {
-        if (cl.whatsapp_number) {
-          const raw = cl.whatsapp_number.replace(/\D/g, "")
-          phoneToNameMap[raw] = cl.name
-          if (raw.startsWith("62")) {
-            phoneToNameMap[`0${raw.slice(2)}`] = cl.name
-          }
-        }
-      }
-
-      // Fetch unpaid stages
-      const { data: unpaidStages } = await supabase
-        .from("payment_stages")
-        .select("amount, due_date, name, orders!inner(user_id, client_id, clients!inner(name, whatsapp_number))")
-        .eq("paid", false)
-        .eq("orders.user_id", user.id)
-        .lte("due_date", today.toISOString().split("T")[0])
-
-      const totalUnpaid = unpaidStages?.reduce((sum, ps) => sum + Number(ps.amount), 0) ?? 0
-      const pendings: PendingItem[] = []
-
-      if (unpaidStages && unpaidStages.length > 0) {
-        for (const ps of unpaidStages) {
-          const clientInfo = (
-            ps as unknown as {
-              orders: {
-                clients: { name: string; whatsapp_number: string }
-              }
-            }
-          ).orders?.clients
-
-          pendings.push({
-            type: "payment",
-            title: `Tagihan Overdue: ${clientInfo?.name ?? "Klien"}`,
-            description: `${ps.name || "Tahap Pembayaran"} • Rp ${Number(ps.amount).toLocaleString("id-ID")}`,
-            severity: "danger",
-            clientName: clientInfo?.name,
-            clientPhone: clientInfo?.whatsapp_number,
-            amount: Number(ps.amount),
-          })
-        }
-      }
-
-      // Fetch appointments for today
-      const { data: todayAppointments } = await supabase
-        .from("appointments")
-        .select("title, client_id, scheduled_at, clients!inner(name, whatsapp_number)")
-        .eq("clients.user_id", user.id)
-        .gte("scheduled_at", today.toISOString().split("T")[0])
-        .lt("scheduled_at", new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString())
-
-      if (todayAppointments && todayAppointments.length > 0) {
-        for (const apt of todayAppointments) {
-          const clientObj = (apt as unknown as { clients: { name: string; whatsapp_number: string } }).clients
-          const time = new Date(apt.scheduled_at).toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-          pendings.push({
-            type: "appointment",
-            title: `Janji Temu: ${clientObj?.name ?? "Klien"}`,
-            description: `${apt.title || "Konsultasi"} • Pukul ${time}`,
-            severity: "warning",
-            clientName: clientObj?.name,
-            clientPhone: clientObj?.whatsapp_number,
-          })
-        }
-      }
-
-      setPendingItems(pendings)
-      setStats({
-        totalClients: clientRes.count ?? 0,
-        activeOrders: orderRes.count ?? 0,
-        totalUnpaid,
-        unpaidOrderCount: unpaidStages?.length ?? 0,
-        unreadMessages: messagesRes.count ?? 0,
-        clientTrend: (clientRes.count ?? 0) - (prevClientRes.count ?? 0),
-        orderTrend: (orderRes.count ?? 0) - (prevOrderRes.count ?? 0),
-        messageTrend: (messagesRes.count ?? 0) - (prevMessageRes.count ?? 0),
-      })
-      setOnboarding({
-        wa: isConnected,
-        clients: (clientRes.count ?? 0) > 0,
-        orders: (allOrdersRes.count ?? 0) > 0,
-      })
-
-      // Fetch recent messages
-      const { data: recentMsgs } = await supabase
-        .from("inbox_messages")
-        .select("id, whatsapp_number, message_body, received_at, classification")
-        .eq("user_id", user.id)
-        .eq("status", "baru")
-        .eq("direction", "masuk")
-        .order("received_at", { ascending: false })
-        .limit(5)
-
-      setRecentMessages(
-        (recentMsgs ?? []).map((msg) => {
-          const rawNum = msg.whatsapp_number.replace(/\D/g, "")
-          const matchedName =
-            phoneToNameMap[rawNum] ||
-            (rawNum.startsWith("62") ? phoneToNameMap[`0${rawNum.slice(2)}`] : null)
-          return {
-            ...msg,
-            contact_name: matchedName ?? null,
-          }
-        }),
-      )
-
-      // Fetch recent clients
-      const { data: recentCl } = await supabase
-        .from("clients")
-        .select("id, name, whatsapp_number, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(5)
-
-      if (recentCl && recentCl.length > 0) {
-        const clientIds = recentCl.map((c) => c.id)
-        const { data: latestOrders } = await supabase
-          .from("orders")
-          .select("client_id, status")
-          .in("client_id", clientIds)
-          .order("created_at", { ascending: false })
-
-        const latestStatusMap: Record<string, string> = {}
-        for (const order of latestOrders ?? []) {
-          if (!latestStatusMap[order.client_id]) {
-            latestStatusMap[order.client_id] = order.status
-          }
-        }
-        setRecentClients(
-          recentCl.map((c) => ({
-            ...c,
-            latest_order_status: latestStatusMap[c.id] ?? null,
-          })),
-        )
-      } else {
-        setRecentClients([])
-      }
-
-      setLoading(false)
-    }
-    load()
+    loadDashboard()
+      .then(setData)
+      .finally(() => setLoading(false))
   }, [])
 
-  return (
-    <AnimatePresence mode="wait">
-      {loading ? (
-        <motion.div
-          key="loading"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6"
-        >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div className="space-y-2">
-              <Skeleton className="h-8 w-64" />
-              <Skeleton className="h-4 w-96 max-w-full" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-9 w-32 rounded-lg" />
-              <Skeleton className="h-9 w-32 rounded-lg" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-xl" />
-            ))}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8 space-y-6">
-              <Skeleton className="h-72 rounded-xl" />
-              <Skeleton className="h-72 rounded-xl" />
-            </div>
-            <div className="lg:col-span-4 space-y-6">
-              <Skeleton className="h-64 rounded-xl" />
-              <Skeleton className="h-64 rounded-xl" />
-            </div>
-          </div>
-        </motion.div>
-      ) : (
-        <motion.div
-          key="content"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-          className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8"
-        >
+  if (loading || !data) return <DashboardSkeleton />
 
-  const statCards = [
-    {
-      label: "Total Klien",
-      value: stats?.totalClients?.toString() ?? "0",
-      icon: Users,
-      description: stats?.totalClients ? `${stats.totalClients} klien terdaftar` : "Belum ada klien",
-      color: "text-blue-600 dark:text-blue-400",
-      bg: "bg-blue-500/10 border-blue-500/20",
-      iconBg: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-      trend: stats?.clientTrend,
-      trendLabel: "30 hari",
-    },
-    {
-      label: "Pesanan Aktif",
-      value: stats?.activeOrders?.toString() ?? "0",
-      icon: ShoppingBag,
-      description: stats?.activeOrders ? `${stats.activeOrders} pesanan berjalan` : "Tidak ada pesanan aktif",
-      color: "text-primary",
-      bg: "bg-primary/10 border-primary/20",
-      iconBg: "bg-primary/15 text-primary",
-      trend: stats?.orderTrend,
-      trendLabel: "30 hari",
-    },
-    {
-      label: "Menunggu Pembayaran",
-      value: stats ? `Rp ${stats.totalUnpaid.toLocaleString("id-ID")}` : "Rp 0",
-      icon: CreditCard,
-      description: stats?.unpaidOrderCount
-        ? `${stats.unpaidOrderCount} tagihan tertunda`
-        : "Semua pembayaran lunas",
-      color: "text-emerald-600 dark:text-emerald-400",
-      bg: "bg-emerald-500/10 border-emerald-500/20",
-      iconBg: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-      alert: (stats?.unpaidOrderCount ?? 0) > 0,
-      trend: stats?.unpaidOrderCount,
-      trendLabel: "tertunda",
-    },
-    {
-      label: "Pesan Masuk",
-      value: stats?.unreadMessages?.toString() ?? "0",
-      icon: MessageSquare,
-      description: stats?.unreadMessages ? `${stats.unreadMessages} pesan belum dibalas` : "Inbox bersih",
-      color: "text-violet-600 dark:text-violet-400",
-      bg: "bg-violet-500/10 border-violet-500/20",
-      iconBg: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
-      alert: (stats?.unreadMessages ?? 0) > 0,
-      trend: stats?.messageTrend,
-      trendLabel: "30 hari",
-    },
+  const today = new Date().toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  })
+
+  const setupSteps = [
+    { title: "Hubungkan WhatsApp", href: "/settings?tab=whatsapp", done: data.waConnected },
+    { title: "Tambah klien pertama", href: "/clients", done: data.totalClients > 0 },
+    { title: "Buat pesanan dan jadwal tagihan", href: "/clients", done: data.hasAnyOrder },
   ]
-
-  const completedOnboardingCount = onboarding
-    ? [onboarding.wa, onboarding.clients, onboarding.orders].filter(Boolean).length
-    : 0
-  const isAllOnboarded = completedOnboardingCount === 3
+  const setupDone = setupSteps.filter((s) => s.done).length
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8 animate-enter">
-      {/* Top Header & Command Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border/60">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="font-display font-bold text-2xl lg:text-3xl tracking-tight text-foreground">
-              {getGreeting()}
-              {businessName ? `, ${businessName}` : ""}
-            </h1>
-            {/* Live WhatsApp Status Badge */}
-            {waConnected ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                WhatsApp Terhubung
-              </span>
-            ) : (
-              <Link
-                href="/settings?tab=whatsapp"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
-              >
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                WhatsApp Terputus • Hubungkan
-              </Link>
-            )}
-          </div>
-          <p className="text-muted-foreground text-sm mt-1">
-            Pantau arus kas, percakapan pelanggan WhatsApp, dan pesanan berjalan secara realtime.
+    <div className="animate-enter mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+      {/* Briefing — the one loud element on the page */}
+      <header className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <div className="max-w-2xl">
+          <p className="text-sm text-muted-foreground">
+            {today}
+            {data.businessName ? `, ${data.businessName}` : ""}
           </p>
+          <h1 className="mt-2 text-balance font-display text-2xl font-medium leading-snug tracking-tight text-foreground sm:text-3xl">
+            {buildBriefing(data)}
+          </h1>
+          <WhatsAppStatus connected={data.waConnected} />
         </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push("/clients")}
-            className="h-9 px-3.5 text-xs font-medium gap-1.5 shadow-xs hover:border-primary/50"
-          >
-            <UserPlus className="w-3.5 h-3.5 text-muted-foreground" />
-            Tambah Klien
-          </Button>
-
-          <Button
-            size="sm"
-            onClick={() => router.push("/clients")}
-            className="h-9 px-4 text-xs font-medium gap-1.5 shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Pesanan Baru
-          </Button>
+        <div className="flex gap-2">
+          <Link href="/clients" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Tambah klien
+          </Link>
+          <Link href="/inbox" className={buttonVariants({ size: "sm" })}>
+            Buka inbox
+          </Link>
         </div>
-      </div>
+      </header>
 
-      {/* KPI Metrics Hero Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map(
-          ({ label, value, icon: Icon, description, iconBg, trend, trendLabel, alert }, i) => (
-            <div
-              key={label}
-              style={{ "--stagger-i": i } as CSSProperties}
-              className={cn(
-                "animate-stagger-item rounded-xl border border-border bg-card p-4.5 space-y-3 relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-border/80 group",
-                alert && "ring-1 ring-primary/20",
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
-                  {label}
-                </p>
-                <div
-                  className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center transition-transform group-hover:scale-105`}
-                >
-                  <Icon className="w-4 h-4" />
-                </div>
-              </div>
+      {/* Figures */}
+      <dl className="mt-8 grid grid-cols-2 overflow-hidden rounded-lg border border-border lg:grid-cols-4">
+        <Figure
+          label="Belum dibalas"
+          value={String(data.unreadMessages)}
+          note={data.unreadMessages > 0 ? "pesan di inbox" : "inbox sudah bersih"}
+          href="/inbox"
+        />
+        <Figure
+          label="Tagihan jatuh tempo"
+          value={rupiah(data.dueTotal)}
+          note={
+            data.duePayments.length > 0
+              ? `dari ${data.duePayments.length} tagihan`
+              : "tidak ada yang tertunggak"
+          }
+          tone={data.duePayments.length > 0 ? "danger" : undefined}
+        />
+        <Figure
+          label="Pesanan berjalan"
+          value={String(data.activeOrders)}
+          note={data.activeOrders > 0 ? "sedang dikerjakan" : "belum ada pesanan aktif"}
+          href="/clients"
+        />
+        <Figure
+          label="Klien"
+          value={String(data.totalClients)}
+          note={
+            data.newClients30d > 0
+              ? `${data.newClients30d} baru dalam 30 hari`
+              : "belum ada klien baru bulan ini"
+          }
+          href="/clients"
+        />
+      </dl>
 
-              <div>
-                <p className="font-display font-bold text-2xl lg:text-3xl tracking-tight text-foreground">
-                  {value}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                  {description}
-                </p>
-              </div>
-
-              {trend !== undefined && (
-                <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[11px]">
-                  {trend > 0 ? (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5">
-                      <TrendingUp className="w-3 h-3" /> +{trend} ({trendLabel})
-                    </span>
-                  ) : trend < 0 ? (
-                    <span className="text-rose-600 dark:text-rose-400 font-medium flex items-center gap-0.5">
-                      <TrendingDown className="w-3 h-3" /> {trend} ({trendLabel})
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">Stabil ({trendLabel})</span>
-                  )}
-                  <span className="text-[10px] text-muted-foreground/80">30 hari</span>
-                </div>
-              )}
-            </div>
-          ),
-        )}
-      </div>
-
-      {/* Main Operational Asymmetric Grid (8 cols Main, 4 cols Rail) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Live Activity & Operations (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Card 1: WhatsApp Priority Inbox Feed */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-border/60">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                  <MessageSquare className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-                </div>
-                <div>
-                  <h2 className="font-display font-semibold text-sm text-foreground">
-                    Pesan Masuk WhatsApp Terkini
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    {stats?.unreadMessages ? `${stats.unreadMessages} pesan baru belum dibalas` : "Semua pesan telah ditanggapi"}
-                  </p>
-                </div>
-              </div>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-primary font-medium hover:bg-primary/10 gap-1"
-                onClick={() => router.push("/inbox")}
-              >
-                Buka Inbox <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-
-            {recentMessages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <MessageSquare className="w-6 h-6 text-muted-foreground/60" />
-                </div>
-                <p className="text-sm font-medium text-foreground">Inbox WhatsApp Bersih</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                  Pesan masuk baru dari pelanggan akan langsung muncul di sini secara otomatis.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push("/inbox")}
-                  className="mt-4 h-8 text-xs"
-                >
-                  Lihat Riwayat Obrolan
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {recentMessages.map((msg, i) => {
-                  const displayPhone = msg.whatsapp_number
-                    .replace(/^62/, "0")
-                    .replace(/@s\.whatsapp\.net$/, "")
-                  const title = msg.contact_name || displayPhone
-                  const preview =
-                    msg.message_body.length > 75
-                      ? msg.message_body.slice(0, 75) + "…"
-                      : msg.message_body
-                  const time = new Date(msg.received_at).toLocaleTimeString("id-ID", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-
-                  return (
-                    <div
-                      key={msg.id}
-                      style={{ "--stagger-i": i } as CSSProperties}
-                      className="animate-stagger-item flex items-center justify-between gap-3 p-3 rounded-lg border border-transparent hover:border-border hover:bg-accent/40 transition-all group cursor-pointer"
-                      onClick={() => router.push("/inbox")}
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-9 h-9 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center flex-shrink-0 text-violet-600 font-bold text-xs">
-                          {msg.contact_name
-                            ? msg.contact_name.slice(0, 2).toUpperCase()
-                            : displayPhone.slice(-2)}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-semibold text-foreground truncate">{title}</p>
-                            {msg.contact_name && (
-                              <span className="text-[10px] text-muted-foreground truncate">
-                                ({displayPhone})
-                              </span>
-                            )}
-                            {msg.classification && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground uppercase font-medium">
-                                {msg.classification}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5 font-normal">
-                            {preview}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="text-[11px] text-muted-foreground tabular-nums">{time}</span>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="h-7 text-xs px-2.5 opacity-0 group-hover:opacity-100 transition-opacity gap-1"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            router.push("/inbox")
-                          }}
-                        >
-                          <Send className="w-3 h-3" /> Balas
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Card 2: Recent Clients & Orders */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-border/60">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="font-display font-semibold text-sm text-foreground">
-                    Klien & Aktivitas Pesanan Terkini
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Daftar klien terbaru dan status pesanan berjalan mereka
-                  </p>
-                </div>
-              </div>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-primary font-medium hover:bg-primary/10 gap-1"
-                onClick={() => router.push("/clients")}
-              >
-                Kelola Semua <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-
-            {recentClients.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <Users className="w-6 h-6 text-muted-foreground/60" />
-                </div>
-                <p className="text-sm font-medium text-foreground">Belum ada Klien Terdaftar</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                  Tambahkan klien pertama kamu atau import dari kontak WhatsApp untuk mulai mencatat pesanan.
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => router.push("/clients")}
-                  className="mt-4 h-8 text-xs gap-1.5"
-                >
-                  <UserPlus className="w-3.5 h-3.5" /> Tambah Klien Pertama
-                </Button>
-              </div>
-            ) : (
-              <div className="divide-y divide-border/50">
-                {recentClients.map((client, i) => {
-                  const statusMap: Record<
-                    string,
-                    { label: string; bg: string; text: string; border: string }
-                  > = {
-                    aktif: {
-                      label: "Pesanan Aktif",
-                      bg: "bg-blue-500/10",
-                      text: "text-blue-600 dark:text-blue-400",
-                      border: "border-blue-500/20",
-                    },
-                    selesai: {
-                      label: "Selesai",
-                      bg: "bg-emerald-500/10",
-                      text: "text-emerald-600 dark:text-emerald-400",
-                      border: "border-emerald-500/20",
-                    },
-                    lunas: {
-                      label: "Lunas",
-                      bg: "bg-emerald-500/10",
-                      text: "text-emerald-600 dark:text-emerald-400",
-                      border: "border-emerald-500/20",
-                    },
-                    dibatalkan: {
-                      label: "Dibatalkan",
-                      bg: "bg-rose-500/10",
-                      text: "text-rose-600 dark:text-rose-400",
-                      border: "border-rose-500/20",
-                    },
-                  }
-
-                  const st = client.latest_order_status
-                    ? statusMap[client.latest_order_status] ?? {
-                        label: client.latest_order_status,
-                        bg: "bg-muted",
-                        text: "text-muted-foreground",
-                        border: "border-border",
-                      }
-                    : null
-
-                  const createdDate = new Date(client.created_at).toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                  })
-
-                  return (
-                    <div
-                      key={client.id}
-                      style={{ "--stagger-i": i } as CSSProperties}
-                      className="animate-stagger-item flex items-center justify-between gap-4 py-3 px-2 hover:bg-accent/30 rounded-lg transition-colors cursor-pointer group"
-                      onClick={() => router.push(`/clients/${client.id}`)}
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 text-primary font-bold text-xs">
-                          {client.name.slice(0, 1).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                            {client.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">
-                            {client.whatsapp_number || "Tidak ada nomor WA"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        {st ? (
-                          <span
-                            className={cn(
-                              "text-[10px] font-medium px-2 py-0.5 rounded-full border",
-                              st.bg,
-                              st.text,
-                              st.border,
-                            )}
-                          >
-                            {st.label}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/80 px-2 py-0.5 rounded bg-muted/60">
-                            Belum ada pesanan
-                          </span>
-                        )}
-                        <span className="text-[11px] text-muted-foreground tabular-nums">
-                          {createdDate}
-                        </span>
-                        <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/60 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Action Center, Onboarding, & Quick Tools (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Widget 1: Action Center / Perlu Pengecekan */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-border/60">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
-                <h2 className="font-display font-semibold text-sm text-foreground">
-                  Pusat Tindakan Cepat
-                </h2>
-              </div>
-              {pendingItems.length > 0 && (
-                <Badge variant="destructive" className="h-5 text-[10px] px-1.5">
-                  {pendingItems.length} Perlu Respon
-                </Badge>
-              )}
-            </div>
-
-            {pendingItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-6 text-center">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mb-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <p className="text-xs font-semibold text-foreground">Semua Urusan Terkendali</p>
-                <p className="text-[11px] text-muted-foreground mt-1 max-w-xs">
-                  Tidak ada tagihan pembayaran overdue atau jadwal janji temu tertunda untuk hari ini.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {pendingItems.map((item, i) => (
-                  <div
-                    key={i}
-                    style={{ "--stagger-i": i } as CSSProperties}
-                    className={cn(
-                      "animate-stagger-item p-3 rounded-lg border text-xs space-y-1.5 transition-colors",
-                      item.severity === "danger"
-                        ? "bg-rose-500/5 border-rose-500/20 text-rose-950 dark:text-rose-200"
-                        : "bg-amber-500/5 border-amber-500/20 text-amber-950 dark:text-amber-200",
-                    )}
+      <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
+        {/* Messages — the main job */}
+        <section className="lg:col-span-7" aria-labelledby="messages-heading">
+          <SectionHeading
+            id="messages-heading"
+            title="Pesan belum dibalas"
+            href="/inbox"
+            linkLabel="Semua pesan"
+          />
+          {data.recentMessages.length === 0 ? (
+            <EmptyNote>
+              {data.waConnected
+                ? "Semua pesan sudah dibalas. Pesan baru dari pelanggan muncul di sini."
+                : "Hubungkan WhatsApp agar pesan pelanggan masuk ke sini."}
+            </EmptyNote>
+          ) : (
+            <ul className="divide-y divide-border">
+              {data.recentMessages.map((msg) => (
+                <li key={msg.id}>
+                  <Link
+                    href="/inbox"
+                    className="-mx-2 block rounded-md px-2 py-3 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2 min-w-0">
-                        <span
-                          className={cn(
-                            "w-2 h-2 rounded-full mt-1 flex-shrink-0",
-                            item.severity === "danger" ? "bg-rose-500 animate-pulse" : "bg-amber-500",
-                          )}
-                        />
-                        <p className="font-semibold text-foreground truncate">{item.title}</p>
-                      </div>
-                      {item.type === "payment" && item.clientPhone && (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {msg.displayName}
+                      </p>
+                      <time
+                        dateTime={msg.receivedAt}
+                        className="shrink-0 text-xs tabular-nums text-muted-foreground"
+                      >
+                        {relativeTime(msg.receivedAt)}
+                      </time>
+                    </div>
+                    <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{msg.body}</p>
+                    <MessageNote msg={msg} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <div className="space-y-10 lg:col-span-5">
+          {setupDone < setupSteps.length && (
+            <section aria-labelledby="setup-heading" className="rounded-lg bg-muted/50 p-5">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2
+                  id="setup-heading"
+                  className="font-display text-base font-medium text-foreground"
+                >
+                  Siapkan akun kamu
+                </h2>
+                <span className="text-sm tabular-nums text-muted-foreground">
+                  {setupDone} dari {setupSteps.length}
+                </span>
+              </div>
+              <ol className="mt-4 space-y-1">
+                {setupSteps.map((step, i) => (
+                  <li key={step.title}>
+                    <Link
+                      href={step.href}
+                      className="flex items-center gap-3 rounded-md px-1 py-1.5 text-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {step.done ? (
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                      ) : (
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-muted-foreground/50 text-[10px] tabular-nums text-muted-foreground">
+                          {i + 1}
+                        </span>
+                      )}
+                      <span className={cn(step.done && "text-muted-foreground line-through")}>
+                        {step.title}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("glim:open-wizard"))}
+                className="mt-3 text-sm font-medium text-primary hover:underline"
+              >
+                Buka panduan
+              </button>
+            </section>
+          )}
+
+          <section aria-labelledby="today-heading">
+            <SectionHeading id="today-heading" title="Hari ini" />
+            {data.appointments.length === 0 && data.duePayments.length === 0 ? (
+              <EmptyNote>Tidak ada janji temu atau tagihan jatuh tempo hari ini.</EmptyNote>
+            ) : (
+              <ul className="divide-y divide-border">
+                {data.appointments.map((apt) => (
+                  <li key={`${apt.scheduledAt}-${apt.clientName}`} className="flex gap-4 py-3">
+                    <time
+                      dateTime={apt.scheduledAt}
+                      className="w-12 shrink-0 text-sm font-medium tabular-nums text-foreground"
+                    >
+                      {new Date(apt.scheduledAt).toLocaleTimeString("id-ID", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-foreground">{apt.title}</p>
+                      <p className="truncate text-sm text-muted-foreground">{apt.clientName}</p>
+                    </div>
+                  </li>
+                ))}
+                {data.duePayments.map((p) => (
+                  <li
+                    key={`${p.clientName}-${p.stageName}-${p.dueDate}`}
+                    className="flex items-start justify-between gap-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-foreground">
+                        {p.clientName}, {p.stageName}
+                      </p>
+                      <p className="text-sm text-destructive">{dueLabel(p.dueDate)}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-medium tabular-nums text-foreground">
+                        {rupiah(p.amount)}
+                      </p>
+                      {p.clientPhone && (
                         <a
-                          href={`https://wa.me/${item.clientPhone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                            `Halo ${item.clientName || ""}, mengingatkan untuk pembayaran ${item.description}`,
+                          href={`https://wa.me/${waMeNumber(p.clientPhone)}?text=${encodeURIComponent(
+                            `Halo ${p.clientName}, mengingatkan pembayaran ${p.stageName} sebesar ${rupiah(p.amount)}. Terima kasih.`,
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5 flex-shrink-0"
+                          className="text-sm font-medium text-primary hover:underline"
                         >
-                          Tagih WA <ExternalLink className="w-2.5 h-2.5" />
+                          Ingatkan via WA
                         </a>
                       )}
                     </div>
-                    <p className="text-[11px] text-muted-foreground pl-4">{item.description}</p>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-          </div>
+          </section>
 
-          {/* Widget 2: Onboarding & Setup Tracker */}
-          {!isAllOnboarded && (
-            <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <h2 className="font-display font-semibold text-sm text-foreground">
-                    Langkah Awal Bisnis
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent("glim:open-wizard"))}
-                  className="text-xs text-primary hover:underline font-medium"
-                >
-                  Panduan
-                </button>
-              </div>
-
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Progres Penyiapan</span>
-                  <span className="font-semibold text-foreground">{completedOnboardingCount}/3 Selesai</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className="bg-primary h-full rounded-full transition-all duration-500"
-                    style={{ width: `${(completedOnboardingCount / 3) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {[
-                  {
-                    step: "1",
-                    title: "Hubungkan WhatsApp",
-                    desc: "Scan QR untuk terima & balas pesan",
-                    href: "/settings?tab=whatsapp",
-                    done: onboarding?.wa ?? false,
-                  },
-                  {
-                    step: "2",
-                    title: "Tambah Klien Pertama",
-                    desc: "Kelola daftar kontak pelanggan",
-                    href: "/clients",
-                    done: onboarding?.clients ?? false,
-                  },
-                  {
-                    step: "3",
-                    title: "Buat Pesanan & Tagihan",
-                    desc: "Atur termin & pengingat otomatis",
-                    href: "/clients",
-                    done: onboarding?.orders ?? false,
-                  },
-                ].map(({ step, title, desc, href, done }) => (
-                  <Link
-                    key={step}
-                    href={href}
-                    className={cn(
-                      "flex items-center gap-3 p-2.5 rounded-lg text-xs transition-colors border",
-                      done
-                        ? "bg-muted/40 border-transparent opacity-60"
-                        : "bg-card border-border hover:border-primary/40 hover:bg-accent/40",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0",
-                        done ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary",
-                      )}
+          <section aria-labelledby="clients-heading">
+            <SectionHeading
+              id="clients-heading"
+              title="Klien terbaru"
+              href="/clients"
+              linkLabel="Semua klien"
+            />
+            {data.recentClients.length === 0 ? (
+              <EmptyNote>
+                Belum ada klien.{" "}
+                <Link href="/import" className="font-medium text-primary hover:underline">
+                  Import dari Excel
+                </Link>{" "}
+                atau tambahkan satu per satu.
+              </EmptyNote>
+            ) : (
+              <ul className="divide-y divide-border">
+                {data.recentClients.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/clients/${c.id}`}
+                      className="-mx-2 flex items-center justify-between gap-4 rounded-md px-2 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : step}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn("font-medium truncate", done && "line-through text-muted-foreground")}>
-                        {title}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground truncate">{desc}</p>
-                    </div>
-                    <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                  </Link>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-foreground">{c.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {c.latestOrderStatus
+                            ? (ORDER_STATUS_LABEL[c.latestOrderStatus] ?? c.latestOrderStatus)
+                            : "Belum ada pesanan"}
+                        </p>
+                      </div>
+                      <time
+                        dateTime={c.createdAt}
+                        className="shrink-0 text-xs tabular-nums text-muted-foreground"
+                      >
+                        {new Date(c.createdAt).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </time>
+                    </Link>
+                  </li>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* Widget 3: Quick Tools & Shortcuts */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-3">
-            <h2 className="font-display font-semibold text-xs text-muted-foreground uppercase tracking-wider">
-              Pintasan Cepat
-            </h2>
-            <div className="grid grid-cols-1 gap-2">
-              <Link
-                href="/import"
-                className="flex items-center justify-between p-2.5 rounded-lg border border-border/80 bg-background hover:bg-accent hover:border-border transition-all text-xs group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-md bg-blue-500/10 text-blue-600 flex items-center justify-center">
-                    <UserPlus className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="font-medium text-foreground">Import Kontak Klien</span>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-              </Link>
-
-              <Link
-                href="/settings"
-                className="flex items-center justify-between p-2.5 rounded-lg border border-border/80 bg-background hover:bg-accent hover:border-border transition-all text-xs group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-                    <Wand2 className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="font-medium text-foreground">Atur Suara Brand & AI</span>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-              </Link>
-
-              <Link
-                href="/inbox"
-                className="flex items-center justify-between p-2.5 rounded-lg border border-border/80 bg-background hover:bg-accent hover:border-border transition-all text-xs group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                    <Radio className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="font-medium text-foreground">Status WhatsApp & Obrolan</span>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-              </Link>
-            </div>
-          </div>
+              </ul>
+            )}
+          </section>
         </div>
       </div>
-        </motion.div>
+    </div>
+  )
+}
+
+function WhatsAppStatus({ connected }: { connected: boolean }) {
+  if (connected) {
+    return (
+      <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+        WhatsApp terhubung
+      </p>
+    )
+  }
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-x-2 text-sm text-foreground">
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+      WhatsApp belum terhubung, pesan pelanggan tidak masuk.
+      <Link href="/settings?tab=whatsapp" className="font-medium text-primary hover:underline">
+        Hubungkan
+      </Link>
+    </p>
+  )
+}
+
+function Figure({
+  label,
+  value,
+  note,
+  href,
+  tone,
+}: {
+  label: string
+  value: string
+  note: string
+  href?: string
+  tone?: "danger"
+}) {
+  const content = (
+    <>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          "mt-1 font-display text-2xl font-medium tabular-nums tracking-tight",
+          tone === "danger" ? "text-destructive" : "text-foreground",
+        )}
+      >
+        {value}
+      </dd>
+      <dd className="mt-0.5 text-xs text-muted-foreground">{note}</dd>
+    </>
+  )
+  // 2×2 on mobile, 1×4 on desktop; dividers follow the grid.
+  const cell =
+    "border-border p-4 sm:p-5 odd:border-r [&:nth-child(-n+2)]:border-b lg:border-r lg:last:border-r-0 lg:[&:nth-child(-n+2)]:border-b-0"
+  return href ? (
+    <Link
+      href={href}
+      className={cn(
+        cell,
+        "block transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
       )}
-    </AnimatePresence>
+    >
+      {content}
+    </Link>
+  ) : (
+    <div className={cell}>{content}</div>
+  )
+}
+
+function SectionHeading({
+  id,
+  title,
+  href,
+  linkLabel,
+}: {
+  id: string
+  title: string
+  href?: string
+  linkLabel?: string
+}) {
+  return (
+    <div className="mb-2 flex items-baseline justify-between gap-3 border-b border-border pb-2">
+      <h2 id={id} className="font-display text-base font-medium text-foreground">
+        {title}
+      </h2>
+      {href && (
+        <Link href={href} className="text-sm text-muted-foreground hover:text-foreground">
+          {linkLabel}
+        </Link>
+      )}
+    </div>
+  )
+}
+
+function MessageNote({ msg }: { msg: RecentMessage }) {
+  const note = msg.classification ? CLASSIFICATION_NOTE[msg.classification] : undefined
+  if (note) {
+    return <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">{note}</p>
+  }
+  if (msg.hasDraft) {
+    return <p className="mt-1 text-xs font-medium text-primary">Draf balasan siap</p>
+  }
+  return null
+}
+
+function EmptyNote({ children }: { children: React.ReactNode }) {
+  return <p className="py-4 text-sm text-muted-foreground">{children}</p>
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10" aria-busy="true">
+      <Skeleton className="h-4 w-48" />
+      <Skeleton className="mt-3 h-8 w-full max-w-xl" />
+      <Skeleton className="mt-2 h-8 w-2/3 max-w-md" />
+      <Skeleton className="mt-8 h-24 w-full rounded-lg" />
+      <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
+        <div className="space-y-3 lg:col-span-7">
+          {["m1", "m2", "m3", "m4", "m5"].map((k) => (
+            <Skeleton key={k} className="h-14 w-full" />
+          ))}
+        </div>
+        <div className="space-y-3 lg:col-span-5">
+          {["s1", "s2", "s3", "s4"].map((k) => (
+            <Skeleton key={k} className="h-12 w-full" />
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
