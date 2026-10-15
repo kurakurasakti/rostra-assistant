@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test --config=e2e/playwright.config.ts",
     "test:e2e:ui": "playwright test --ui --config=e2e/playwright.config.ts",
-    "test:all": "vitest run && playwright test --config=e2e/playwright.config.ts"
+    "test:all": "vitest run && playwright test --config=e2e/playwright.config.ts",
+    "opendesign": "powershell -ExecutionPolicy Bypass -File ../open-design/start-opendesign.ps1"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
