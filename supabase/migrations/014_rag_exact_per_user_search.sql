@@ -33,7 +33,7 @@ RETURNS TABLE (
   similarity  FLOAT
 )
 LANGUAGE sql STABLE
-SET search_path = public, pg_temp
+SET search_path = public, extensions, pg_temp
 AS $$
   WITH user_chunks AS MATERIALIZED (
     SELECT

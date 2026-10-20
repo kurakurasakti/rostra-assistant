@@ -80,6 +80,10 @@ BEGIN
 END;
 $$;
 
+-- p_user_id is caller-supplied, so only trusted server code may call this.
+REVOKE ALL ON FUNCTION increment_usage(UUID, INT, INT, INT, INT, INT, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION increment_usage(UUID, INT, INT, INT, INT, INT, INT) TO service_role;
+
 -- Extend inbox_status for quota enforcement.
 -- NOTE: ALTER TYPE ... ADD VALUE cannot run inside a transaction block;
 -- migrations apply each statement with auto-commit, so this is safe here.
