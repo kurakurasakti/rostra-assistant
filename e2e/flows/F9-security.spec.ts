@@ -25,7 +25,7 @@ test.describe("F9 — Security Layer", () => {
   test.describe("F9.2 — Injection attempt classified + logged", () => {
     test("classifies injection payload and logs security event", async ({ request }) => {
       const userId = process.env.TEST_USER_ID
-      if (!userId) test.skip()
+      if (!userId) return test.skip()
 
       const res = await sendTestMessage(request, BASE_URL, {
         userId,
@@ -36,7 +36,7 @@ test.describe("F9 — Security Layer", () => {
 
       expect(res.ok()).toBeTruthy()
 
-      await test.waitForTimeout(2000)
+      await new Promise((r) => setTimeout(r, 2000))
 
       const msg = await getInboxMessage(userId, "6289999999999")
       expect(msg?.classification).toBe("injection_attempt")
@@ -54,7 +54,7 @@ test.describe("F9 — Security Layer", () => {
   test.describe("F9.3 — Escalation keyword triggers sensitif", () => {
     test("classifies message with escalation keyword as sensitif", async ({ request }) => {
       const userId = process.env.TEST_USER_ID
-      if (!userId) test.skip()
+      if (!userId) return test.skip()
 
       const res = await sendTestMessage(request, BASE_URL, {
         userId,
@@ -65,7 +65,7 @@ test.describe("F9 — Security Layer", () => {
 
       expect(res.ok()).toBeTruthy()
 
-      await test.waitForTimeout(5000)
+      await new Promise((r) => setTimeout(r, 5000))
 
       const msg = await getInboxMessage(userId, "6288888888888")
       expect(msg?.classification).toBe("sensitif")

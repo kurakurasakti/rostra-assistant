@@ -34,7 +34,7 @@ test.describe("F3 — Brand Voice Setup", () => {
   test("F3.2 — Test AI draft preview", async ({ page }) => {
     await page.goto("/settings?tab=ai")
 
-    await page.fill("input", { text: "kak mau tanya harga kebaya dong" })
+    await page.fill("input", "kak mau tanya harga kebaya dong")
     await page.click('button:has-text("Coba Sekarang")')
 
     // AI-generated reply should appear

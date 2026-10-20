@@ -1,3 +1,4 @@
+import path from "node:path"
 import { expect, test } from "@playwright/test"
 
 const BUSINESS_TEXT = `Kami butik kebaya di Surabaya. Jahit custom kebaya mulai 1.5 juta sampai 5 juta tergantung model dan bahan. Buka Senin–Sabtu jam 9 pagi sampai 5 sore. Terima DP minimal 50%. Estimasi pengerjaan 3–4 minggu. Pembayaran via BCA, GoPay, OVO. PO sedang buka sampai akhir bulan.`
