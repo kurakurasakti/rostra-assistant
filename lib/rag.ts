@@ -22,6 +22,7 @@
  */
 
 import { createHash } from "node:crypto"
+import { hasStructuredKnowledge } from "@/lib/business-knowledge"
 import { createServiceClient } from "@/lib/supabase/server"
 import { trackUsage } from "@/lib/usage"
 import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "@/types"
@@ -31,8 +32,19 @@ import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "
 export interface KnowledgeChunk {
   chunk_type: "example" | "raw"
   chunk_text: string
+  /** Text that gets embedded, when it differs from chunk_text (defaults to chunk_text). */
+  embed_text?: string
   metadata: Record<string, unknown>
 }
+
+/**
+ * How the model may use facts inside retrieved/few-shot examples. Examples
+ * are real past replies to OTHER customers: their policy answers are
+ * reusable, their prices may be outdated, and their order status/dates/
+ * amounts belong to someone else.
+ */
+export const EXAMPLE_FACTS_RULE =
+  "Ikuti isi jawabannya untuk kebijakan/info umum bisnis. Tapi harga WAJIB sesuai PENGETAHUAN BISNIS, dan status/tanggal/tagihan WAJIB dari PESANAN AKTIF KLIEN INI — jangan salin dari contoh (itu milik pelanggan lain)."
 
 // ── EMBEDDING ─────────────────────────────────────────────────────────────────
 
@@ -141,7 +153,9 @@ export async function embedTexts(
  * Split a profile into discrete, embeddable knowledge chunks.
  *
  * Chunk strategy:
- * - One chunk per conversation_example → answer/style retrieval
+ * - One chunk per conversation_example → answer/style retrieval. Only the
+ *   customer question is embedded: incoming messages are questions, so
+ *   question-to-question similarity is much sharper than question-to-(Q+A).
  * - One "raw" chunk per paragraph of business_knowledge_raw (if no structured)
  *
  * Structured knowledge (services, hours, location, payment, PO) is NOT
@@ -157,8 +171,9 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
 
   // ── 1. Raw knowledge fallback ────────────────────────────────────────────
   // Only use raw if there's no structured data (to avoid duplication).
+  // An all-empty structured object (failed extraction) counts as none.
   // The static prompt caps raw text at 500 chars, so retrieval surfaces the rest.
-  if (!s && profile.business_knowledge_raw) {
+  if (!hasStructuredKnowledge(s) && profile.business_knowledge_raw) {
     const paragraphs = profile.business_knowledge_raw
       .split(/\n{2,}/)
       .map((p) => p.trim())
@@ -180,6 +195,7 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
     chunks.push({
       chunk_type: "example",
       chunk_text: `Pertanyaan pelanggan: "${ex.customer}"\nJawaban admin: "${ex.admin}"`,
+      embed_text: ex.customer,
       metadata: { category: ex.category, source: ex.source },
     })
   }
@@ -190,11 +206,17 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
 // ── INDEXING ──────────────────────────────────────────────────────────────────
 
 /**
- * sha256(chunk_type + "\n" + chunk_text) — must match the backfill in
- * migration 011 exactly (digest(chunk_type || E'\n' || chunk_text, 'sha256')).
+ * sha256(chunk_type + "\n" + chunk_text), plus the embedded text when it
+ * differs from chunk_text — a row is only reusable if its vector was built
+ * from the same input. Raw chunks hash exactly like the migration 011
+ * backfill (digest(chunk_type || E'\n' || chunk_text, 'sha256')); example
+ * rows indexed before question-only embedding no longer match, so the next
+ * reindex re-embeds them once.
  */
-export function hashChunk(chunkType: string, chunkText: string): string {
-  return createHash("sha256").update(`${chunkType}\n${chunkText}`).digest("hex")
+export function hashChunk(chunkType: string, chunkText: string, embedText?: string): string {
+  const embedPart =
+    embedText !== undefined && embedText !== chunkText ? `\n\0embed:${embedText}` : ""
+  return createHash("sha256").update(`${chunkType}\n${chunkText}${embedPart}`).digest("hex")
 }
 
 export type HashedChunk = KnowledgeChunk & { content_hash: string }
@@ -279,7 +301,7 @@ export async function upsertKnowledgeChunks(
   const supabase = await createServiceClient()
   const desired: HashedChunk[] = chunkProfile(profile).map((c) => ({
     ...c,
-    content_hash: hashChunk(c.chunk_type, c.chunk_text),
+    content_hash: hashChunk(c.chunk_type, c.chunk_text, c.embed_text),
   }))
 
   const { data: existingRows, error: fetchErr } = await supabase
@@ -308,7 +330,7 @@ export async function upsertKnowledgeChunks(
   for (let i = 0; i < diff.toInsert.length; i += BATCH_SIZE) {
     const batch = diff.toInsert.slice(i, i + BATCH_SIZE)
     const embeddings = await embedTexts(
-      batch.map((c) => c.chunk_text),
+      batch.map((c) => c.embed_text ?? c.chunk_text),
       { userId },
     )
 
@@ -479,6 +501,15 @@ export async function reindexIfDirty(
 
 // ── RETRIEVAL ─────────────────────────────────────────────────────────────────
 
+export const RAG_TOP_K = 5
+/**
+ * Minimum cosine similarity. Examples embed the customer question only, so a
+ * genuinely matching question scores well above this; weak, off-topic
+ * matches stay out of the prompt instead of feeding it unrelated facts.
+ * Tune with the per-chunk sim=… values logged below.
+ */
+export const RAG_SIMILARITY_THRESHOLD = 0.4
+
 /**
  * Retrieve the top-K most relevant knowledge chunks for an incoming message.
  * Returns an array of chunk_text strings ready to be injected into the prompt.
@@ -487,8 +518,8 @@ export async function reindexIfDirty(
 export async function retrieveRelevantChunks(
   userId: string,
   query: string,
-  topK = 5,
-  threshold = 0.3,
+  topK = RAG_TOP_K,
+  threshold = RAG_SIMILARITY_THRESHOLD,
 ): Promise<string[]> {
   const embedding = await embedText(query, { userId })
   if (!embedding) return []
@@ -535,7 +566,7 @@ export async function getRagContext(userId: string, message: string): Promise<st
   if (chunks.length === 0) return ""
 
   return `=== INFORMASI RELEVAN (DIAMBIL OTOMATIS) ===
-Jika pesan pelanggan sama atau sangat mirip dengan contoh berikut, ikuti isi jawabannya — boleh sesuaikan sapaan/nama saja, JANGAN ubah informasi inti (harga/tanggal/status).
+Pakai hanya jika pertanyaannya benar-benar sama/sangat mirip dengan pesan pelanggan. ${EXAMPLE_FACTS_RULE}
 
 ${chunks.join("\n\n")}`
 }

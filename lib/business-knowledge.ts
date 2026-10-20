@@ -35,6 +35,32 @@ export function calculateCompleteness(structured: BusinessKnowledgeStructured): 
   }
 }
 
+/**
+ * True when structured knowledge holds at least one real fact. A failed
+ * extraction saves an all-empty object, which must not hide the raw text.
+ */
+export function hasStructuredKnowledge(
+  s: BusinessKnowledgeStructured | null | undefined,
+): s is BusinessKnowledgeStructured {
+  if (!s) return false
+  return Boolean(
+    s.services?.length ||
+      s.operating_hours ||
+      s.location ||
+      s.payment_methods?.length ||
+      s.po_status ||
+      s.special_notes,
+  )
+}
+
+/** PO counts as open only until its close date (inclusive, Asia/Jakarta). */
+export function isPOOpen(s: BusinessKnowledgeStructured, now: Date = new Date()): boolean {
+  if (!s.po_status) return false
+  if (!s.po_close_date) return true
+  const todayJakarta = now.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" }) // YYYY-MM-DD
+  return s.po_close_date >= todayJakarta
+}
+
 export function formatBusinessContextForAI(
   raw: string,
   structured: BusinessKnowledgeStructured,

@@ -9,17 +9,18 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { buildSecurePrompt } from "@/lib/openrouter"
+import { buildBusinessContext, buildSecurePrompt, formatOrderSummary } from "@/lib/openrouter"
 import {
   chunkProfile,
   diffChunks,
+  EXAMPLE_FACTS_RULE,
   embedTexts,
   type HashedChunk,
   hashChunk,
   REINDEX_THROTTLE_MS,
   shouldReindexNow,
 } from "@/lib/rag"
-import type { Profile } from "@/types"
+import type { Client, Profile } from "@/types"
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,127 @@ describe("chunkProfile()", () => {
   it("returns empty array for empty profile", () => {
     const chunks = chunkProfile(BASE_PROFILE)
     expect(chunks).toHaveLength(0)
+  })
+
+  it("embeds only the customer question for example chunks", () => {
+    const ex = chunkProfile(PROFILE_WITH_EXAMPLES).find((c) => c.chunk_type === "example")!
+    expect(ex.embed_text).toBe("Berapa harga kebaya?")
+    expect(ex.chunk_text).toContain("Jawaban admin")
+  })
+
+  it("falls back to raw chunks when structured extraction came back empty", () => {
+    const chunks = chunkProfile({
+      ...PROFILE_WITH_RAW_ONLY,
+      business_knowledge_structured: {
+        services: [],
+        operating_hours: null,
+        location: null,
+        payment_methods: [],
+        po_status: false,
+        po_close_date: null,
+        special_notes: null,
+      },
+    })
+    expect(chunks.filter((c) => c.chunk_type === "raw").length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// ── Source of truth in the prompt ─────────────────────────────────────────────
+
+describe("buildSecurePrompt() — source of truth", () => {
+  it("states the source-of-truth hierarchy", () => {
+    const prompt = buildSecurePrompt(PROFILE_WITH_STRUCTURED, null, "", "")
+    expect(prompt).toContain("=== SUMBER KEBENARAN (WAJIB) ===")
+  })
+
+  it("says explicitly when the sender is not linked to a client", () => {
+    const prompt = buildSecurePrompt(PROFILE_WITH_STRUCTURED, null, "", "")
+    expect(prompt).toContain("belum terhubung ke data klien")
+  })
+
+  it("says explicitly when a linked client has no active orders", () => {
+    const client = { id: "c1", user_id: "u1", name: "Rina" } as Client
+    const prompt = buildSecurePrompt(PROFILE_WITH_STRUCTURED, client, "", "", "")
+    expect(prompt).toContain("Tidak ada pesanan aktif tercatat.")
+  })
+
+  it("injects today's date so relative dates and PO deadlines are checkable", () => {
+    const prompt = buildSecurePrompt(PROFILE_WITH_STRUCTURED, null, "", "")
+    expect(prompt).toContain("=== HARI INI ===")
+  })
+
+  it("example instructions no longer tell the model to copy dates/status verbatim", () => {
+    const prompt = buildSecurePrompt(PROFILE_WITH_EXAMPLES, null, "", "", undefined, "berapa harga")
+    expect(prompt).not.toContain("JANGAN ubah informasi inti")
+    expect(prompt).toContain(EXAMPLE_FACTS_RULE)
+  })
+})
+
+describe("buildBusinessContext()", () => {
+  it("reports PO as closed once the close date has passed", () => {
+    const ctx = buildBusinessContext(PROFILE_WITH_STRUCTURED, new Date("2026-11-01T03:00:00Z"))
+    expect(ctx).toContain("PO: Tutup")
+  })
+
+  it("keeps PO open through its close date (WIB)", () => {
+    // 2026-10-31 20:00 UTC is already Nov 1 in Jakarta → closed
+    expect(
+      buildBusinessContext(PROFILE_WITH_STRUCTURED, new Date("2026-10-31T20:00:00Z")),
+    ).toContain("PO: Tutup")
+    expect(
+      buildBusinessContext(PROFILE_WITH_STRUCTURED, new Date("2026-10-31T10:00:00Z")),
+    ).toContain("PO: Buka s/d 2026-10-31")
+  })
+
+  it("uses raw text when structured extraction came back empty", () => {
+    const ctx = buildBusinessContext({
+      ...PROFILE_WITH_RAW_ONLY,
+      business_knowledge_structured: {
+        services: [],
+        operating_hours: null,
+        location: null,
+        payment_methods: [],
+        po_status: false,
+        po_close_date: null,
+        special_notes: null,
+      },
+    })
+    expect(ctx).toContain("kebaya modern mulai 750rb")
+  })
+})
+
+describe("formatOrderSummary()", () => {
+  const NOW = new Date("2026-10-20T00:00:00Z")
+  const ORDER = {
+    description: "Kebaya wisuda",
+    total_price: 1_500_000,
+    payment_stages: [
+      { name: "DP", amount: 500_000, due_date: "2026-10-01", paid: true },
+      { name: "Pelunasan", amount: 1_000_000, due_date: "2026-10-25", paid: false },
+    ],
+    // 07:00 UTC = 14:00 WIB
+    appointments: [{ title: "Fitting", scheduled_at: "2026-10-27T07:00:00Z" }],
+  }
+
+  it("renders amounts, next bill and appointment time in WIB", () => {
+    const line = formatOrderSummary([ORDER], NOW)
+    expect(line).toContain("Total: Rp 1.500.000")
+    expect(line).toContain("Sudah dibayar: Rp 500.000")
+    expect(line).toContain("Pelunasan Rp 1.000.000 (jatuh tempo 25 Oktober 2026)")
+    expect(line).toMatch(/Fitting .*14[.:]00 WIB/)
+  })
+
+  it("puts each order on its own line", () => {
+    const out = formatOrderSummary([ORDER, { ...ORDER, description: "Gaun pesta" }], NOW)
+    expect(out.split("\n")).toHaveLength(2)
+  })
+
+  it("says all bills are paid when no stage is outstanding", () => {
+    const paid = {
+      ...ORDER,
+      payment_stages: ORDER.payment_stages.map((s) => ({ ...s, paid: true })),
+    }
+    expect(formatOrderSummary([paid], NOW)).toContain("Semua tagihan lunas")
   })
 })
 
@@ -255,7 +377,7 @@ describe("buildSecurePrompt() — RAG integration", () => {
 function hashed(profile: Profile): HashedChunk[] {
   return chunkProfile(profile).map((c) => ({
     ...c,
-    content_hash: hashChunk(c.chunk_type, c.chunk_text),
+    content_hash: hashChunk(c.chunk_type, c.chunk_text, c.embed_text),
   }))
 }
 
@@ -275,6 +397,13 @@ describe("hashChunk()", () => {
     const base = hashChunk("service", "text")
     expect(hashChunk("meta", "text")).not.toBe(base)
     expect(hashChunk("service", "text2")).not.toBe(base)
+  })
+
+  it("changes when the embedded text differs (old Q+A vectors get re-embedded)", () => {
+    const legacy = hashChunk("example", "Q+A text")
+    expect(hashChunk("example", "Q+A text", "Q only")).not.toBe(legacy)
+    // embed_text equal to chunk_text keeps the legacy hash (raw chunks unaffected)
+    expect(hashChunk("raw", "para", "para")).toBe(hashChunk("raw", "para"))
   })
 })
 

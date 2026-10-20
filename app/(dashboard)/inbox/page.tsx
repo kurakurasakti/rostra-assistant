@@ -984,6 +984,11 @@ export default function InboxPage() {
         return
       }
       const newDraft = data.draft ?? ""
+      if (Array.isArray(data.ungrounded) && data.ungrounded.length > 0) {
+        toast.warning(
+          `Cek dulu sebelum kirim: ${data.ungrounded.join(", ")} tidak ada di data bisnis/pesanan.`,
+        )
+      }
       setDraft(newDraft)
       isDraftUserModifiedRef.current = false
       if (!withHint) setOriginalAiDraft(newDraft)

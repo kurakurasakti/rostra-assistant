@@ -41,13 +41,25 @@ export async function POST(request: Request) {
 
   if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 })
 
-  // Fetch client if provided
+  // Client: explicit client_id, else the client linked to the inbox message —
+  // its active orders are the source of truth for status/bill questions.
+  let clientId = body.client_id
+  if (!clientId && body.message_id) {
+    const { data: msg } = await supabase
+      .from("inbox_messages")
+      .select("client_id")
+      .eq("id", body.message_id)
+      .eq("user_id", user.id)
+      .single()
+    clientId = msg?.client_id ?? undefined
+  }
+
   let client = null
-  if (body.client_id) {
+  if (clientId) {
     const { data: c } = await supabase
       .from("clients")
       .select("*")
-      .eq("id", body.client_id)
+      .eq("id", clientId)
       .eq("user_id", user.id)
       .single()
     client = c
@@ -56,7 +68,7 @@ export async function POST(request: Request) {
   // Build full AI context with client order info
   const systemPrompt = await buildAIContext(profile, client, user.id, body.message)
 
-  const { draft, usage } = await draftReply(
+  const { draft, usage, ungrounded } = await draftReply(
     body.message,
     body.brand_voice ?? "",
     body.history,
@@ -74,7 +86,6 @@ export async function POST(request: Request) {
     tokens_out: usage?.completion_tokens ?? 0,
   })
 
-
   const validation = validateAIOutput(draft)
   if (!validation.safe) {
     return NextResponse.json({ draft: null, flagged: true, reason: validation.reason })
@@ -89,5 +100,7 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
   }
 
-  return NextResponse.json({ draft, usage })
+  // Owner asked for this draft explicitly, so it is returned for review —
+  // `ungrounded` lets the UI warn about numbers found in no business data.
+  return NextResponse.json({ draft, usage, ungrounded })
 }
