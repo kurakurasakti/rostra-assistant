@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { categorizeQAPair } from "@/lib/chat-parser"
 import { LEVEL2_THRESHOLD } from "@/lib/config"
 import { createClient } from "@/lib/supabase/server"
@@ -68,7 +69,7 @@ async function updateConversationExamples(
   return true
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -192,7 +193,7 @@ export async function POST(request: Request) {
               reindexAfterCorrection(user.id),
             )
           })
-          .catch(() => {})
+          .catch((err) => console.error("[messages/send] background task failed:", err))
       }
 
       // Every 10 corrections → re-analyze brand voice from feedback patterns (fire-and-forget)
@@ -211,12 +212,14 @@ export async function POST(request: Request) {
       ) {
         import("@/lib/openrouter")
           .then(({ reanalyzeBrandVoice }) => {
-            reanalyzeBrandVoice(user.id).catch(() => {})
+            reanalyzeBrandVoice(user.id).catch((err) => console.error("[messages/send] background task failed:", err))
           })
-          .catch(() => {})
+          .catch((err) => console.error("[messages/send] background task failed:", err))
       }
     }
   }
 
   return NextResponse.json({ ok: true })
 }
+
+export const POST = withErrorHandler("POST /api/messages/send", handlePOST)

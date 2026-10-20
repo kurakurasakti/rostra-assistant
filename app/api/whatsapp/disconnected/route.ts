@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "crypto"
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createServiceClient } from "@/lib/supabase/server"
 
 /**
@@ -17,7 +18,7 @@ function isAuthorized(request: Request): boolean {
   return timingSafeEqual(Buffer.from(sig), Buffer.from(secret))
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
@@ -41,3 +42,5 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true })
 }
+
+export const POST = withErrorHandler("POST /api/whatsapp/disconnected", handlePOST)

@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { checkIsAdmin } from "@/lib/auth/admin"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET(_request: NextRequest) {
+async function handleGET(_request: NextRequest) {
   try {
     const supabase = await createClient()
     const {
@@ -20,3 +21,5 @@ export async function GET(_request: NextRequest) {
     return NextResponse.json({ isAdmin: false }, { status: 200 })
   }
 }
+
+export const GET = withErrorHandler("GET /api/admin/check", handleGET)

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET() {
+async function handleGET() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -15,3 +16,5 @@ export async function GET() {
   const data = await res.json()
   return NextResponse.json(data)
 }
+
+export const GET = withErrorHandler("GET /api/whatsapp/qr", handleGET)

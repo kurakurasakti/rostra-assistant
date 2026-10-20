@@ -195,7 +195,7 @@ async function processIncomingMessage(payload: any) {
       mediaType === "image" ? "[Foto]" : mediaType === "audio" ? "[Audio]" : "[Dokumen]"
     const preview = message ? `${mediaLabel} ${message}` : mediaLabel
 
-    sendEscalationNotification(userId, name || normalizedSender, preview, "media").catch(() => {})
+    sendEscalationNotification(userId, name || normalizedSender, preview, "media").catch((err) => console.error("[webhook] background task failed:", err))
     return
   }
 

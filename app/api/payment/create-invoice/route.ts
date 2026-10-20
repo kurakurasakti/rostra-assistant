@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { PaymentService } from "@/lib/payment/service"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const {
@@ -49,3 +50,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const POST = withErrorHandler("POST /api/payment/create-invoice", handlePOST)

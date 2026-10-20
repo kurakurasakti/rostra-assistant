@@ -638,16 +638,6 @@ Schema:
   "special_notes": "string|null"
 }`
 
-const EMPTY_STRUCTURED: BusinessKnowledgeStructured = {
-  services: [],
-  operating_hours: null,
-  location: null,
-  payment_methods: [],
-  po_status: false,
-  po_close_date: null,
-  special_notes: null,
-}
-
 export async function extractBusinessKnowledge(
   rawText: string,
 ): Promise<BusinessKnowledgeStructured> {
@@ -666,7 +656,7 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
     return JSON.parse(clean) as BusinessKnowledgeStructured
   } catch (err) {
     console.error("[extractBusinessKnowledge] Failed parsing business knowledge JSON:", err)
-    return { ...EMPTY_STRUCTURED }
+    throw err
   }
 }
 
@@ -721,7 +711,7 @@ ${BUSINESS_EXTRACTION_SCHEMA}`
       "[extractBusinessKnowledgeFromImages] Failed parsing business knowledge JSON:",
       err,
     )
-    return { ...EMPTY_STRUCTURED }
+    throw err
   }
 }
 
@@ -881,7 +871,7 @@ export async function classifyAndDraft(
         .single()
       const contactName = msgData?.sender_name || msgData?.whatsapp_number || "Pelanggan"
       const { sendEscalationNotification } = await import("@/lib/notifications")
-      sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch(() => {})
+      sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch((err) => console.error("[classifyAndDraft] background task failed:", err))
       return
     }
 
@@ -902,7 +892,7 @@ export async function classifyAndDraft(
         .single()
       const contactName = msgData?.sender_name || msgData?.whatsapp_number || "Pelanggan"
       const { sendEscalationNotification } = await import("@/lib/notifications")
-      sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch(() => {})
+      sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch((err) => console.error("[classifyAndDraft] background task failed:", err))
       return
     }
 
@@ -948,7 +938,7 @@ export async function classifyAndDraft(
           .single()
         const contactName = msgData?.sender_name || msgData?.whatsapp_number || "Pelanggan"
         const { sendEscalationNotification } = await import("@/lib/notifications")
-        sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch(() => {})
+        sendEscalationNotification(userId, contactName, messageBody, "sensitif").catch((err) => console.error("[classifyAndDraft] background task failed:", err))
       }
       return
     }

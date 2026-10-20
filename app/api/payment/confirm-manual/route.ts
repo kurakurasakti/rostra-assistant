@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { PaymentService } from "@/lib/payment/service"
-import { createClient } from "@/lib/supabase/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { requireAdminUser } from "@/lib/auth/admin"
 import { logSecurityEvent } from "@/lib/auth/rate-limiter"
+import { PaymentService } from "@/lib/payment/service"
+import { createClient } from "@/lib/supabase/server"
 
 /**
  * Manually confirm a payment and activate the subscription.
@@ -13,7 +14,7 @@ import { logSecurityEvent } from "@/lib/auth/rate-limiter"
  * accepted a hardcoded key that was also inlined into the public
  * payment page bundle.
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const {
@@ -52,3 +53,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
+
+export const POST = withErrorHandler("POST /api/payment/confirm-manual", handlePOST)

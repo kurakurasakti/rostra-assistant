@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import {
   checkLoginRateLimit,
   getClientIp,
@@ -8,7 +9,7 @@ import {
 } from "@/lib/auth/rate-limiter"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const clientIp = getClientIp(request.headers)
   const userAgent = request.headers.get("user-agent") || undefined
 
@@ -32,10 +33,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Validate basic input presence
     if (!email || typeof email !== "string" || !password || typeof password !== "string") {
-      return NextResponse.json(
-        { error: "Email dan password wajib diisi." },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: "Email dan password wajib diisi." }, { status: 400 })
     }
 
     const trimmedEmail = email.trim().toLowerCase()
@@ -128,3 +126,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const POST = withErrorHandler("POST /api/auth/login", handlePOST)

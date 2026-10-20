@@ -41,6 +41,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { apiFetch } from "@/lib/api-client"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { normalizeWANumber } from "@/lib/whatsapp"
@@ -388,17 +389,20 @@ export default function ClientDetailPage() {
   }
 
   async function handleSendNow(msg: ScheduledMessage) {
-    const res = await fetch("/api/scheduled-messages/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message_id: msg.id }),
-    })
-    if (res.ok) {
+    const { ok, error } = await apiFetch(
+      "/api/scheduled-messages/send",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message_id: msg.id }),
+      },
+      "Gagal mengirim.",
+    )
+    if (ok) {
       toast.success("Pesan berhasil dikirim.")
       loadData()
     } else {
-      const d = await res.json()
-      toast.error(d.error ?? "Gagal mengirim.")
+      toast.error(error)
     }
   }
 

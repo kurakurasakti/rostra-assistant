@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { classifyMessage } from "@/lib/openrouter"
 import {
   checkAIRateLimit,
@@ -9,7 +10,7 @@ import {
 } from "@/lib/rate-limit"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -42,3 +43,4 @@ export async function POST(request: Request) {
   return NextResponse.json({ classification })
 }
 
+export const POST = withErrorHandler("POST /api/classify", handlePOST)

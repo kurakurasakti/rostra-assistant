@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { buildAIContext, draftReply } from "@/lib/openrouter"
 import {
   checkAIRateLimit,
@@ -11,7 +12,7 @@ import { validateAIOutput } from "@/lib/security"
 import { createClient } from "@/lib/supabase/server"
 import { trackUsage } from "@/lib/usage"
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -104,3 +105,5 @@ export async function POST(request: Request) {
   // `ungrounded` lets the UI warn about numbers found in no business data.
   return NextResponse.json({ draft, usage, ungrounded })
 }
+
+export const POST = withErrorHandler("POST /api/messages/draft", handlePOST)

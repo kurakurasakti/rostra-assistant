@@ -1,9 +1,13 @@
 import { timingSafeEqual } from "crypto"
 import { type NextRequest, NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { getClientIp, logSecurityEvent } from "@/lib/auth/rate-limiter"
 
 // In-memory rate limiting for invite code attempts per IP
-const inviteAttemptsStore = new Map<string, { count: number; firstAttemptAt: number; lockedUntil: number | null }>()
+const inviteAttemptsStore = new Map<
+  string,
+  { count: number; firstAttemptAt: number; lockedUntil: number | null }
+>()
 
 const INVITE_LIMIT_CONFIG = {
   MAX_ATTEMPTS: 5,
@@ -11,7 +15,7 @@ const INVITE_LIMIT_CONFIG = {
   LOCKOUT_MS: 15 * 60 * 1000,
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const clientIp = getClientIp(req.headers)
   const now = Date.now()
 
@@ -63,7 +67,7 @@ export async function POST(req: NextRequest) {
           eventType: "invite_code_lockout",
           ipAddress: clientIp,
           details: { attemptCount: newCount },
-        }).catch(() => {})
+        }).catch((err) => console.error("[check-invite] background task failed:", err))
       }
       inviteAttemptsStore.set(clientIp, {
         count: newCount,
@@ -82,9 +86,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         valid: false,
-        error: remaining === 0
-          ? "Terlalu banyak percobaan gagal. Akses pendaftaran dikunci selama 15 menit."
-          : `Kode undangan tidak valid. Sisa ${remaining} kesempatan.`,
+        error:
+          remaining === 0
+            ? "Terlalu banyak percobaan gagal. Akses pendaftaran dikunci selama 15 menit."
+            : `Kode undangan tidak valid. Sisa ${remaining} kesempatan.`,
       },
       { status: 400 },
     )
@@ -94,3 +99,5 @@ export async function POST(req: NextRequest) {
   inviteAttemptsStore.delete(clientIp)
   return NextResponse.json({ valid: true })
 }
+
+export const POST = withErrorHandler("POST /api/auth/check-invite", handlePOST)

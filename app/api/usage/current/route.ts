@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { PLAN_QUOTAS } from "@/lib/config"
 import { createClient } from "@/lib/supabase/server"
 import { checkQuota, currentMonthKey } from "@/lib/usage"
@@ -8,7 +9,7 @@ import { checkQuota, currentMonthKey } from "@/lib/usage"
  *
  * Current month's usage vs plan quota for the authenticated user.
  */
-export async function GET() {
+async function handleGET() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -30,3 +31,5 @@ export async function GET() {
     auto_sent: check.usage.auto_sent,
   })
 }
+
+export const GET = withErrorHandler("GET /api/usage/current", handleGET)

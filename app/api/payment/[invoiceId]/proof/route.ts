@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { checkIsAdmin } from "@/lib/auth/admin"
 import { PaymentService } from "@/lib/payment/service"
 import {
@@ -8,7 +9,7 @@ import {
 } from "@/lib/payment/upload-validation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ invoiceId: string }> },
 ) {
@@ -21,13 +22,19 @@ export async function POST(
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized: Silakan login terlebih dahulu" }, { status: 401 })
+      return NextResponse.json(
+        { error: "Unauthorized: Silakan login terlebih dahulu" },
+        { status: 401 },
+      )
     }
 
     // Verify invoice exists and belongs to this user (IDOR protection)
     const invoiceResult = await PaymentService.getInvoice(invoiceId, user.id)
     if (!invoiceResult) {
-      return NextResponse.json({ error: "Invoice tidak ditemukan atau bukan milik Anda" }, { status: 404 })
+      return NextResponse.json(
+        { error: "Invoice tidak ditemukan atau bukan milik Anda" },
+        { status: 404 },
+      )
     }
 
     const contentType = request.headers.get("content-type") || ""
@@ -76,7 +83,10 @@ export async function POST(
           if (match) {
             const detectedMime = match[1]
             const base64Data = match[2]
-            const validation = validateProofFile(detectedMime, Math.floor((base64Data.length * 3) / 4))
+            const validation = validateProofFile(
+              detectedMime,
+              Math.floor((base64Data.length * 3) / 4),
+            )
             if (!validation.valid) {
               return NextResponse.json({ error: validation.error }, { status: 400 })
             }
@@ -162,7 +172,7 @@ export async function POST(
 /**
  * GET: Securely generate a 5-minute signed URL for previewing payment proof (owner or admin only)
  */
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ invoiceId: string }> },
 ) {
@@ -175,7 +185,10 @@ export async function GET(
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized: Silakan login terlebih dahulu" }, { status: 401 })
+      return NextResponse.json(
+        { error: "Unauthorized: Silakan login terlebih dahulu" },
+        { status: 401 },
+      )
     }
 
     // Fetch invoice
@@ -193,7 +206,10 @@ export async function GET(
     // Authorization: Must be owner OR admin
     const isAdmin = await checkIsAdmin(user)
     if (invoice.user_id !== user.id && !isAdmin) {
-      return NextResponse.json({ error: "Forbidden: Anda tidak memiliki akses ke bukti transfer ini" }, { status: 403 })
+      return NextResponse.json(
+        { error: "Forbidden: Anda tidak memiliki akses ke bukti transfer ini" },
+        { status: 403 },
+      )
     }
 
     if (!invoice.proof_url) {
@@ -202,7 +218,10 @@ export async function GET(
 
     const signedUrl = await PaymentService.getProofSignedUrl(invoice.proof_url, 300)
     if (!signedUrl) {
-      return NextResponse.json({ error: "Gagal membuat URL pratinjau bukti transfer" }, { status: 500 })
+      return NextResponse.json(
+        { error: "Gagal membuat URL pratinjau bukti transfer" },
+        { status: 500 },
+      )
     }
 
     return NextResponse.json({
@@ -219,3 +238,7 @@ export async function GET(
     )
   }
 }
+
+export const POST = withErrorHandler("POST /api/payment/[invoiceId]/proof", handlePOST)
+
+export const GET = withErrorHandler("GET /api/payment/[invoiceId]/proof", handleGET)

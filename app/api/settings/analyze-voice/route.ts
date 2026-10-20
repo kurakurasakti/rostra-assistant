@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import {
   extractBusinessMessages,
   extractConversationContext,
@@ -18,7 +19,9 @@ import {
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import type { QACategory } from "@/types"
 
-export async function POST(request: Request) {
+export const POST = withErrorHandler("POST /api/settings/analyze-voice", analyzeVoice)
+
+async function analyzeVoice(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -46,7 +49,22 @@ export async function POST(request: Request) {
   }
 
   const conversationContext = extractConversationContext(analysis, body.sender)
-  const brandVoice = await analyzeBrandVoice(messages, conversationContext)
+  let brandVoice: string
+  try {
+    brandVoice = await analyzeBrandVoice(messages, conversationContext)
+  } catch (err) {
+    console.error("[analyze-voice] AI analysis failed:", err)
+    return NextResponse.json(
+      { error: "Layanan AI sedang tidak tersedia. Coba lagi beberapa saat lagi." },
+      { status: 502 },
+    )
+  }
+  if (!brandVoice.trim()) {
+    return NextResponse.json(
+      { error: "AI tidak menghasilkan analisa. Coba lagi atau pilih pengirim lain." },
+      { status: 502 },
+    )
+  }
   await recordAIUsage(user.id, estTokens, ip)
 
   // Extract few-shot examples from full parsed conversation (both sides)
@@ -66,8 +84,14 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .select()
 
+  const saveFailed = NextResponse.json(
+    { error: "Gagal menyimpan gaya komunikasi. Coba lagi beberapa saat lagi." },
+    { status: 500 },
+  )
+
   if (updateError) {
     console.error("[analyze-voice] Update error:", updateError)
+    return saveFailed
   }
 
   // If profile doesn't exist, insert it
@@ -80,6 +104,7 @@ export async function POST(request: Request) {
     })
     if (insertError) {
       console.error("[analyze-voice] Insert error:", insertError)
+      return saveFailed
     }
   } else {
     console.log("[analyze-voice] Successfully updated brand_voice and examples")

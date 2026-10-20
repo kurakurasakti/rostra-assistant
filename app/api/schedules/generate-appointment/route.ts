@@ -1,12 +1,13 @@
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createClient } from "@/lib/supabase/server"
 import { interpolateTemplate } from "@/lib/templates"
 
 const TZ = "Asia/Jakarta"
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -85,3 +86,5 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ count: 1, messages: inserted })
 }
+
+export const POST = withErrorHandler("POST /api/schedules/generate-appointment", handlePOST)

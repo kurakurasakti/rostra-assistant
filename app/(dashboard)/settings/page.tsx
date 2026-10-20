@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { apiFetch } from "@/lib/api-client"
 import { createClient } from "@/lib/supabase/client"
 import { APP_VERSION } from "@/lib/version"
 import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "@/types"
@@ -280,14 +281,14 @@ export default function SettingsPage() {
     const formData = new FormData()
     newFiles.forEach((f) => formData.append("files", f))
 
-    const res = await fetch("/api/settings/analyze-chat", {
-      method: "POST",
-      body: formData,
-    })
-    const data = await res.json()
+    const { ok, data, error } = await apiFetch<{ senders: UploadedFile["senders"] }>(
+      "/api/settings/analyze-chat",
+      { method: "POST", body: formData },
+      "Gagal membaca file.",
+    )
 
-    if (!res.ok || data.error) {
-      toast.error(data.error ?? "Gagal membaca file.")
+    if (!ok) {
+      toast.error(error)
       setAnalyzeLoading(false)
       return
     }
@@ -317,15 +318,30 @@ export default function SettingsPage() {
     setAnalyzeLoading(true)
     setAnalyzeStep("analyzing")
 
-    const res = await fetch("/api/settings/analyze-voice", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sender: selectedSender,
-        file_content: combinedText,
-      }),
-    })
-    const data = await res.json()
+    let res: Response
+    let data: {
+      error?: string
+      brand_voice?: string
+      examples_count?: number
+      examples_by_category?: Record<string, number>
+      warning?: string | null
+    } = {}
+    try {
+      res = await fetch("/api/settings/analyze-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: selectedSender,
+          file_content: combinedText,
+        }),
+      })
+      data = await res.json().catch(() => ({}))
+    } catch {
+      toast.error("Gagal terhubung ke server. Periksa koneksi lalu coba lagi.")
+      setAnalyzeStep("building")
+      setAnalyzeLoading(false)
+      return
+    }
 
     if (!res.ok || data.error) {
       toast.error(data.error ?? "Gagal menganalisa chat.")
@@ -334,7 +350,7 @@ export default function SettingsPage() {
       return
     }
 
-    setBrandVoicePreview(data.brand_voice)
+    setBrandVoicePreview(data.brand_voice ?? "")
     setExamplesCount(data.examples_count ?? 0)
     setExamplesByCategory(data.examples_by_category ?? {})
     if (data.warning) toast.warning(data.warning)
@@ -385,14 +401,17 @@ export default function SettingsPage() {
   async function handleTestDraft() {
     if (!testMessage.trim()) return
     setDraftLoading(true)
-    const res = await fetch("/api/messages/draft", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: testMessage, brand_voice: brandVoice }),
-    })
-    const data = await res.json()
-    if (res.ok && data.draft) setDraftResult(data.draft)
-    else toast.error("Gagal membuat draft. Pastikan OpenRouter API key sudah diisi.")
+    const { ok, data, error } = await apiFetch<{ draft: string | null }>(
+      "/api/messages/draft",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: testMessage, brand_voice: brandVoice }),
+      },
+      "Gagal membuat draft.",
+    )
+    if (ok && data.draft) setDraftResult(data.draft)
+    else toast.error(error ?? "AI tidak menghasilkan draft. Coba lagi.")
     setDraftLoading(false)
   }
 

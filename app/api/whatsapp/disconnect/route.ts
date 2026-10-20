@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST() {
+async function handlePOST() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -10,7 +11,7 @@ export async function POST() {
 
   const waUrl = process.env.WA_SERVICE_URL?.replace(/\/$/, "")
   if (waUrl) {
-    await fetch(`${waUrl}/session/${user.id}/disconnect`, { method: "POST" }).catch(() => {})
+    await fetch(`${waUrl}/session/${user.id}/disconnect`, { method: "POST" }).catch((err) => console.error("[whatsapp/disconnect] background task failed:", err))
   }
 
   await supabase
@@ -20,3 +21,5 @@ export async function POST() {
 
   return NextResponse.json({ ok: true })
 }
+
+export const POST = withErrorHandler("POST /api/whatsapp/disconnect", handlePOST)

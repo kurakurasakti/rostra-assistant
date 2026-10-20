@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
+import { checkIsAdmin } from "@/lib/auth/admin"
 import { PaymentService } from "@/lib/payment/service"
 import { createClient } from "@/lib/supabase/server"
-import { checkIsAdmin } from "@/lib/auth/admin"
 
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ invoiceId: string }> },
 ) {
@@ -40,3 +41,5 @@ export async function GET(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
+
+export const GET = withErrorHandler("GET /api/payment/[invoiceId]", handleGET)

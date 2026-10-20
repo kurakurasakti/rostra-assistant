@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { parseWhatsAppExport } from "@/lib/chat-parser"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -22,3 +23,5 @@ export async function POST(request: Request) {
     total_messages: analysis.totalMessages,
   })
 }
+
+export const POST = withErrorHandler("POST /api/settings/analyze-chat", handlePOST)

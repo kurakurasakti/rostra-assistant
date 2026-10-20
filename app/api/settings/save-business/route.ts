@@ -1,9 +1,10 @@
+import { withErrorHandler } from "@/lib/api-handler"
 import { hasEmbeddingKey, type ReindexResult, upsertKnowledgeChunks } from "@/lib/rag"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 
 const REINDEX_TIMEOUT_MS = 25_000
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -80,3 +81,5 @@ export async function POST(req: Request) {
 
   return Response.json({ ok: true, reindex, warning })
 }
+
+export const POST = withErrorHandler("POST /api/settings/save-business", handlePOST)

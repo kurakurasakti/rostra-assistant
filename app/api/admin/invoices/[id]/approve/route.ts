@@ -1,13 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { requireAdminUser } from "@/lib/auth/admin"
 import { PaymentService } from "@/lib/payment/service"
 import { getAdminToCustomerWhatsAppUrl } from "@/lib/payment/utils"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+async function handlePOST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const supabase = await createClient()
@@ -23,7 +21,10 @@ export async function POST(
     // Best Practice RBAC check
     const authCheck = await requireAdminUser(user)
     if (!authCheck.authorized) {
-      return NextResponse.json({ error: authCheck.reason || "Forbidden: Akses ditolak" }, { status: 403 })
+      return NextResponse.json(
+        { error: authCheck.reason || "Forbidden: Akses ditolak" },
+        { status: 403 },
+      )
     }
 
     const body = await request.json().catch(() => ({}))
@@ -34,11 +35,7 @@ export async function POST(
       adminNotes: adminNotes || `Diverifikasi oleh admin ${user.email}`,
     })
 
-    const whatsappUrl = getAdminToCustomerWhatsAppUrl(
-      result.invoice,
-      undefined,
-      undefined,
-    )
+    const whatsappUrl = getAdminToCustomerWhatsAppUrl(result.invoice, undefined, undefined)
 
     return NextResponse.json({
       message: "Invoice berhasil disetujui & langganan user telah aktif.",
@@ -55,3 +52,5 @@ export async function POST(
     )
   }
 }
+
+export const POST = withErrorHandler("POST /api/admin/invoices/[id]/approve", handlePOST)
