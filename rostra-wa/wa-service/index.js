@@ -31,7 +31,14 @@ setInterval(() => {
 
 const NEXT_APP_URL = process.env.NEXT_APP_URL || "http://localhost:3000";
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
-const PORT = process.env.PORT || 3100;
+const PORT = process.env.PORT || 3800;
+
+if (!WEBHOOK_SECRET) {
+  console.error(
+    "[wa-service] WEBHOOK_SECRET is not set — the app will reject every forwarded message with 403. " +
+      "Set it in wa-service/.env to the same value as the app's WEBHOOK_SECRET.",
+  );
+}
 const HISTORY_BATCH_LIMIT = 10;
 
 // messageTimestamp can be a plain number or a protobuf Long — normalize to a JSON-safe number
@@ -350,7 +357,10 @@ async function createSession(userId) {
 
       fetch(`${NEXT_APP_URL}/api/whatsapp/connected`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": WEBHOOK_SECRET,
+        },
         body: JSON.stringify({ userId, number: number ?? "" }),
       })
         .then((r) =>
@@ -386,7 +396,10 @@ async function createSession(userId) {
       // Notify Next.js so wa_connected resets to false in DB
       fetch(`${NEXT_APP_URL}/api/whatsapp/disconnected`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": WEBHOOK_SECRET,
+        },
         body: JSON.stringify({ userId, willReconnect: shouldReconnect }),
       }).catch(() => {});
 
