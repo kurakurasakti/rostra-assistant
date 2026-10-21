@@ -4,12 +4,7 @@ import { sendEscalationNotification, sendQuotaNotification } from "@/lib/notific
 import { classifyAndDraft } from "@/lib/openrouter"
 import { scanForInjection } from "@/lib/security"
 import { createServiceClient } from "@/lib/supabase/server"
-import {
-  checkQuota,
-  maybeWarn80Percent,
-  shouldNotifyQuotaToday,
-  trackUsage,
-} from "@/lib/usage"
+import { checkQuota, maybeWarn80Percent, shouldNotifyQuotaToday, trackUsage } from "@/lib/usage"
 import { normalizeWANumber } from "@/lib/whatsapp"
 
 export async function POST(request: Request) {
@@ -40,10 +35,7 @@ export async function POST(request: Request) {
  * dashboard user who views the thread. Only allow the storage origins we
  * actually serve media from.
  */
-const ALLOWED_MEDIA_HOSTS = new Set([
-  "dpeyfucyrhyuhliitcfd.supabase.co",
-  "supabase.co",
-])
+const ALLOWED_MEDIA_HOSTS = new Set(["dpeyfucyrhyuhliitcfd.supabase.co", "supabase.co"])
 
 function validateMediaUrl(value: unknown): string | null {
   const raw = String(value).trim()
@@ -73,6 +65,12 @@ async function processIncomingMessage(payload: any) {
   const mediaType = payload.media_type ? String(payload.media_type) : null
   const mediaSize = payload.media_size ? Number(payload.media_size) : null
   const isMedia = !!mediaUrl || !!mediaType
+  // Use WhatsApp's send time: rostra-wa may deliver late (outbox retry after the app was down)
+  const sentAtSeconds = Number(payload.timestamp)
+  const receivedAt =
+    Number.isFinite(sentAtSeconds) && sentAtSeconds > 0
+      ? new Date(sentAtSeconds * 1000).toISOString()
+      : new Date().toISOString()
 
   console.log("[webhook] processing:", {
     userId: userId.slice(0, 8) + "...",
@@ -135,11 +133,11 @@ async function processIncomingMessage(payload: any) {
       wa_message_id: messageId || null,
       classification: "injection_attempt",
       status: "dieskalasi",
-      received_at: new Date().toISOString(),
+      received_at: receivedAt,
     })
 
     sendEscalationNotification(userId, name || normalizedSender, message, "injection").catch(
-      () => {},
+      (err) => console.error("[webhook] background task failed:", err),
     )
 
     void supabase.from("security_logs").insert({
@@ -167,7 +165,7 @@ async function processIncomingMessage(payload: any) {
       wa_message_id: messageId || null,
       classification: "tidak_diketahui",
       status: isMedia ? "dieskalasi" : "baru",
-      received_at: new Date().toISOString(),
+      received_at: receivedAt,
       media_url: mediaUrl,
       media_type: mediaType,
       media_size: mediaSize,
@@ -195,7 +193,9 @@ async function processIncomingMessage(payload: any) {
       mediaType === "image" ? "[Foto]" : mediaType === "audio" ? "[Audio]" : "[Dokumen]"
     const preview = message ? `${mediaLabel} ${message}` : mediaLabel
 
-    sendEscalationNotification(userId, name || normalizedSender, preview, "media").catch((err) => console.error("[webhook] background task failed:", err))
+    sendEscalationNotification(userId, name || normalizedSender, preview, "media").catch((err) =>
+      console.error("[webhook] background task failed:", err),
+    )
     return
   }
 

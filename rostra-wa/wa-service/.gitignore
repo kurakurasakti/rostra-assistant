@@ -4,3 +4,4 @@ auth
 .env.local
 .DS_Store
 npm-debug.log*
+outbox
