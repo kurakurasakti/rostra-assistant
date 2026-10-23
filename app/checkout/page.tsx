@@ -16,6 +16,8 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
 import { toast } from "sonner"
+import { motion } from "framer-motion"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Logo } from "@/components/logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -390,8 +392,22 @@ export default function CheckoutPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="min-h-screen bg-slate-50 flex justify-center py-12 px-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="w-full max-w-5xl grid lg:grid-cols-[1fr_400px] gap-8"
+          >
+            <div className="space-y-6">
+              <Skeleton className="h-8 w-48 mb-8" />
+              <Skeleton className="h-32 w-full rounded-2xl" />
+              <Skeleton className="h-[400px] w-full rounded-2xl" />
+            </div>
+            <div className="space-y-6">
+              <Skeleton className="h-[400px] w-full rounded-2xl" />
+            </div>
+          </motion.div>
         </div>
       }
     >

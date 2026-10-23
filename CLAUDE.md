@@ -91,6 +91,13 @@ All times calculated in `Asia/Jakarta` (WIB). Scheduler Edge Function (Phase 3) 
 
 ---
 
+## Error Handling (required)
+
+- **Every route handler** is exported through `withErrorHandler()` (`lib/api-handler.ts`): `export const POST = withErrorHandler("POST /api/x", handlePOST)`. Unhandled throws become JSON `{ error }` instead of a bare empty 500. Webhooks (`app/api/webhook/**`) are the exception — they own their response contract.
+- Expected failures get a specific status + Bahasa Indonesia `{ error }` inside the handler: AI/provider failure → 502, DB write failure → 500. Never `console.error` and still return 200.
+- `lib/` functions called from user-facing routes must **throw** on failure, not return an empty/default value that looks like success. Silent fallbacks are only for background work (webhook pipeline, feedback loop) — and must log, never `.catch(() => {})`.
+- Client components call `/api/*` via `apiFetch()` (`lib/api-client.ts`) — never throws, returns `{ ok, data, error }`, so loading state always resets and the toast shows the server's message.
+
 ## Route Handlers (app/api)
 
 | Route | Purpose |

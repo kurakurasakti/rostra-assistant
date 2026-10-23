@@ -3,6 +3,18 @@
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=dpeyfucyrhyuhliitcfd&features=account%2Cdatabase%2Cdocs%2Cdebugging%2Cdevelopment%2Cfunctions%2Cstorage%2Cbranching"
+    },
+    "open-design": {
+      "command": "C:\\ProgramData\\nvm\\v24.16.0\\node.exe",
+      "args": [
+        "C:\\Users\\IT-ROY\\Documents\\Roy\\open-design\\apps\\daemon\\dist\\cli.js",
+        "mcp",
+        "--daemon-url",
+        "http://127.0.0.1:7456"
+      ],
+      "env": {
+        "OD_DATA_DIR": "C:\\Users\\IT-ROY\\Documents\\Roy\\open-design\\.od"
+      }
     }
   }
 }

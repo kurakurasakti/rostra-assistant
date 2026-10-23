@@ -170,7 +170,7 @@ function AuthCallbackInner() {
 
         <div className="relative">
           <p className="text-white/40 text-xs">
-            © 2025 Glim. Dibuat dengan ♥ untuk bisnis Indonesia.
+            © 2025 Glim. Dibuat untuk bisnis Indonesia.
           </p>
         </div>
       </div>

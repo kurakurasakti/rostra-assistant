@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createClient } from "@/lib/supabase/server"
 import { fetchChatHistory } from "@/lib/whatsapp"
 
 // Proxies an on-demand "load N more" request to rostra-wa, which calls Baileys'
 // fetchMessageHistory() and forwards the resulting batch to /api/webhook/whatsapp/history
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -54,3 +55,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 }
+
+export const POST = withErrorHandler("POST /api/messages/fetch-history", handlePOST)

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST() {
+async function handlePOST() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -20,3 +21,5 @@ export async function POST() {
   const data = await res.json()
   return NextResponse.json(data)
 }
+
+export const POST = withErrorHandler("POST /api/whatsapp/connect", handlePOST)

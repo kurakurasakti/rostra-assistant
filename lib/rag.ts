@@ -10,7 +10,7 @@
  *
  * 2. RETRIEVAL (happens on every incoming message)
  *    Message → embedText() → match_knowledge_chunks() → top-K chunks
- *    → injected into the system prompt instead of the full context
+ *    → injected per-message (Level 3) alongside the full business knowledge
  *
  * Embedding model
  * ───────────────
@@ -21,20 +21,30 @@
  * still works without RAG using the existing context-stuffing path.
  */
 
+import { createHash } from "node:crypto"
+import { hasStructuredKnowledge } from "@/lib/business-knowledge"
 import { createServiceClient } from "@/lib/supabase/server"
-import type {
-  BusinessKnowledgeStructured,
-  ConversationExample,
-  Profile,
-} from "@/types"
+import { trackUsage } from "@/lib/usage"
+import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "@/types"
 
 // ── TYPES ─────────────────────────────────────────────────────────────────────
 
 export interface KnowledgeChunk {
-  chunk_type: "service" | "meta" | "example" | "raw"
+  chunk_type: "example" | "raw"
   chunk_text: string
+  /** Text that gets embedded, when it differs from chunk_text (defaults to chunk_text). */
+  embed_text?: string
   metadata: Record<string, unknown>
 }
+
+/**
+ * How the model may use facts inside retrieved/few-shot examples. Examples
+ * are real past replies to OTHER customers: their policy answers are
+ * reusable, their prices may be outdated, and their order status/dates/
+ * amounts belong to someone else.
+ */
+export const EXAMPLE_FACTS_RULE =
+  "Ikuti isi jawabannya untuk kebijakan/info umum bisnis. Tapi harga WAJIB sesuai PENGETAHUAN BISNIS, dan status/tanggal/tagihan WAJIB dari PESANAN AKTIF KLIEN INI — jangan salin dari contoh (itu milik pelanggan lain)."
 
 // ── EMBEDDING ─────────────────────────────────────────────────────────────────
 
@@ -59,19 +69,44 @@ function getEmbeddingConfig(): { base: string; apiKey: string; model: string } |
   return null
 }
 
+/** True when an embedding API key is configured (RAG can index). */
+export function hasEmbeddingKey(): boolean {
+  return getEmbeddingConfig() !== null
+}
+
 /**
  * Embed a single string.
  * Returns null if no embedding key is configured.
+ * Pass opts.userId to count the call in monthly usage (never throws).
  */
-export async function embedText(text: string): Promise<number[] | null> {
+export async function embedText(
+  text: string,
+  opts?: { userId?: string },
+): Promise<number[] | null> {
+  const [embedding] = await embedTexts([text], opts)
+  return embedding ?? null
+}
+
+/**
+ * Embed many strings in a single API request (the embeddings endpoint
+ * accepts an array input). Result is index-aligned with `texts`; an entry is
+ * null when its text was empty or the whole request failed.
+ * Pass opts.userId to count the call in monthly usage (never throws).
+ */
+export async function embedTexts(
+  texts: string[],
+  opts?: { userId?: string },
+): Promise<Array<number[] | null>> {
+  const results: Array<number[] | null> = texts.map(() => null)
   const config = getEmbeddingConfig()
   if (!config) {
     console.warn("[RAG] No embedding API key set — RAG disabled")
-    return null
+    return results
   }
 
-  const clean = text.replace(/\s+/g, " ").trim().slice(0, 8000) // token safety
-  if (!clean) return null
+  const cleaned = texts.map((t) => t.replace(/\s+/g, " ").trim().slice(0, 8000)) // token safety
+  const inputIdx = cleaned.flatMap((t, i) => (t ? [i] : []))
+  if (inputIdx.length === 0) return results
 
   try {
     const res = await fetch(`${config.base}/embeddings`, {
@@ -83,7 +118,7 @@ export async function embedText(text: string): Promise<number[] | null> {
       },
       body: JSON.stringify({
         model: config.model,
-        input: clean,
+        input: inputIdx.map((i) => cleaned[i]),
         dimensions: EMBEDDING_DIMS, // Note: Not all OpenRouter models support the dimensions parameter
       }),
     })
@@ -94,10 +129,21 @@ export async function embedText(text: string): Promise<number[] | null> {
     }
 
     const data = await res.json()
-    return data.data?.[0]?.embedding ?? null
+    const items = (data.data ?? []) as Array<{ index?: number; embedding?: number[] }>
+    items.forEach((item, pos) => {
+      // Providers return `index` per item; fall back to response order.
+      const target = inputIdx[item.index ?? pos]
+      if (target !== undefined && item.embedding) results[target] = item.embedding
+    })
+
+    if (opts?.userId && results.some(Boolean)) {
+      // Monthly metering: count the embedding API call (never throws).
+      void trackUsage(opts.userId, { embed_calls: 1 })
+    }
+    return results
   } catch (err) {
-    console.error("[RAG] embedText failed:", err)
-    return null
+    console.error("[RAG] embedTexts failed:", err)
+    return results
   }
 }
 
@@ -107,63 +153,27 @@ export async function embedText(text: string): Promise<number[] | null> {
  * Split a profile into discrete, embeddable knowledge chunks.
  *
  * Chunk strategy:
- * - One chunk per service/product → precise price/availability retrieval
- * - One "meta" chunk for hours, location, payment, PO status, special notes
- * - One chunk per conversation_example → style/tone retrieval
+ * - One chunk per conversation_example → answer/style retrieval. Only the
+ *   customer question is embedded: incoming messages are questions, so
+ *   question-to-question similarity is much sharper than question-to-(Q+A).
  * - One "raw" chunk per paragraph of business_knowledge_raw (if no structured)
+ *
+ * Structured knowledge (services, hours, location, payment, PO) is NOT
+ * chunked: it is small and always included in full in the cached Level 2
+ * prompt (see buildLevel2 in lib/openrouter.ts). Indexing it too would only
+ * duplicate it and crowd examples out of the top-K. Legacy "service"/"meta"
+ * rows are removed by the diff-based reindex.
  */
 export function chunkProfile(profile: Profile): KnowledgeChunk[] {
   const chunks: KnowledgeChunk[] = []
 
-  // ── 1. Structured knowledge ──────────────────────────────────────────────
-  const s = profile.business_knowledge_structured as
-    | BusinessKnowledgeStructured
-    | null
-    | undefined
+  const s = profile.business_knowledge_structured as BusinessKnowledgeStructured | null | undefined
 
-  if (s) {
-    // Service chunks — one per service so retrieval is precise
-    for (const svc of s.services ?? []) {
-      const text = [
-        `Layanan: ${svc.name}`,
-        `Harga: ${svc.price_range}`,
-        svc.description ? `Keterangan: ${svc.description}` : null,
-      ]
-        .filter(Boolean)
-        .join("\n")
-
-      chunks.push({
-        chunk_type: "service",
-        chunk_text: text,
-        metadata: { service_name: svc.name, category: "harga" },
-      })
-    }
-
-    // Meta chunk — one combined chunk for operational info
-    const metaParts: string[] = []
-    if (s.operating_hours) metaParts.push(`Jam operasional: ${s.operating_hours}`)
-    if (s.location) metaParts.push(`Lokasi: ${s.location}`)
-    if (s.payment_methods?.length)
-      metaParts.push(`Metode pembayaran: ${s.payment_methods.join(", ")}`)
-    metaParts.push(
-      s.po_status
-        ? `Open PO: Buka${s.po_close_date ? ` sampai ${s.po_close_date}` : ""}`
-        : "Open PO: Tutup",
-    )
-    if (s.special_notes) metaParts.push(`Catatan khusus: ${s.special_notes}`)
-
-    if (metaParts.length > 0) {
-      chunks.push({
-        chunk_type: "meta",
-        chunk_text: metaParts.join("\n"),
-        metadata: { category: "meta" },
-      })
-    }
-  }
-
-  // ── 2. Raw knowledge fallback ────────────────────────────────────────────
-  // Only use raw if there's no structured data (to avoid duplication)
-  if (!s && profile.business_knowledge_raw) {
+  // ── 1. Raw knowledge fallback ────────────────────────────────────────────
+  // Only use raw if there's no structured data (to avoid duplication).
+  // An all-empty structured object (failed extraction) counts as none.
+  // The static prompt caps raw text at 500 chars, so retrieval surfaces the rest.
+  if (!hasStructuredKnowledge(s) && profile.business_knowledge_raw) {
     const paragraphs = profile.business_knowledge_raw
       .split(/\n{2,}/)
       .map((p) => p.trim())
@@ -178,16 +188,14 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
     }
   }
 
-  // ── 3. Conversation examples ─────────────────────────────────────────────
-  const examples = profile.conversation_examples as
-    | ConversationExample[]
-    | null
-    | undefined
+  // ── 2. Conversation examples ─────────────────────────────────────────────
+  const examples = profile.conversation_examples as ConversationExample[] | null | undefined
 
   for (const ex of examples ?? []) {
     chunks.push({
       chunk_type: "example",
       chunk_text: `Pertanyaan pelanggan: "${ex.customer}"\nJawaban admin: "${ex.admin}"`,
+      embed_text: ex.customer,
       metadata: { category: ex.category, source: ex.source },
     })
   }
@@ -198,37 +206,133 @@ export function chunkProfile(profile: Profile): KnowledgeChunk[] {
 // ── INDEXING ──────────────────────────────────────────────────────────────────
 
 /**
- * Re-index all knowledge chunks for a user.
- * Strategy: delete-all-then-insert to keep implementation simple.
- * For very large knowledge bases a diff-based upsert would be more efficient,
- * but for small businesses this is fast enough.
+ * sha256(chunk_type + "\n" + chunk_text), plus the embedded text when it
+ * differs from chunk_text — a row is only reusable if its vector was built
+ * from the same input. Raw chunks hash exactly like the migration 011
+ * backfill (digest(chunk_type || E'\n' || chunk_text, 'sha256')); example
+ * rows indexed before question-only embedding no longer match, so the next
+ * reindex re-embeds them once.
+ */
+export function hashChunk(chunkType: string, chunkText: string, embedText?: string): string {
+  const embedPart =
+    embedText !== undefined && embedText !== chunkText ? `\n\0embed:${embedText}` : ""
+  return createHash("sha256").update(`${chunkType}\n${chunkText}${embedPart}`).digest("hex")
+}
+
+export type HashedChunk = KnowledgeChunk & { content_hash: string }
+
+export interface ChunkDiff {
+  toInsert: HashedChunk[]
+  toDeleteIds: string[]
+  reused: number
+}
+
+/**
+ * Multiset diff between existing DB rows and desired chunks.
+ * Identical (type+text) chunks produce identical hashes, so matching is done
+ * per-hash-bucket: each desired chunk consumes at most one existing row.
+ */
+export function diffChunks(
+  existing: Array<{ id: string; content_hash: string | null }>,
+  desired: HashedChunk[],
+): ChunkDiff {
+  const buckets = new Map<string, string[]>()
+  const nullHashIds: string[] = []
+  for (const row of existing) {
+    if (!row.content_hash) {
+      // Legacy rows without a hash can never match — delete them.
+      nullHashIds.push(row.id)
+      continue
+    }
+    const bucket = buckets.get(row.content_hash) ?? []
+    bucket.push(row.id)
+    buckets.set(row.content_hash, bucket)
+  }
+
+  const toInsert: HashedChunk[] = []
+  let reused = 0
+
+  for (const chunk of desired) {
+    const bucket = buckets.get(chunk.content_hash)
+    if (bucket && bucket.length > 0) {
+      bucket.shift()
+      reused++
+    } else {
+      toInsert.push(chunk)
+    }
+  }
+
+  const toDeleteIds: string[] = [...nullHashIds]
+  for (const bucket of buckets.values()) {
+    toDeleteIds.push(...bucket)
+  }
+
+  return { toInsert, toDeleteIds, reused }
+}
+
+export interface ReindexResult {
+  indexed: number
+  reused: number
+  deleted: number
+  skipped: number
+}
+
+/**
+ * Re-index knowledge chunks for a user (diff-based).
+ *
+ * Chunks whose content_hash already exists in the DB are reused as-is
+ * (zero embedding calls). Only new/changed chunks are embedded and inserted;
+ * chunks that disappeared from the profile are deleted. Deletes only happen
+ * when all required embeddings succeeded (or nothing needed embedding), so a
+ * transient embedding API failure can never wipe the index.
  */
 export async function upsertKnowledgeChunks(
   userId: string,
   profile: Profile,
-): Promise<{ indexed: number; skipped: number }> {
+): Promise<ReindexResult> {
+  const empty: ReindexResult = { indexed: 0, reused: 0, deleted: 0, skipped: 0 }
+
   const config = getEmbeddingConfig()
   if (!config) {
     console.warn("[RAG] upsertKnowledgeChunks: no embedding key — skipping")
-    return { indexed: 0, skipped: 0 }
+    return empty
   }
 
   const supabase = await createServiceClient()
-  const chunks = chunkProfile(profile)
+  const desired: HashedChunk[] = chunkProfile(profile).map((c) => ({
+    ...c,
+    content_hash: hashChunk(c.chunk_type, c.chunk_text, c.embed_text),
+  }))
 
-  if (chunks.length === 0) {
-    console.log("[RAG] No chunks to index for user:", userId)
-    return { indexed: 0, skipped: 0 }
+  const { data: existingRows, error: fetchErr } = await supabase
+    .from("knowledge_chunks")
+    .select("id, content_hash")
+    .eq("user_id", userId)
+
+  if (fetchErr) {
+    console.error("[RAG] Fetch existing chunks failed:", fetchErr)
+    throw fetchErr
   }
 
-  // Embed all chunks in parallel (rate-limit-friendly: batch of 10 at a time)
-  const BATCH_SIZE = 10
-  const embedded: Array<KnowledgeChunk & { embedding: number[] }> = []
+  const diff = diffChunks(existingRows ?? [], desired)
+
+  if (diff.toInsert.length === 0 && diff.toDeleteIds.length === 0) {
+    console.log(`[RAG] No changes for user ${userId} (${diff.reused} reused)`)
+    await markIndexed(supabase, userId)
+    return { ...empty, reused: diff.reused }
+  }
+
+  // Embed only new/changed chunks — one API request per batch of inputs
+  const BATCH_SIZE = 64
+  const embedded: Array<HashedChunk & { embedding: number[] }> = []
   let skipped = 0
 
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE)
-    const embeddings = await Promise.all(batch.map((c) => embedText(c.chunk_text)))
+  for (let i = 0; i < diff.toInsert.length; i += BATCH_SIZE) {
+    const batch = diff.toInsert.slice(i, i + BATCH_SIZE)
+    const embeddings = await embedTexts(
+      batch.map((c) => c.embed_text ?? c.chunk_text),
+      { userId },
+    )
 
     for (let j = 0; j < batch.length; j++) {
       const emb = embeddings[j]
@@ -240,45 +344,171 @@ export async function upsertKnowledgeChunks(
     }
   }
 
-  if (embedded.length === 0) {
+  // Abort on embedding failure: never shrink the index on transient errors.
+  if (diff.toInsert.length > 0 && embedded.length === 0) {
     console.warn("[RAG] All embedding calls failed for user:", userId)
-    return { indexed: 0, skipped: skipped }
+    await markDirty(supabase, userId)
+    return { ...empty, reused: diff.reused, skipped }
   }
 
-  // Delete old chunks for this user
-  const { error: deleteErr } = await supabase
-    .from("knowledge_chunks")
-    .delete()
-    .eq("user_id", userId)
+  if (embedded.length > 0) {
+    const rows = embedded.map((c) => ({
+      user_id: userId,
+      chunk_type: c.chunk_type,
+      chunk_text: c.chunk_text,
+      metadata: c.metadata,
+      content_hash: c.content_hash,
+      embedding: JSON.stringify(c.embedding), // Supabase accepts JSON array for vector
+    }))
 
-  if (deleteErr) {
-    console.error("[RAG] Delete old chunks failed:", deleteErr)
-    throw deleteErr
+    const { error: insertErr } = await supabase.from("knowledge_chunks").insert(rows)
+
+    if (insertErr) {
+      console.error("[RAG] Insert chunks failed:", insertErr)
+      throw insertErr
+    }
   }
 
-  // Insert new chunks
-  const rows = embedded.map((c) => ({
-    user_id: userId,
-    chunk_type: c.chunk_type,
-    chunk_text: c.chunk_text,
-    metadata: c.metadata,
-    embedding: JSON.stringify(c.embedding), // Supabase accepts JSON array for vector
-  }))
-
-  const { error: insertErr } = await supabase.from("knowledge_chunks").insert(rows)
-
-  if (insertErr) {
-    console.error("[RAG] Insert chunks failed:", insertErr)
-    throw insertErr
+  // Partial embedding failure: a changed chunk's old row would be deleted while
+  // its replacement never got inserted (e.g. a service vanishes after a price
+  // edit). Keep stale rows and leave the profile dirty so the next retrieval
+  // retries; the retry reuses everything inserted above.
+  if (skipped > 0) {
+    console.warn(
+      `[RAG] ${skipped} embeddings failed for user ${userId} — keeping stale rows, marked dirty`,
+    )
+    await markDirty(supabase, userId)
+    return { indexed: embedded.length, reused: diff.reused, deleted: 0, skipped }
   }
+
+  let deleted = 0
+  if (diff.toDeleteIds.length > 0) {
+    const { error: deleteErr } = await supabase
+      .from("knowledge_chunks")
+      .delete()
+      .in("id", diff.toDeleteIds)
+
+    if (deleteErr) {
+      console.error("[RAG] Delete stale chunks failed:", deleteErr)
+      throw deleteErr
+    }
+    deleted = diff.toDeleteIds.length
+  }
+
+  await markIndexed(supabase, userId)
 
   console.log(
-    `[RAG] Indexed ${embedded.length} chunks for user ${userId} (${skipped} skipped)`,
+    `[RAG] Indexed ${embedded.length} new chunks for user ${userId} ` +
+      `(${diff.reused} reused, ${deleted} deleted, ${skipped} skipped)`,
   )
-  return { indexed: embedded.length, skipped }
+  return { indexed: embedded.length, reused: diff.reused, deleted, skipped }
+}
+
+/** Best-effort bookkeeping: last_indexed_at = now, clear rag_dirty_at. */
+async function markIndexed(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  userId: string,
+): Promise<void> {
+  try {
+    await supabase
+      .from("profiles")
+      .update({ last_indexed_at: new Date().toISOString(), rag_dirty_at: null })
+      .eq("id", userId)
+  } catch (err) {
+    console.warn("[RAG] markIndexed failed (non-fatal):", err)
+  }
+}
+
+/** Best-effort: set rag_dirty_at so the next retrieval retries the reindex. */
+async function markDirty(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  userId: string,
+): Promise<void> {
+  try {
+    await supabase
+      .from("profiles")
+      .update({ rag_dirty_at: new Date().toISOString() })
+      .eq("id", userId)
+  } catch (err) {
+    console.warn("[RAG] markDirty failed (non-fatal):", err)
+  }
+}
+
+// ── THROTTLED REINDEX (correction feedback loop) ─────────────────────────────
+
+export const REINDEX_THROTTLE_MS = 60_000
+
+/** Pure throttle decision: reindex now, or defer via dirty flag? */
+export function shouldReindexNow(
+  lastIndexedAt: string | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!lastIndexedAt) return true
+  return now - new Date(lastIndexedAt).getTime() > REINDEX_THROTTLE_MS
+}
+
+/**
+ * Reindex after an owner correction. Throttled: if the last reindex was less
+ * than REINDEX_THROTTLE_MS ago, only sets profiles.rag_dirty_at — the catch-up
+ * in buildAIContext() picks it up before the next retrieval.
+ * Never throws: on failure it marks the profile dirty for later retry.
+ */
+export async function reindexAfterCorrection(userId: string): Promise<void> {
+  try {
+    const supabase = await createServiceClient()
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single()
+    if (!profile) return
+
+    if (shouldReindexNow(profile.last_indexed_at)) {
+      await upsertKnowledgeChunks(userId, profile as Profile)
+    } else {
+      await supabase
+        .from("profiles")
+        .update({ rag_dirty_at: new Date().toISOString() })
+        .eq("id", userId)
+    }
+  } catch (err) {
+    console.error("[RAG] reindexAfterCorrection failed, marking dirty:", err)
+    try {
+      const supabase = await createServiceClient()
+      await supabase
+        .from("profiles")
+        .update({ rag_dirty_at: new Date().toISOString() })
+        .eq("id", userId)
+    } catch {
+      // give up silently — never break the send flow
+    }
+  }
+}
+
+/**
+ * Catch-up before retrieval: if a correction arrived while throttled,
+ * reindex now so the fresh example is visible to RAG.
+ * Never throws — a failed reindex falls back to the stale index.
+ */
+export async function reindexIfDirty(
+  userId: string,
+  profile: Profile & { rag_dirty_at?: string | null },
+): Promise<void> {
+  if (!profile.rag_dirty_at) return
+  try {
+    console.log("[RAG] rag_dirty_at set — catch-up reindex for user:", userId)
+    await upsertKnowledgeChunks(userId, profile)
+  } catch (err) {
+    console.warn("[RAG] catch-up reindex failed, continuing with stale index:", err)
+  }
 }
 
 // ── RETRIEVAL ─────────────────────────────────────────────────────────────────
+
+export const RAG_TOP_K = 5
+/**
+ * Minimum cosine similarity. Examples embed the customer question only, so a
+ * genuinely matching question scores well above this; weak, off-topic
+ * matches stay out of the prompt instead of feeding it unrelated facts.
+ * Tune with the per-chunk sim=… values logged below.
+ */
+export const RAG_SIMILARITY_THRESHOLD = 0.4
 
 /**
  * Retrieve the top-K most relevant knowledge chunks for an incoming message.
@@ -288,10 +518,10 @@ export async function upsertKnowledgeChunks(
 export async function retrieveRelevantChunks(
   userId: string,
   query: string,
-  topK = 5,
-  threshold = 0.3,
+  topK = RAG_TOP_K,
+  threshold = RAG_SIMILARITY_THRESHOLD,
 ): Promise<string[]> {
-  const embedding = await embedText(query)
+  const embedding = await embedText(query, { userId })
   if (!embedding) return []
 
   try {
@@ -331,14 +561,14 @@ export async function retrieveRelevantChunks(
  * High-level helper: retrieve and format chunks into a prompt section.
  * Returns empty string if nothing found (caller falls back to full context).
  */
-export async function getRagContext(
-  userId: string,
-  message: string,
-): Promise<string> {
+export async function getRagContext(userId: string, message: string): Promise<string> {
   const chunks = await retrieveRelevantChunks(userId, message)
   if (chunks.length === 0) return ""
 
-  return `=== INFORMASI RELEVAN (DIAMBIL OTOMATIS) ===\n${chunks.join("\n\n")}`
+  return `=== INFORMASI RELEVAN (DIAMBIL OTOMATIS) ===
+Pakai hanya jika pertanyaannya benar-benar sama/sangat mirip dengan pesan pelanggan. ${EXAMPLE_FACTS_RULE}
+
+${chunks.join("\n\n")}`
 }
 
 // ── CHUNK COUNT ───────────────────────────────────────────────────────────────

@@ -3,11 +3,13 @@
 import { format, formatDistanceToNow, parseISO } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import {
+  AlertTriangle,
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
   CalendarClock,
   ChevronDown,
+  MapPin,
   MessageSquare,
   Plus,
   ShoppingBag,
@@ -39,6 +41,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { apiFetch } from "@/lib/api-client"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { normalizeWANumber } from "@/lib/whatsapp"
@@ -386,17 +389,20 @@ export default function ClientDetailPage() {
   }
 
   async function handleSendNow(msg: ScheduledMessage) {
-    const res = await fetch("/api/scheduled-messages/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message_id: msg.id }),
-    })
-    if (res.ok) {
+    const { ok, error } = await apiFetch(
+      "/api/scheduled-messages/send",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message_id: msg.id }),
+      },
+      "Gagal mengirim.",
+    )
+    if (ok) {
       toast.success("Pesan berhasil dikirim.")
       loadData()
     } else {
-      const d = await res.json()
-      toast.error(d.error ?? "Gagal mengirim.")
+      toast.error(error)
     }
   }
 
@@ -573,7 +579,10 @@ export default function ClientDetailPage() {
                       {format(parseISO(appt.scheduled_at), "d MMM yyyy, HH:mm")}
                     </p>
                     {appt.location && (
-                      <p className="text-xs text-muted-foreground">📍 {appt.location}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span>{appt.location}</span>
+                      </p>
                     )}
                     {appt.notes && (
                       <p className="text-xs text-muted-foreground mt-1 italic">{appt.notes}</p>
@@ -696,9 +705,14 @@ export default function ClientDetailPage() {
                               classificationColors[msg.classification],
                             )}
                           >
-                            {msg.classification === "injection_attempt"
-                              ? "⚠️ injection"
-                              : msg.classification}
+                            {msg.classification === "injection_attempt" ? (
+                              <span className="inline-flex items-center gap-1">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                <span>injection</span>
+                              </span>
+                            ) : (
+                              msg.classification
+                            )}
                           </span>
                         )}
                       </div>

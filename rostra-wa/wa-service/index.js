@@ -9,6 +9,7 @@ const {
   fetchLatestBaileysVersion,
   DisconnectReason,
   downloadMediaMessage,
+  Browsers,
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 
@@ -31,8 +32,120 @@ setInterval(() => {
 
 const NEXT_APP_URL = process.env.NEXT_APP_URL || "http://localhost:3000";
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
-const PORT = process.env.PORT || 3001;
-const HISTORY_BATCH_LIMIT = 10;
+const PORT = process.env.PORT || 3800;
+
+if (!WEBHOOK_SECRET) {
+  console.error(
+    "[wa-service] WEBHOOK_SECRET is not set — the app will reject every forwarded message with 403. " +
+      "Set it in wa-service/.env to the same value as the app's WEBHOOK_SECRET.",
+  );
+}
+// History import on first link: only chats active within the window, capped per chat.
+const HISTORY_WINDOW_DAYS = Number(process.env.HISTORY_WINDOW_DAYS || 90);
+const HISTORY_PER_CHAT_LIMIT = Number(process.env.HISTORY_PER_CHAT_LIMIT || 500);
+// Rows per POST to /api/webhook/whatsapp/history — keeps request bodies small.
+const HISTORY_FORWARD_CHUNK = 200;
+const CACHED_HISTORY_MAX = 5000;
+
+// 1:1 chats only — groups, status updates, channels and broadcast lists are not
+// customer conversations and must not land in the CRM inbox.
+function isPersonalChat(jid) {
+  return typeof jid === "string" && (jid.endsWith("@s.whatsapp.net") || jid.endsWith("@lid"));
+}
+
+// ── Outbox: persisted retry for app callbacks ────────────────────────────────
+// A forward that fails (app down, 403 while secrets mismatch, 5xx) is written to
+// disk and retried every 30s, so messages that arrive while the Next app is
+// unavailable are delivered late instead of lost. Duplicate deliveries are safe:
+// the app dedupes on (user_id, wa_message_id).
+const OUTBOX_DIR = path.join(__dirname, "outbox");
+const OUTBOX_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+fs.mkdirSync(OUTBOX_DIR, { recursive: true });
+
+async function postToApp(route, body) {
+  const res = await fetch(`${NEXT_APP_URL}${route}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-webhook-secret": WEBHOOK_SECRET,
+    },
+    body: JSON.stringify(body),
+  });
+  return res.status;
+}
+
+// 4xx other than auth/timeout/rate-limit means the payload itself is bad — retrying won't help.
+function isPermanentFailure(status) {
+  return status >= 400 && status < 500 && ![401, 403, 408, 429].includes(status);
+}
+
+function enqueue(route, body, label) {
+  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`;
+  fs.writeFileSync(
+    path.join(OUTBOX_DIR, name),
+    JSON.stringify({ route, body, label, createdAt: Date.now(), attempts: 0 })
+  );
+}
+
+async function deliver(route, body, label) {
+  try {
+    const status = await postToApp(route, body);
+    if (status < 300) {
+      console.log(`[outbox] ${label} -> ${status}`);
+      return;
+    }
+    if (isPermanentFailure(status)) {
+      console.error(`[outbox] ${label} rejected with ${status}, dropping`);
+      return;
+    }
+    console.error(`[outbox] ${label} -> ${status}, queued for retry`);
+  } catch (err) {
+    console.error(`[outbox] ${label} failed (${err?.cause?.code || err?.message}), queued for retry`);
+  }
+  enqueue(route, body, label);
+}
+
+let flushing = false;
+async function flushOutbox() {
+  if (flushing) return;
+  flushing = true;
+  try {
+    const files = fs.readdirSync(OUTBOX_DIR).filter((f) => f.endsWith(".json")).sort();
+    if (files.length > 0) console.warn(`[outbox] ${files.length} pending delivery(s), retrying`);
+    for (const name of files) {
+      const file = path.join(OUTBOX_DIR, name);
+      let item;
+      try {
+        item = JSON.parse(fs.readFileSync(file, "utf8"));
+      } catch {
+        fs.unlinkSync(file);
+        continue;
+      }
+      if (Date.now() - item.createdAt > OUTBOX_MAX_AGE_MS) {
+        console.error(`[outbox] ${item.label} undelivered for 7 days, dropping`);
+        fs.unlinkSync(file);
+        continue;
+      }
+      let status;
+      try {
+        status = await postToApp(item.route, item.body);
+      } catch {
+        break; // app still unreachable — keep the rest for the next round
+      }
+      if (status < 300 || isPermanentFailure(status)) {
+        console.log(`[outbox] retried ${item.label} -> ${status}`);
+        fs.unlinkSync(file);
+      } else {
+        item.attempts += 1;
+        fs.writeFileSync(file, JSON.stringify(item));
+        break;
+      }
+    }
+  } finally {
+    flushing = false;
+  }
+}
+setInterval(flushOutbox, 30 * 1000);
 
 // messageTimestamp can be a plain number or a protobuf Long — normalize to a JSON-safe number
 function toUnixSeconds(ts) {
@@ -176,33 +289,20 @@ async function downloadAndCacheMedia(userId, msg, mediaInfo, PORT) {
   }
 }
 
-async function forwardHistoryBatch(userId, batch, attempt = 0) {
+async function forwardHistoryBatch(userId, batch) {
   if (batch.length === 0) return;
-  console.log(`[${userId}] history: forwarding ${batch.length} messages (attempt ${attempt + 1})`);
-  try {
-    const res = await fetch(`${NEXT_APP_URL}/api/webhook/whatsapp/history`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-webhook-secret": WEBHOOK_SECRET,
-      },
-      body: JSON.stringify({ userId, messages: batch }),
-    });
-    console.log(`[${userId}] history forward response: ${res.status}`);
-    if (!res.ok && attempt < 2) {
-      await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
-      return forwardHistoryBatch(userId, batch, attempt + 1);
-    }
-  } catch (err) {
-    console.error(`[${userId}] history forward error:`, err);
-    if (attempt < 2) {
-      await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
-      return forwardHistoryBatch(userId, batch, attempt + 1);
-    }
+  console.log(`[${userId}] history: forwarding ${batch.length} messages`);
+  for (let i = 0; i < batch.length; i += HISTORY_FORWARD_CHUNK) {
+    const chunk = batch.slice(i, i + HISTORY_FORWARD_CHUNK);
+    await deliver(
+      "/api/webhook/whatsapp/history",
+      { userId, messages: chunk },
+      `history ${userId} ${i + chunk.length}/${batch.length}`
+    );
   }
 }
 
-async function forwardContacts(userId, contacts, attempt = 0) {
+async function forwardContacts(userId, contacts) {
   if (!contacts || contacts.length === 0) return;
   const payload = {
     userId,
@@ -214,27 +314,11 @@ async function forwardContacts(userId, contacts, attempt = 0) {
 
   if (payload.contacts.length === 0) return;
 
-  try {
-    const res = await fetch(`${NEXT_APP_URL}/api/webhook/whatsapp/contacts`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-webhook-secret": WEBHOOK_SECRET,
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      console.error(`[${userId}] contacts forward failed with status:`, res.status);
-    } else {
-      console.log(`[${userId}] successfully forwarded ${payload.contacts.length} contacts`);
-    }
-  } catch (err) {
-    console.error(`[${userId}] contacts forward error:`, err);
-    if (attempt < 2) {
-      await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
-      return forwardContacts(userId, contacts, attempt + 1);
-    }
-  }
+  await deliver(
+    "/api/webhook/whatsapp/contacts",
+    payload,
+    `contacts ${userId} (${payload.contacts.length})`
+  );
 }
 
 async function createSession(userId) {
@@ -248,7 +332,11 @@ async function createSession(userId) {
     auth: state,
     logger: pino({ level: "silent" }),
     printQRInTerminal: true,
-    browser: ["Rostra", "Chrome", "1.0.0"],
+    // A desktop identity is what makes WhatsApp send the full chat history on link;
+    // Baileys' default shouldSyncHistoryMessage drops the FULL sync type, so allow it.
+    browser: Browsers.macOS("Desktop"),
+    syncFullHistory: true,
+    shouldSyncHistoryMessage: () => true,
     markOnlineOnConnect: false,
   });
 
@@ -350,7 +438,10 @@ async function createSession(userId) {
 
       fetch(`${NEXT_APP_URL}/api/whatsapp/connected`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": WEBHOOK_SECRET,
+        },
         body: JSON.stringify({ userId, number: number ?? "" }),
       })
         .then((r) =>
@@ -386,7 +477,10 @@ async function createSession(userId) {
       // Notify Next.js so wa_connected resets to false in DB
       fetch(`${NEXT_APP_URL}/api/whatsapp/disconnected`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": WEBHOOK_SECRET,
+        },
         body: JSON.stringify({ userId, willReconnect: shouldReconnect }),
       }).catch(() => {});
 
@@ -495,11 +589,13 @@ async function createSession(userId) {
 
 
     // Case B: Passive sync on connect (group by chat, take latest N messages)
+    const cutoffSeconds = Math.floor(Date.now() / 1000) - HISTORY_WINDOW_DAYS * 24 * 60 * 60;
     const byChat = new Map();
     for (const msg of messages) {
       if (!msg.message) continue;
       const jid = msg.key.remoteJid;
-      if (!jid) continue;
+      if (!isPersonalChat(jid)) continue;
+      if ((toUnixSeconds(msg.messageTimestamp) ?? 0) < cutoffSeconds) continue;
       if (!byChat.has(jid)) byChat.set(jid, []);
       byChat.get(jid).push(msg);
     }
@@ -510,7 +606,7 @@ async function createSession(userId) {
       const firstMsg = msgs[0];
       const resolvedName = resolveContactName(jid, firstMsg?.pushName);
       console.log(`[${userId}] history chat: jid=${jid} pushName=${firstMsg?.pushName || 'NONE'} resolved="${resolvedName || 'null'}"`);
-      for (const msg of msgs.slice(0, HISTORY_BATCH_LIMIT)) {
+      for (const msg of msgs.slice(0, HISTORY_PER_CHAT_LIMIT)) {
         const text = extractText(msg.message);
         if (!text) continue;
         batch.push({
@@ -524,7 +620,10 @@ async function createSession(userId) {
       }
     }
 
-    sessionData.cachedHistory = batch;
+    // History arrives in several chunks — accumulate so sync-history can replay all of them
+    sessionData.cachedHistory = [...(sessionData.cachedHistory || []), ...batch].slice(
+      -CACHED_HISTORY_MAX
+    );
     forwardHistoryBatch(userId, batch).catch((err) =>
       console.error(`[${userId}] history forward unhandled:`, err)
     );
@@ -544,6 +643,7 @@ async function createSession(userId) {
       );
       if (msg.key.fromMe) continue;
       if (!msg.message) continue;
+      if (!isPersonalChat(msg.key.remoteJid)) continue;
 
       const text = extractText(msg.message);
       const mediaInfo = extractMedia(msg.message);
@@ -566,31 +666,22 @@ async function createSession(userId) {
         `[wa-service] forwarding to ${NEXT_APP_URL}/api/webhook/whatsapp`
       );
 
-      fetch(`${NEXT_APP_URL}/api/webhook/whatsapp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-webhook-secret": WEBHOOK_SECRET,
-        },
-        body: JSON.stringify({
+      deliver(
+        "/api/webhook/whatsapp",
+        {
           userId,
           sender,
           message: text,
           name: senderName,
-          timestamp: msg.messageTimestamp,
+          timestamp: toUnixSeconds(msg.messageTimestamp),
           messageId: msg.key.id,
           media_url: null,
           media_type: mediaType,
           media_size: null,
           media_status: mediaInfo ? "downloading" : "none",
-        }),
-      })
-        .then((res) =>
-          console.log(`[wa-service] webhook response: ${res.status}`)
-        )
-        .catch((err) =>
-          console.error("[wa-service] webhook forward error:", err)
-        );
+        },
+        `message ${msg.key.id}`
+      ).catch((err) => console.error("[wa-service] webhook forward error:", err));
     }
   });
 

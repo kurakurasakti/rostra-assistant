@@ -40,7 +40,7 @@ test.describe("F16 — Security Boundary Tests", () => {
     // Verify the client was created under the authenticated user, not the spoofed one
     const client = await getClientByPhone("6287890123456")
     expect(client).not.toBeNull()
-    expect(client.user_id).toBe(userId)
-    expect(client.user_id).not.toBe("00000000-0000-0000-0000-000000000000")
+    expect(client?.user_id).toBe(userId)
+    expect(client?.user_id).not.toBe("00000000-0000-0000-0000-000000000000")
   })
 })

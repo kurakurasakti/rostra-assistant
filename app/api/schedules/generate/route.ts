@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { generateScheduledMessages } from "@/lib/scheduler"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -53,3 +54,5 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ count: inserted?.length ?? 0, messages: inserted })
 }
+
+export const POST = withErrorHandler("POST /api/schedules/generate", handlePOST)

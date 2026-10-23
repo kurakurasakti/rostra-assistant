@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { PaymentService } from "@/lib/payment/service"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET(_request: NextRequest) {
+async function handleGET(_request: NextRequest) {
   try {
     const supabase = await createClient()
     const {
@@ -34,3 +35,5 @@ export async function GET(_request: NextRequest) {
     )
   }
 }
+
+export const GET = withErrorHandler("GET /api/subscription/status", handleGET)

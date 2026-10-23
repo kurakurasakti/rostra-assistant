@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "86d88aa9-15b9-4d34-b02e-044cef064ecd",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Users\\IT-ROY\\Documents\\Roy\\rostra-assistant\\.archify\\architecture-rag-onboarding-20260929-143402\\candidate.json",
+  "output": "C:\\Users\\IT-ROY\\Documents\\Roy\\rostra-assistant\\.archify\\architecture-rag-onboarding-20260929-143402\\glim-rag-foundation.html",
+  "specification": {
+    "sha256": "e425438a6bfc37a39ba18c402cf34e7a1f4873a41478dcd0f3ca747963eb359c",
+    "bytes": 9601
+  },
+  "artifact": {
+    "sha256": "e96d09d2d3b81f59f944595fd7da88349e1e351ff55c601e912c63f1c27beb49",
+    "bytes": 783606
+  }
+}

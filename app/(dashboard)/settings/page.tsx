@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import AIRulesSection from "@/components/settings/AIRulesSection"
 import BusinessKnowledgeSection from "@/components/settings/BusinessKnowledgeSection"
@@ -26,7 +26,6 @@ import TemplatesSection from "@/components/settings/TemplatesSection"
 import TonePresetPicker from "@/components/settings/TonePresetPicker"
 import WhatsAppSection from "@/components/settings/WhatsAppSection"
 import { Button } from "@/components/ui/button"
-import { APP_VERSION } from "@/lib/version"
 import {
   Dialog,
   DialogContent,
@@ -47,10 +46,21 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { apiFetch } from "@/lib/api-client"
 import { createClient } from "@/lib/supabase/client"
+import { APP_VERSION } from "@/lib/version"
 import type { BusinessKnowledgeStructured, ConversationExample, Profile } from "@/types"
 
 type AnalyzeStep = "idle" | "building" | "analyzing" | "preview"
+
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (mins < 1) return "baru saja"
+  if (mins < 60) return `${mins} menit lalu`
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return `${hours} jam lalu`
+  return `${Math.round(hours / 24)} hari lalu`
+}
 
 interface UploadedFile {
   name: string
@@ -95,6 +105,17 @@ export default function SettingsPage() {
   const [businessKnowledgeRaw, setBusinessKnowledgeRaw] = useState<string | null>(null)
   const [businessKnowledgeStructured, setBusinessKnowledgeStructured] =
     useState<BusinessKnowledgeStructured | null>(null)
+  const [indexInfo, setIndexInfo] = useState<{
+    count: number
+    lastIndexedAt: string | null
+  } | null>(null)
+  const [usageInfo, setUsageInfo] = useState<{
+    plan: string
+    msgs_in: number
+    msgs_limit: number
+    usage_pct: number
+    allowed: boolean
+  } | null>(null)
 
   // Section D: Escalation Rules state
   const [escalationKeywords, setEscalationKeywords] = useState<string[]>([])
@@ -106,6 +127,46 @@ export default function SettingsPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
   const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const refreshIndexInfo = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings/reindex")
+      const data = await res.json()
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      let lastIndexedAt: string | null = null
+      if (user) {
+        const { data: p } = await supabase
+          .from("profiles")
+          .select("last_indexed_at")
+          .eq("id", user.id)
+          .single()
+        lastIndexedAt = (p as { last_indexed_at?: string | null } | null)?.last_indexed_at ?? null
+      }
+      setIndexInfo({ count: data.chunk_count ?? 0, lastIndexedAt })
+    } catch {
+      // index status is informational — never break settings
+    }
+  }, [])
+
+  const refreshUsageInfo = useCallback(async () => {
+    try {
+      const res = await fetch("/api/usage/current")
+      if (!res.ok) return
+      const data = await res.json()
+      setUsageInfo({
+        plan: data.plan,
+        msgs_in: data.msgs_in,
+        msgs_limit: data.msgs_limit,
+        usage_pct: data.usage_pct,
+        allowed: data.allowed,
+      })
+    } catch {
+      // usage display is informational — never break settings
+    }
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -163,9 +224,11 @@ export default function SettingsPage() {
         }
       }
       setLoading(false)
+      void refreshIndexInfo()
     }
     load()
-  }, [])
+    void refreshUsageInfo()
+  }, [refreshIndexInfo, refreshUsageInfo])
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
@@ -218,14 +281,14 @@ export default function SettingsPage() {
     const formData = new FormData()
     newFiles.forEach((f) => formData.append("files", f))
 
-    const res = await fetch("/api/settings/analyze-chat", {
-      method: "POST",
-      body: formData,
-    })
-    const data = await res.json()
+    const { ok, data, error } = await apiFetch<{ senders: UploadedFile["senders"] }>(
+      "/api/settings/analyze-chat",
+      { method: "POST", body: formData },
+      "Gagal membaca file.",
+    )
 
-    if (!res.ok || data.error) {
-      toast.error(data.error ?? "Gagal membaca file.")
+    if (!ok) {
+      toast.error(error)
       setAnalyzeLoading(false)
       return
     }
@@ -255,15 +318,30 @@ export default function SettingsPage() {
     setAnalyzeLoading(true)
     setAnalyzeStep("analyzing")
 
-    const res = await fetch("/api/settings/analyze-voice", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sender: selectedSender,
-        file_content: combinedText,
-      }),
-    })
-    const data = await res.json()
+    let res: Response
+    let data: {
+      error?: string
+      brand_voice?: string
+      examples_count?: number
+      examples_by_category?: Record<string, number>
+      warning?: string | null
+    } = {}
+    try {
+      res = await fetch("/api/settings/analyze-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: selectedSender,
+          file_content: combinedText,
+        }),
+      })
+      data = await res.json().catch(() => ({}))
+    } catch {
+      toast.error("Gagal terhubung ke server. Periksa koneksi lalu coba lagi.")
+      setAnalyzeStep("building")
+      setAnalyzeLoading(false)
+      return
+    }
 
     if (!res.ok || data.error) {
       toast.error(data.error ?? "Gagal menganalisa chat.")
@@ -272,9 +350,10 @@ export default function SettingsPage() {
       return
     }
 
-    setBrandVoicePreview(data.brand_voice)
+    setBrandVoicePreview(data.brand_voice ?? "")
     setExamplesCount(data.examples_count ?? 0)
     setExamplesByCategory(data.examples_by_category ?? {})
+    if (data.warning) toast.warning(data.warning)
     setAnalyzeStep("preview")
     setAnalyzeLoading(false)
   }
@@ -319,18 +398,20 @@ export default function SettingsPage() {
   }
 
   // --- Draft test ---
-
   async function handleTestDraft() {
     if (!testMessage.trim()) return
     setDraftLoading(true)
-    const res = await fetch("/api/messages/draft", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: testMessage, brand_voice: brandVoice }),
-    })
-    const data = await res.json()
-    if (res.ok && data.draft) setDraftResult(data.draft)
-    else toast.error("Gagal membuat draft. Pastikan OpenRouter API key sudah diisi.")
+    const { ok, data, error } = await apiFetch<{ draft: string | null }>(
+      "/api/messages/draft",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: testMessage, brand_voice: brandVoice }),
+      },
+      "Gagal membuat draft.",
+    )
+    if (ok && data.draft) setDraftResult(data.draft)
+    else toast.error(error ?? "AI tidak menghasilkan draft. Coba lagi.")
     setDraftLoading(false)
   }
 
@@ -448,7 +529,7 @@ export default function SettingsPage() {
 
                     <Textarea
                       id="brandVoice"
-                      placeholder="Contoh: Selalu sapa dengan 'Halo Kak 😊'. Pesan singkat 1-2 kalimat. Gunakan emoji 🙏 di akhir pesan."
+                      placeholder="Contoh: Selalu sapa dengan 'Halo Kak'. Pesan singkat 1-2 kalimat. Akhiri pesan dengan sopan."
                       value={brandVoice}
                       onChange={(e) => setBrandVoice(e.target.value)}
                       rows={3}
@@ -757,7 +838,7 @@ export default function SettingsPage() {
           <InlineEditCard
             title="Sambungan WhatsApp"
             subtitle="Hubungkan nomor WhatsApp bisnis Anda untuk mulai membalas pesan secara otomatis."
-            summary={profile?.wa_connected ? "Terhubung ✓" : "Belum terhubung"}
+            summary={profile?.wa_connected ? "Terhubung" : "Belum terhubung"}
             defaultExpanded={!profile?.wa_connected}
             onCollapseRequest={waConnectedAt}
           >
@@ -779,8 +860,15 @@ export default function SettingsPage() {
               onSave={(raw, structured) => {
                 setBusinessKnowledgeRaw(raw)
                 setBusinessKnowledgeStructured(structured)
+                void refreshIndexInfo()
               }}
             />
+            {indexInfo && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Knowledge ter-index: {indexInfo.count} chunk
+                {indexInfo.lastIndexedAt ? ` · terakhir ${timeAgo(indexInfo.lastIndexedAt)}` : ""}
+              </p>
+            )}
           </div>
         </section>
 
@@ -840,6 +928,37 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-foreground">
                   Release Please via GitHub Actions
                 </p>
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/20 p-3.5 space-y-2 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Penggunaan bulan ini
+                  </span>
+                  {usageInfo && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
+                      {usageInfo.plan === "pro" ? "Pro" : "Gratis"}
+                    </span>
+                  )}
+                </div>
+                {usageInfo ? (
+                  <>
+                    <p className="text-sm font-medium text-foreground">
+                      {usageInfo.msgs_in} / {usageInfo.msgs_limit} pesan ({usageInfo.usage_pct}%)
+                      {!usageInfo.allowed && (
+                        <span className="text-red-500"> — kuota habis, AI dijeda</span>
+                      )}
+                    </p>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${usageInfo.allowed ? "bg-primary/60" : "bg-red-500/70"}`}
+                        style={{ width: `${Math.min(100, usageInfo.usage_pct)}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Memuat...</p>
+                )}
               </div>
             </div>
           </div>

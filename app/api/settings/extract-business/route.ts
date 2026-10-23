@@ -1,3 +1,4 @@
+import { withErrorHandler } from "@/lib/api-handler"
 import { calculateCompleteness } from "@/lib/business-knowledge"
 import { extractBusinessKnowledge, extractBusinessKnowledgeFromImages } from "@/lib/openrouter"
 import {
@@ -8,8 +9,16 @@ import {
   recordAIUsage,
 } from "@/lib/rate-limit"
 import { createClient } from "@/lib/supabase/server"
+import type { BusinessKnowledgeStructured } from "@/types"
 
-export async function POST(req: Request) {
+function extractFailed() {
+  return Response.json(
+    { error: "Gagal menganalisa info bisnis. Layanan AI sedang tidak tersedia, coba lagi nanti." },
+    { status: 502 },
+  )
+}
+
+async function handlePOST(req: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -26,7 +35,12 @@ export async function POST(req: Request) {
       return createAIRateLimitResponse(rateLimit.retryAfterSeconds, rateLimit.reason)
     }
 
-    const structured = await extractBusinessKnowledgeFromImages(body.images)
+    let structured: BusinessKnowledgeStructured
+    try {
+      structured = await extractBusinessKnowledgeFromImages(body.images)
+    } catch {
+      return extractFailed()
+    }
     await recordAIUsage(user.id, estTokens, ip)
     const completeness = calculateCompleteness(structured)
     return Response.json({ structured, completeness })
@@ -46,9 +60,15 @@ export async function POST(req: Request) {
     return createAIRateLimitResponse(rateLimit.retryAfterSeconds, rateLimit.reason)
   }
 
-  const structured = await extractBusinessKnowledge(raw_text)
+  let structured: BusinessKnowledgeStructured
+  try {
+    structured = await extractBusinessKnowledge(raw_text)
+  } catch {
+    return extractFailed()
+  }
   await recordAIUsage(user.id, estTokens, ip)
   const completeness = calculateCompleteness(structured)
   return Response.json({ structured, completeness })
 }
 
+export const POST = withErrorHandler("POST /api/settings/extract-business", handlePOST)

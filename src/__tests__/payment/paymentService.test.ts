@@ -99,6 +99,7 @@ describe("XenditProvider", () => {
   const xenditProvider = new XenditProvider()
 
   it("should process webhook and recognize paid status", async () => {
+    PAYMENT_CONFIG.xendit.webhookVerificationToken = "test_verification_token"
     const payload = {
       id: "xendit_inv_123",
       external_id: "INV-XEN-20260819-9999",
@@ -110,7 +111,9 @@ describe("XenditProvider", () => {
       paid_at: "2026-08-19T10:00:00.000Z",
     }
 
-    const result = await xenditProvider.handleWebhook(payload)
+    const result = await xenditProvider.handleWebhook(payload, {
+      "x-callback-token": "test_verification_token",
+    })
     expect(result.invoiceNumber).toBe("INV-XEN-20260819-9999")
     expect(result.isPaid).toBe(true)
     expect(result.providerId).toBe("xendit_inv_123")

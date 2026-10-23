@@ -1,9 +1,10 @@
 import { timingSafeEqual } from "crypto"
 import { NextResponse } from "next/server"
-import { sendEscalationNotification } from "@/lib/notifications"
+import { sendEscalationNotification, sendQuotaNotification } from "@/lib/notifications"
 import { classifyAndDraft } from "@/lib/openrouter"
 import { scanForInjection } from "@/lib/security"
 import { createServiceClient } from "@/lib/supabase/server"
+import { checkQuota, maybeWarn80Percent, shouldNotifyQuotaToday, trackUsage } from "@/lib/usage"
 import { normalizeWANumber } from "@/lib/whatsapp"
 
 export async function POST(request: Request) {
@@ -28,6 +29,31 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true }, { status: 200 })
 }
 
+/**
+ * media_url is rendered straight into <img src> and <a href> in the inbox,
+ * so a javascript: or data: value stored here becomes stored XSS for any
+ * dashboard user who views the thread. Only allow the storage origins we
+ * actually serve media from.
+ */
+const ALLOWED_MEDIA_HOSTS = new Set(["dpeyfucyrhyuhliitcfd.supabase.co", "supabase.co"])
+
+function validateMediaUrl(value: unknown): string | null {
+  const raw = String(value).trim()
+  if (!raw) return null
+
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return null
+  }
+
+  if (parsed.protocol !== "https:") return null
+  if (!ALLOWED_MEDIA_HOSTS.has(parsed.hostname)) return null
+
+  return parsed.toString()
+}
+
 async function processIncomingMessage(payload: any) {
   // Baileys payload: { userId, sender, message, name, timestamp, messageId, media_url?, media_type?, media_size? }
   const userId = String(payload.userId ?? "").trim()
@@ -35,10 +61,16 @@ async function processIncomingMessage(payload: any) {
   const message = String(payload.message ?? "").trim()
   const name = String(payload.name ?? "").trim()
   const messageId = String(payload.messageId ?? "").trim()
-  const mediaUrl = payload.media_url ? String(payload.media_url) : null
+  const mediaUrl = payload.media_url ? validateMediaUrl(payload.media_url) : null
   const mediaType = payload.media_type ? String(payload.media_type) : null
   const mediaSize = payload.media_size ? Number(payload.media_size) : null
   const isMedia = !!mediaUrl || !!mediaType
+  // Use WhatsApp's send time: rostra-wa may deliver late (outbox retry after the app was down)
+  const sentAtSeconds = Number(payload.timestamp)
+  const receivedAt =
+    Number.isFinite(sentAtSeconds) && sentAtSeconds > 0
+      ? new Date(sentAtSeconds * 1000).toISOString()
+      : new Date().toISOString()
 
   console.log("[webhook] processing:", {
     userId: userId.slice(0, 8) + "...",
@@ -101,11 +133,11 @@ async function processIncomingMessage(payload: any) {
       wa_message_id: messageId || null,
       classification: "injection_attempt",
       status: "dieskalasi",
-      received_at: new Date().toISOString(),
+      received_at: receivedAt,
     })
 
     sendEscalationNotification(userId, name || normalizedSender, message, "injection").catch(
-      () => {},
+      (err) => console.error("[webhook] background task failed:", err),
     )
 
     void supabase.from("security_logs").insert({
@@ -133,7 +165,7 @@ async function processIncomingMessage(payload: any) {
       wa_message_id: messageId || null,
       classification: "tidak_diketahui",
       status: isMedia ? "dieskalasi" : "baru",
-      received_at: new Date().toISOString(),
+      received_at: receivedAt,
       media_url: mediaUrl,
       media_type: mediaType,
       media_size: mediaSize,
@@ -161,9 +193,47 @@ async function processIncomingMessage(payload: any) {
       mediaType === "image" ? "[Foto]" : mediaType === "audio" ? "[Audio]" : "[Dokumen]"
     const preview = message ? `${mediaLabel} ${message}` : mediaLabel
 
-    sendEscalationNotification(userId, name || normalizedSender, preview, "media").catch(() => {})
+    sendEscalationNotification(userId, name || normalizedSender, preview, "media").catch((err) =>
+      console.error("[webhook] background task failed:", err),
+    )
     return
   }
+
+  // Monthly metering: count the incoming message (never throws).
+  void trackUsage(userId, { msgs_in: 1 })
+
+  // Quota enforcement (fail-open): when exhausted, store the message as-is
+  // with status 'quota_exceeded', notify the owner at most once per day,
+  // and skip the AI pipeline entirely. Webhook still returns 200.
+  const quota = await checkQuota(userId)
+  if (!quota.allowed) {
+    try {
+      await supabase
+        .from("inbox_messages")
+        .update({ status: "quota_exceeded" })
+        .eq("id", insertedMessage.id)
+    } catch (err) {
+      console.error("[webhook] quota_exceeded status update failed:", err)
+    }
+    try {
+      const notify = await shouldNotifyQuotaToday(userId, quota.usage.quota_notified_at)
+      if (notify) {
+        await sendQuotaNotification(
+          userId,
+          "Kuota pesan habis",
+          `Kuota ${quota.plan} bulan ini habis (${quota.usage.msgs_in} pesan). Pesan pelanggan tetap tersimpan, tapi AI berhenti membuat draft sampai kuota direset bulan depan.`,
+        )
+      }
+    } catch (err) {
+      console.error("[webhook] quota notification failed:", err)
+    }
+    return
+  }
+
+  // Soft warning at 80% (once per month, never throws).
+  void maybeWarn80Percent(userId, quota, (title, body) =>
+    sendQuotaNotification(userId, title, body),
+  )
 
   // Background: classify and draft (fire-and-forget)
   classifyAndDraft(insertedMessage.id, message, userId).catch((err) =>

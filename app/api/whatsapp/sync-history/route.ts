@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createClient } from "@/lib/supabase/server"
 
 // Triggered by frontend ~10s after WA connection detected.
 // Tells rostra-wa to re-forward its cached messaging-history.set batch to /api/webhook/whatsapp/history.
-export async function POST() {
+async function handlePOST() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -25,3 +26,5 @@ export async function POST() {
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 }
+
+export const POST = withErrorHandler("POST /api/whatsapp/sync-history", handlePOST)

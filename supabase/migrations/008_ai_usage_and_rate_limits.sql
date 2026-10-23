@@ -15,12 +15,10 @@ CREATE TABLE IF NOT EXISTS public.ai_usage (
 
 ALTER TABLE public.ai_usage ENABLE ROW LEVEL SECURITY;
 
+-- Read-only for users. Writes go through the service role (lib/rate-limit.ts),
+-- so users cannot reset their own daily counters to bypass the AI cap.
 CREATE POLICY "Users can view their own AI usage"
   ON public.ai_usage FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert/update their own AI usage"
-  ON public.ai_usage FOR ALL
   USING (auth.uid() = user_id);
 
 CREATE INDEX IF NOT EXISTS ai_usage_user_id_day_idx ON public.ai_usage(user_id, day);

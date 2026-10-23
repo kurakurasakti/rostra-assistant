@@ -10,7 +10,7 @@ export const TONE_PRESETS = [
     description: "Sapaan hangat, santai, pakai emoji",
     icon: Smile,
     template:
-      "Ramah, hangat, dan santai. Sapa pelanggan dengan 'Kak'. Boleh pakai emoji secukupnya 😊. Jawaban singkat dan jelas.",
+      "Ramah, hangat, dan santai. Sapa pelanggan dengan 'Kak'. Boleh pakai emoji secukupnya. Jawaban singkat dan jelas.",
   },
   {
     id: "profesional",

@@ -127,14 +127,14 @@ export class ManualQRISProvider implements PaymentProviderAdapter {
       maximumFractionDigits: 0,
     }).format(invoice.total_amount)
 
-    const text = `Halo Admin Glim 👋
+    const text = `Halo Admin Glim
 Saya ingin konfirmasi pembayaran langganan:
 
-🧾 *No. Invoice:* ${invoice.invoice_number}
-📦 *Paket:* ${invoice.plan_name}
-💰 *Total Transfer:* ${formattedTotal}
-🏢 *Bisnis:* ${businessName || "-"}
-📧 *Email:* ${userEmail || "-"}
+- *No. Invoice:* ${invoice.invoice_number}
+- *Paket:* ${invoice.plan_name}
+- *Total Transfer:* ${formattedTotal}
+- *Bisnis:* ${businessName || "-"}
+- *Email:* ${userEmail || "-"}
 
 Bukti transfer sudah saya siapkan. Mohon bantuannya untuk aktivasi akun. Terima kasih!`
 

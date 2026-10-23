@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { apiFetch } from "@/lib/api-client"
 import { createClient } from "@/lib/supabase/client"
 
 type WaStep = "checking" | "idle" | "generating" | "scanning" | "connected"
@@ -54,14 +55,17 @@ export default function WhatsAppSection({
   async function handleGenerateQR() {
     if (!waNumber.trim()) return
     setWaStep("generating")
-    const res = await fetch("/api/whatsapp/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ whatsapp_number: waNumber.trim() }),
-    })
-    const data = await res.json()
-    if (!res.ok || data.error) {
-      toast.error(data.error ?? "Gagal membuat QR.")
+    const { ok, data, error } = await apiFetch<{ qr?: string }>(
+      "/api/whatsapp/connect",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whatsapp_number: waNumber.trim() }),
+      },
+      "Gagal membuat QR.",
+    )
+    if (!ok) {
+      toast.error(error)
       setWaStep("idle")
       return
     }
@@ -78,9 +82,10 @@ export default function WhatsAppSection({
   function startPolling() {
     stopPolling()
     pollingRef.current = setInterval(async () => {
-      const res = await fetch("/api/whatsapp/status")
-      const data = await res.json()
-      if (data.connected) {
+      const { ok, data } = await apiFetch<{ connected?: boolean; number?: string }>(
+        "/api/whatsapp/status",
+      )
+      if (ok && data.connected) {
         stopPolling()
         setConnectedNumber(data.number ?? waNumber)
         setWaStep("connected")
@@ -98,14 +103,18 @@ export default function WhatsAppSection({
   async function handleDisconnect() {
     stopPolling()
     setDisconnecting(true)
-    const res = await fetch("/api/whatsapp/disconnect", { method: "POST" })
-    if (res.ok) {
+    const { ok, error } = await apiFetch(
+      "/api/whatsapp/disconnect",
+      { method: "POST" },
+      "Gagal memutus koneksi.",
+    )
+    if (ok) {
       setWaStep("idle")
       setQrBase64("")
       setConnectedNumber("")
       toast.success("WhatsApp diputus.")
     } else {
-      toast.error("Gagal memutus koneksi.")
+      toast.error(error)
     }
     setDisconnecting(false)
   }

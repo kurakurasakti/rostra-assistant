@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createClient } from "@/lib/supabase/server"
 import { getDeviceStatus } from "@/lib/whatsapp"
 
-export async function GET() {
+async function handleGET() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -28,3 +29,5 @@ export async function GET() {
 
   return NextResponse.json({ connected: status.connected, number: status.number ?? null })
 }
+
+export const GET = withErrorHandler("GET /api/whatsapp/status", handleGET)

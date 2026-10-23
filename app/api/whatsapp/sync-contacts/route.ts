@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { createClient } from "@/lib/supabase/server"
 import { normalizeWANumber } from "@/lib/whatsapp"
 
-export async function POST() {
+async function handlePOST() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -132,3 +133,5 @@ export async function POST() {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
+
+export const POST = withErrorHandler("POST /api/whatsapp/sync-contacts", handlePOST)

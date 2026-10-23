@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import { categorizeQAPair } from "@/lib/chat-parser"
 import { LEVEL2_THRESHOLD } from "@/lib/config"
 import { createClient } from "@/lib/supabase/server"
@@ -20,7 +21,7 @@ async function updateConversationExamples(
   userId: string,
   customerMessage: string,
   correctedReply: string,
-): Promise<void> {
+): Promise<boolean> {
   const { data: profile } = await supabase
     .from("profiles")
     .select("conversation_examples")
@@ -63,10 +64,12 @@ async function updateConversationExamples(
     .eq("id", userId)
   if (error) {
     console.error("[updateConversationExamples] error:", error)
+    return false
   }
+  return true
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -179,9 +182,18 @@ export async function POST(request: Request) {
         supabase.rpc("increment_feedback_count", { uid: user.id }),
       ])
 
-      // Update conversation_examples with this correction (fire-and-forget)
+      // Update conversation_examples with this correction, then trigger a
+      // throttled RAG reindex so the correction is visible to retrieval
+      // immediately (without opening Settings). Fire-and-forget.
       if (originalIncoming.trim()) {
-        updateConversationExamples(supabase, user.id, originalIncoming, sentMessage).catch(() => {})
+        updateConversationExamples(supabase, user.id, originalIncoming, sentMessage)
+          .then((ok) => {
+            if (!ok) return
+            return import("@/lib/rag").then(({ reindexAfterCorrection }) =>
+              reindexAfterCorrection(user.id),
+            )
+          })
+          .catch((err) => console.error("[messages/send] background task failed:", err))
       }
 
       // Every 10 corrections → re-analyze brand voice from feedback patterns (fire-and-forget)
@@ -200,12 +212,14 @@ export async function POST(request: Request) {
       ) {
         import("@/lib/openrouter")
           .then(({ reanalyzeBrandVoice }) => {
-            reanalyzeBrandVoice(user.id).catch(() => {})
+            reanalyzeBrandVoice(user.id).catch((err) => console.error("[messages/send] background task failed:", err))
           })
-          .catch(() => {})
+          .catch((err) => console.error("[messages/send] background task failed:", err))
       }
     }
   }
 
   return NextResponse.json({ ok: true })
 }
+
+export const POST = withErrorHandler("POST /api/messages/send", handlePOST)

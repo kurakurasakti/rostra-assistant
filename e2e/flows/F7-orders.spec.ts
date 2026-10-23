@@ -51,7 +51,7 @@ test.describe("F7 — Order Management", () => {
 
   test("F7.2 — Scheduled messages auto-generated", async () => {
     const userId = process.env.TEST_USER_ID
-    if (!userId) test.skip()
+    if (!userId) return test.skip()
 
     const messages = await getScheduledMessages(userId)
     expect(messages.length).toBeGreaterThanOrEqual(3)

@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "C:\\Users\\IT-ROY\\Documents\\Roy\\rostra-assistant\\.archify\\architecture-rag-onboarding-20260929-143402\\candidate.json",
+    "sha256": "e425438a6bfc37a39ba18c402cf34e7a1f4873a41478dcd0f3ca747963eb359c",
+    "bytes": 9601
+  },
+  "artifact": {
+    "path": "C:\\Users\\IT-ROY\\Documents\\Roy\\rostra-assistant\\.archify\\architecture-rag-onboarding-20260929-143402\\glim-rag-foundation.html",
+    "sha256": "e96d09d2d3b81f59f944595fd7da88349e1e351ff55c601e912c63f1c27beb49",
+    "bytes": 783606
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "C:\\Users\\IT-ROY\\Documents\\Roy\\rostra-assistant\\.archify\\architecture-rag-onboarding-20260929-143402\\glim-rag-foundation.finalize.json",
+    "summaryReceipt": "C:\\Users\\IT-ROY\\Documents\\Roy\\rostra-assistant\\.archify\\architecture-rag-onboarding-20260929-143402\\glim-rag-foundation.finalize-summary.json",
+    "browserCheckReceipt": "C:\\Users\\IT-ROY\\Documents\\Roy\\rostra-assistant\\.archify\\architecture-rag-onboarding-20260929-143402\\glim-rag-foundation.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-09-29T07:36:09.718Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 7691,
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "routesOverSuggestedBends": 5,
+      "routesOverSuggestedStretch": 4
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [],
+      "detours": [
+        {
+          "relationship": {
+            "id": "e1",
+            "from": "owner",
+            "to": "upload",
+            "label": "onboarding",
+            "collectionIndex": 0,
+            "artifactIndex": 1
+          },
+          "bends": 4,
+          "stretch": 1.4
+        },
+        {
+          "relationship": {
+            "id": "e6",
+            "from": "profile",
+            "to": "chunk",
+            "label": "re-index",
+            "collectionIndex": 5,
+            "artifactIndex": 6
+          },
+          "bends": 4,
+          "stretch": 1.256
+        },
+        {
+          "relationship": {
+            "id": "e9",
+            "from": "embed",
+            "to": "chunks",
+            "label": "replace all",
+            "collectionIndex": 8,
+            "artifactIndex": 9
+          },
+          "bends": 4,
+          "stretch": 1.457
+        },
+        {
+          "relationship": {
+            "id": "e11",
+            "from": "inbox",
+            "to": "retrieve",
+            "label": "classify",
+            "collectionIndex": 10,
+            "artifactIndex": 11
+          },
+          "bends": 4,
+          "stretch": 1.492
+        },
+        {
+          "relationship": {
+            "id": "e17",
+            "from": "wa",
+            "to": "webhook",
+            "label": "inbound",
+            "collectionIndex": 16,
+            "artifactIndex": 17
+          },
+          "bends": 4,
+          "stretch": 1.427
+        }
+      ],
+      "truncated": false
+    },
+    "hints": [
+      "owner → upload needs 4 bends: move node owner or upload so they share a row or column with matching centers, or sit diagonally with a clear corner.",
+      "profile → chunk needs 4 bends: move node profile or chunk so they share a row or column with matching centers, or sit diagonally with a clear corner.",
+      "embed → chunks needs 4 bends: move node embed or chunks so they share a row or column with matching centers, or sit diagonally with a clear corner.",
+      "inbox → retrieve needs 4 bends: move node inbox or retrieve so they share a row or column with matching centers, or sit diagonally with a clear corner.",
+      "wa → webhook needs 4 bends: move node wa or webhook so they share a row or column with matching centers, or sit diagonally with a clear corner."
+    ],
+    "repair": "Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit."
+  }
+}

@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertCircle, Eye, EyeOff, Lock, ShieldAlert } from "lucide-react"
+import { AlertCircle, Clock, Eye, EyeOff, Lock, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -111,7 +111,7 @@ export default function LoginPage() {
           >
             <div className="mb-7">
               <h2 className="font-display font-bold text-2xl tracking-tight text-zinc-900">
-                Selamat datang kembali 👋
+                Selamat datang kembali
               </h2>
               <p className="text-zinc-500 text-sm mt-1">Masuk untuk melanjutkan ke Glim</p>
             </div>
@@ -194,8 +194,9 @@ export default function LoginPage() {
                     <p className="leading-relaxed">
                       Terlalu banyak percobaan login yang gagal. Silakan tunggu:
                     </p>
-                    <div className="font-mono font-bold text-sm bg-destructive/15 px-2.5 py-1 rounded-md inline-block mt-1">
-                      ⏳ {formatTime(countdownSeconds)}
+                    <div className="font-mono font-bold text-sm bg-destructive/15 px-2.5 py-1 rounded-md inline-flex items-center gap-1.5 mt-1">
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span>{formatTime(countdownSeconds)}</span>
                     </div>
                   </div>
                 </div>

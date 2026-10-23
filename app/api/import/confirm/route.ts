@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
+import { withErrorHandler } from "@/lib/api-handler"
 import type { ImportResult, ImportRowInput } from "@/lib/importer"
 import { createClient } from "@/lib/supabase/server"
 import { normalizeWANumber } from "@/lib/whatsapp"
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -86,3 +87,5 @@ export async function POST(request: Request) {
     errors,
   })
 }
+
+export const POST = withErrorHandler("POST /api/import/confirm", handlePOST)

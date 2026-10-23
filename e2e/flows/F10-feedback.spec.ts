@@ -8,7 +8,7 @@ const SENDER = "6281234567890"
 test.describe("F10 — Feedback Loop", () => {
   test("F10.1 — Correction recorded when draft edited", async ({ request }) => {
     const userId = process.env.TEST_USER_ID
-    if (!userId) test.skip()
+    if (!userId) return test.skip()
 
     // Send a message that will trigger AI draft
     const res = await sendTestMessage(request, BASE_URL, {
@@ -21,7 +21,7 @@ test.describe("F10 — Feedback Loop", () => {
     expect(res.ok()).toBeTruthy()
 
     // Wait for AI to generate draft
-    await test.waitForTimeout(10000)
+    await new Promise((r) => setTimeout(r, 10000))
 
     // Get the message ID and AI draft
     const msg = await getInboxMessage(userId, SENDER)
@@ -41,7 +41,7 @@ test.describe("F10 — Feedback Loop", () => {
     expect(replyRes.ok()).toBeTruthy()
 
     // Wait for feedback processing
-    await test.waitForTimeout(2000)
+    await new Promise((r) => setTimeout(r, 2000))
 
     // Assert feedback recorded
     const feedback = await getAIFeedback(userId)

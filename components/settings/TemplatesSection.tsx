@@ -22,12 +22,12 @@ const CONFIGS: Record<
   konfirmasi_pesanan: {
     name: "Konfirmasi Pesanan",
     vars: ["nama_klien", "nama_bisnis", "deskripsi_pesanan", "total_harga"],
-    defaultBody: `Halo {{nama_klien}} 👋 Terima kasih sudah memesan di {{nama_bisnis}}! 🎉
+    defaultBody: `Halo {{nama_klien}}, Terima kasih sudah memesan di {{nama_bisnis}}!
 
 Pesanan: {{deskripsi_pesanan}}
 Total: Rp {{total_harga}}
 
-Kami akan segera follow up untuk detail selanjutnya ya 🙏`,
+Kami akan segera follow up untuk detail selanjutnya ya.`,
     sampleVars: {
       nama_klien: "Kak Dewi",
       nama_bisnis: "Butik Melati",
@@ -38,11 +38,11 @@ Kami akan segera follow up untuk detail selanjutnya ya 🙏`,
   pengingat_pembayaran: {
     name: "Pengingat Pembayaran",
     vars: ["nama_klien", "nama_bisnis", "nama_tahap", "jumlah", "jatuh_tempo", "deskripsi_pesanan"],
-    defaultBody: `Halo {{nama_klien}} 👋
+    defaultBody: `Halo {{nama_klien}},
 
 Mengingatkan pembayaran *{{nama_tahap}}* sebesar Rp {{jumlah}} jatuh tempo pada {{jatuh_tempo}}.
 
-Mohon segera lakukan pembayaran ya 🙏
+Mohon segera lakukan pembayaran.
 
 — {{nama_bisnis}}`,
     sampleVars: {
@@ -57,11 +57,11 @@ Mohon segera lakukan pembayaran ya 🙏
   pengingat_janji_temu: {
     name: "Pengingat Janji Temu",
     vars: ["nama_klien", "nama_bisnis", "judul_janji", "waktu_janji", "lokasi_janji"],
-    defaultBody: `Halo {{nama_klien}} 😊
+    defaultBody: `Halo {{nama_klien}},
 
 Mengingatkan jadwal *{{judul_janji}}* pada:
-📅 {{waktu_janji}}
-📍 {{lokasi_janji}}
+- Waktu: {{waktu_janji}}
+- Lokasi: {{lokasi_janji}}
 
 Sampai jumpa! — {{nama_bisnis}}`,
     sampleVars: {

@@ -8,10 +8,19 @@
  * They test: chunking logic, prompt assembly, and fallback behaviour.
  */
 
-import { describe, expect, it } from "vitest"
-import { chunkProfile } from "@/lib/rag"
-import { buildSecurePrompt } from "@/lib/openrouter"
-import type { Profile } from "@/types"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { buildBusinessContext, buildSecurePrompt, formatOrderSummary } from "@/lib/openrouter"
+import {
+  chunkProfile,
+  diffChunks,
+  EXAMPLE_FACTS_RULE,
+  embedTexts,
+  type HashedChunk,
+  hashChunk,
+  REINDEX_THROTTLE_MS,
+  shouldReindexNow,
+} from "@/lib/rag"
+import type { Client, Profile } from "@/types"
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -72,42 +81,9 @@ const PROFILE_WITH_RAW_ONLY: Profile = {
 // ── chunkProfile() ────────────────────────────────────────────────────────────
 
 describe("chunkProfile()", () => {
-  it("produces one service chunk per service", () => {
+  it("does NOT chunk structured knowledge (it is always in the static prompt)", () => {
     const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const serviceChunks = chunks.filter((c) => c.chunk_type === "service")
-    expect(serviceChunks).toHaveLength(2)
-  })
-
-  it("service chunk contains name and price", () => {
-    const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const kebaya = chunks.find((c) => c.chunk_text.includes("Kebaya Modern"))
-    expect(kebaya).toBeDefined()
-    expect(kebaya!.chunk_text).toContain("750rb–2jt")
-    expect(kebaya!.chunk_text).toContain("Bahan premium")
-    expect(kebaya!.metadata.category).toBe("harga")
-  })
-
-  it("service chunk without description omits the description line", () => {
-    const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const gaun = chunks.find((c) => c.chunk_text.includes("Gaun Pesta"))
-    expect(gaun).toBeDefined()
-    expect(gaun!.chunk_text).not.toContain("Keterangan:")
-  })
-
-  it("produces exactly one meta chunk", () => {
-    const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const metaChunks = chunks.filter((c) => c.chunk_type === "meta")
-    expect(metaChunks).toHaveLength(1)
-  })
-
-  it("meta chunk includes hours, location, payment, and PO status", () => {
-    const chunks = chunkProfile(PROFILE_WITH_STRUCTURED)
-    const meta = chunks.find((c) => c.chunk_type === "meta")!
-    expect(meta.chunk_text).toContain("Senin–Sabtu 09.00–17.00")
-    expect(meta.chunk_text).toContain("Jakarta")
-    expect(meta.chunk_text).toContain("BCA")
-    expect(meta.chunk_text).toContain("Open PO: Buka sampai 2026-10-31")
-    expect(meta.chunk_text).toContain("Minimal DP 50%")
+    expect(chunks).toHaveLength(0)
   })
 
   it("produces example chunks equal to conversation_examples count", () => {
@@ -141,6 +117,127 @@ describe("chunkProfile()", () => {
     const chunks = chunkProfile(BASE_PROFILE)
     expect(chunks).toHaveLength(0)
   })
+
+  it("embeds only the customer question for example chunks", () => {
+    const ex = chunkProfile(PROFILE_WITH_EXAMPLES).find((c) => c.chunk_type === "example")!
+    expect(ex.embed_text).toBe("Berapa harga kebaya?")
+    expect(ex.chunk_text).toContain("Jawaban admin")
+  })
+
+  it("falls back to raw chunks when structured extraction came back empty", () => {
+    const chunks = chunkProfile({
+      ...PROFILE_WITH_RAW_ONLY,
+      business_knowledge_structured: {
+        services: [],
+        operating_hours: null,
+        location: null,
+        payment_methods: [],
+        po_status: false,
+        po_close_date: null,
+        special_notes: null,
+      },
+    })
+    expect(chunks.filter((c) => c.chunk_type === "raw").length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// ── Source of truth in the prompt ─────────────────────────────────────────────
+
+describe("buildSecurePrompt() — source of truth", () => {
+  it("states the source-of-truth hierarchy", () => {
+    const prompt = buildSecurePrompt(PROFILE_WITH_STRUCTURED, null, "", "")
+    expect(prompt).toContain("=== SUMBER KEBENARAN (WAJIB) ===")
+  })
+
+  it("says explicitly when the sender is not linked to a client", () => {
+    const prompt = buildSecurePrompt(PROFILE_WITH_STRUCTURED, null, "", "")
+    expect(prompt).toContain("belum terhubung ke data klien")
+  })
+
+  it("says explicitly when a linked client has no active orders", () => {
+    const client = { id: "c1", user_id: "u1", name: "Rina" } as Client
+    const prompt = buildSecurePrompt(PROFILE_WITH_STRUCTURED, client, "", "", "")
+    expect(prompt).toContain("Tidak ada pesanan aktif tercatat.")
+  })
+
+  it("injects today's date so relative dates and PO deadlines are checkable", () => {
+    const prompt = buildSecurePrompt(PROFILE_WITH_STRUCTURED, null, "", "")
+    expect(prompt).toContain("=== HARI INI ===")
+  })
+
+  it("example instructions no longer tell the model to copy dates/status verbatim", () => {
+    const prompt = buildSecurePrompt(PROFILE_WITH_EXAMPLES, null, "", "", undefined, "berapa harga")
+    expect(prompt).not.toContain("JANGAN ubah informasi inti")
+    expect(prompt).toContain(EXAMPLE_FACTS_RULE)
+  })
+})
+
+describe("buildBusinessContext()", () => {
+  it("reports PO as closed once the close date has passed", () => {
+    const ctx = buildBusinessContext(PROFILE_WITH_STRUCTURED, new Date("2026-11-01T03:00:00Z"))
+    expect(ctx).toContain("PO: Tutup")
+  })
+
+  it("keeps PO open through its close date (WIB)", () => {
+    // 2026-10-31 20:00 UTC is already Nov 1 in Jakarta → closed
+    expect(
+      buildBusinessContext(PROFILE_WITH_STRUCTURED, new Date("2026-10-31T20:00:00Z")),
+    ).toContain("PO: Tutup")
+    expect(
+      buildBusinessContext(PROFILE_WITH_STRUCTURED, new Date("2026-10-31T10:00:00Z")),
+    ).toContain("PO: Buka s/d 2026-10-31")
+  })
+
+  it("uses raw text when structured extraction came back empty", () => {
+    const ctx = buildBusinessContext({
+      ...PROFILE_WITH_RAW_ONLY,
+      business_knowledge_structured: {
+        services: [],
+        operating_hours: null,
+        location: null,
+        payment_methods: [],
+        po_status: false,
+        po_close_date: null,
+        special_notes: null,
+      },
+    })
+    expect(ctx).toContain("kebaya modern mulai 750rb")
+  })
+})
+
+describe("formatOrderSummary()", () => {
+  const NOW = new Date("2026-10-20T00:00:00Z")
+  const ORDER = {
+    description: "Kebaya wisuda",
+    total_price: 1_500_000,
+    payment_stages: [
+      { name: "DP", amount: 500_000, due_date: "2026-10-01", paid: true },
+      { name: "Pelunasan", amount: 1_000_000, due_date: "2026-10-25", paid: false },
+    ],
+    // 07:00 UTC = 14:00 WIB
+    appointments: [{ title: "Fitting", scheduled_at: "2026-10-27T07:00:00Z" }],
+  }
+
+  it("renders amounts, next bill and appointment time in WIB", () => {
+    const line = formatOrderSummary([ORDER], NOW)
+    expect(line).toContain("Total: Rp 1.500.000")
+    expect(line).toContain("Sudah dibayar: Rp 500.000")
+    expect(line).toContain("Pelunasan Rp 1.000.000 (jatuh tempo 25 Oktober 2026)")
+    expect(line).toMatch(/Fitting .*14[.:]00 WIB/)
+  })
+
+  it("puts each order on its own line", () => {
+    const out = formatOrderSummary([ORDER, { ...ORDER, description: "Gaun pesta" }], NOW)
+    expect(out.split("\n")).toHaveLength(2)
+  })
+
+  it("says all bills are paid when no stage is outstanding", () => {
+    const paid = {
+      ...ORDER,
+      payment_stages: ORDER.payment_stages.map((s) => ({ ...s, paid: true })),
+    }
+    expect(formatOrderSummary([paid], NOW)).toContain("Semua tagihan lunas")
+  })
 })
 
 // ── buildSecurePrompt() + RAG integration ─────────────────────────────────────
@@ -160,8 +257,7 @@ describe("buildSecurePrompt() — RAG integration", () => {
     expect(prompt).toContain(ragContext)
   })
 
-  it("does NOT include static buildBusinessContext when ragContext is provided", () => {
-    // The static block starts with '=== PENGETAHUAN BISNIS ==='
+  it("keeps full static business knowledge when ragContext is provided", () => {
     const ragContext = "=== INFORMASI RELEVAN ===\nsome chunk"
     const prompt = buildSecurePrompt(
       PROFILE_WITH_STRUCTURED,
@@ -169,10 +265,39 @@ describe("buildSecurePrompt() — RAG integration", () => {
       "",
       "",
       undefined,
-      "berapa harga",
+      "halo kak",
       ragContext,
     )
-    expect(prompt).not.toContain("=== PENGETAHUAN BISNIS ===")
+    expect(prompt).toContain("=== PENGETAHUAN BISNIS ===")
+    expect(prompt).toContain("Senin–Sabtu 09.00–17.00")
+    expect(prompt).toContain("Kebaya Modern")
+  })
+
+  it("places ragContext after the static prefix so the prefix stays cacheable", () => {
+    const withRag = buildSecurePrompt(
+      PROFILE_WITH_EXAMPLES,
+      null,
+      "",
+      "",
+      undefined,
+      "berapa harga",
+      "=== INFORMASI RELEVAN ===\nchunk A",
+    )
+    const otherRag = buildSecurePrompt(
+      PROFILE_WITH_EXAMPLES,
+      null,
+      "",
+      "",
+      undefined,
+      "kapan fitting",
+      "=== INFORMASI RELEVAN ===\nchunk B",
+    )
+    const prefix = withRag.slice(0, withRag.indexOf("=== INFORMASI RELEVAN ==="))
+    expect(prefix.length).toBeGreaterThan(0)
+    expect(otherRag.startsWith(prefix)).toBe(true)
+    expect(withRag.indexOf("=== INFORMASI RELEVAN ===")).toBeGreaterThan(
+      withRag.indexOf("=== PENGETAHUAN BISNIS ==="),
+    )
   })
 
   it("falls back to static business context when ragContext is empty string", () => {
@@ -244,5 +369,189 @@ describe("buildSecurePrompt() — RAG integration", () => {
     )
     // Static examples section header should NOT appear when RAG is active
     expect(prompt).not.toContain("=== CONTOH BALASAN NYATA BISNIS INI ===")
+  })
+})
+
+// ── hashChunk() + diffChunks() — diff-based reindex ──────────────────────────
+
+function hashed(profile: Profile): HashedChunk[] {
+  return chunkProfile(profile).map((c) => ({
+    ...c,
+    content_hash: hashChunk(c.chunk_type, c.chunk_text, c.embed_text),
+  }))
+}
+
+function fakeExisting(chunks: HashedChunk[]): Array<{ id: string; content_hash: string }> {
+  return chunks.map((c, i) => ({ id: `row-${i}`, content_hash: c.content_hash }))
+}
+
+describe("hashChunk()", () => {
+  it("is deterministic and produces a 64-char hex digest", () => {
+    const a = hashChunk("service", "Layanan: Kebaya")
+    const b = hashChunk("service", "Layanan: Kebaya")
+    expect(a).toBe(b)
+    expect(a).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it("changes when chunk_type or text changes", () => {
+    const base = hashChunk("service", "text")
+    expect(hashChunk("meta", "text")).not.toBe(base)
+    expect(hashChunk("service", "text2")).not.toBe(base)
+  })
+
+  it("changes when the embedded text differs (old Q+A vectors get re-embedded)", () => {
+    const legacy = hashChunk("example", "Q+A text")
+    expect(hashChunk("example", "Q+A text", "Q only")).not.toBe(legacy)
+    // embed_text equal to chunk_text keeps the legacy hash (raw chunks unaffected)
+    expect(hashChunk("raw", "para", "para")).toBe(hashChunk("raw", "para"))
+  })
+})
+
+describe("diffChunks()", () => {
+  it("unchanged profile → 0 insert, 0 delete, all reused", () => {
+    const desired = hashed(PROFILE_WITH_EXAMPLES)
+    const diff = diffChunks(fakeExisting(desired), desired)
+    expect(diff.toInsert).toHaveLength(0)
+    expect(diff.toDeleteIds).toHaveLength(0)
+    expect(diff.reused).toBe(desired.length)
+  })
+
+  it("one example corrected → exactly 1 insert", () => {
+    const examples = PROFILE_WITH_EXAMPLES.conversation_examples ?? []
+    const before = hashed(PROFILE_WITH_EXAMPLES)
+    const after = hashed({
+      ...PROFILE_WITH_EXAMPLES,
+      conversation_examples: [
+        { ...examples[0], admin: "Harga kebaya mulai 900rb Kak 😊" },
+        examples[1],
+      ],
+    })
+    const diff = diffChunks(fakeExisting(before), after)
+    expect(diff.toInsert).toHaveLength(1)
+    expect(diff.toInsert[0].chunk_text).toContain("900rb")
+    expect(diff.toDeleteIds).toHaveLength(1) // old answer
+    expect(diff.reused).toBe(after.length - 1)
+  })
+
+  it("example removed → its row deleted, no insert", () => {
+    const examples = PROFILE_WITH_EXAMPLES.conversation_examples ?? []
+    const before = hashed(PROFILE_WITH_EXAMPLES)
+    const after = hashed({ ...PROFILE_WITH_EXAMPLES, conversation_examples: [examples[0]] })
+    const diff = diffChunks(fakeExisting(before), after)
+    expect(diff.toInsert).toHaveLength(0)
+    expect(diff.toDeleteIds).toHaveLength(1)
+    expect(diff.reused).toBe(after.length)
+  })
+
+  it("legacy service/meta rows are deleted once structured knowledge is no longer chunked", () => {
+    const legacy = [
+      { id: "svc-1", content_hash: hashChunk("service", "Layanan: Kebaya Modern") },
+      { id: "meta-1", content_hash: hashChunk("meta", "Jam operasional: 09.00") },
+    ]
+    const desired = hashed(PROFILE_WITH_EXAMPLES)
+    const diff = diffChunks(legacy, desired)
+    expect(diff.toDeleteIds.sort()).toEqual(["meta-1", "svc-1"])
+    expect(diff.toInsert).toHaveLength(desired.length)
+  })
+
+  it("empty desired → all existing rows deleted", () => {
+    const before = hashed(PROFILE_WITH_EXAMPLES)
+    const diff = diffChunks(fakeExisting(before), [])
+    expect(diff.toInsert).toHaveLength(0)
+    expect(diff.toDeleteIds).toHaveLength(before.length)
+    expect(diff.reused).toBe(0)
+  })
+
+  it("duplicate identical chunks match as a multiset, not a set", () => {
+    // Two identical desired chunks, one existing row → 1 reused + 1 insert
+    const chunk: HashedChunk = {
+      chunk_type: "example",
+      chunk_text: 'Pertanyaan pelanggan: "x"\nJawaban admin: "y"',
+      metadata: {},
+      content_hash: "",
+    }
+    chunk.content_hash = hashChunk(chunk.chunk_type, chunk.chunk_text)
+    const diff = diffChunks([{ id: "row-0", content_hash: chunk.content_hash }], [chunk, chunk])
+    expect(diff.reused).toBe(1)
+    expect(diff.toInsert).toHaveLength(1)
+    expect(diff.toDeleteIds).toHaveLength(0)
+  })
+
+  it("rows with null content_hash (legacy) are deleted, not matched", () => {
+    const desired = hashed(PROFILE_WITH_EXAMPLES)
+    const existing = [{ id: "legacy-1", content_hash: null }]
+    const diff = diffChunks(existing, desired)
+    expect(diff.reused).toBe(0)
+    expect(diff.toInsert).toHaveLength(desired.length)
+    expect(diff.toDeleteIds).toEqual(["legacy-1"])
+  })
+})
+
+// ── embedTexts() — batched embedding ─────────────────────────────────────────
+
+describe("embedTexts()", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  it("sends one request and maps results back by index, skipping empty inputs", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          // returned out of order on purpose — must be mapped via `index`
+          data: [
+            { index: 1, embedding: [2] },
+            { index: 0, embedding: [1] },
+          ],
+        }),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await embedTexts(["a", "   ", "c"])
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body.input).toEqual(["a", "c"])
+    expect(result).toEqual([[1], null, [2]])
+  })
+
+  it("returns all nulls when the request fails", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key")
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("boom", { status: 500 })))
+
+    expect(await embedTexts(["a", "b"])).toEqual([null, null])
+  })
+})
+
+// ── shouldReindexNow() — correction reindex throttle ─────────────────────────
+
+describe("shouldReindexNow()", () => {
+  const NOW = 1_700_000_000_000
+
+  it("reindexes immediately when never indexed", () => {
+    expect(shouldReindexNow(null, NOW)).toBe(true)
+    expect(shouldReindexNow(undefined, NOW)).toBe(true)
+  })
+
+  it("reindexes when last index is older than the throttle window", () => {
+    const old = new Date(NOW - REINDEX_THROTTLE_MS - 1000).toISOString()
+    expect(shouldReindexNow(old, NOW)).toBe(true)
+  })
+
+  it("defers (dirty flag) when last index is within the throttle window", () => {
+    const recent = new Date(NOW - REINDEX_THROTTLE_MS + 1000).toISOString()
+    expect(shouldReindexNow(recent, NOW)).toBe(false)
+  })
+
+  it("two corrections <60s apart: first reindexes, second defers", () => {
+    const first = shouldReindexNow(null, NOW)
+    expect(first).toBe(true)
+    // after first reindex, last_indexed_at = NOW
+    const second = shouldReindexNow(new Date(NOW).toISOString(), NOW + 30_000)
+    expect(second).toBe(false)
   })
 })

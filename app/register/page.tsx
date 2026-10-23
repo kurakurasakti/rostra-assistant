@@ -185,7 +185,7 @@ export default function RegisterPage() {
               <>
                 <div className="mb-7">
                   <h2 className="font-display font-bold text-2xl tracking-tight text-zinc-900">
-                    Buat akun Glim ✨
+                    Buat akun Glim
                   </h2>
                   <p className="text-zinc-500 text-sm mt-1">
                     Gratis 14 hari, nggak perlu kartu kredit
@@ -290,9 +290,9 @@ export default function RegisterPage() {
                         rel="noopener noreferrer"
                         className="text-primary font-medium hover:underline"
                       >
-                        Syarat & Ketentuan
-                      </a>{" "}
-                      dan{" "}
+                        Syarat &amp; Ketentuan
+                      </a>
+                      {", "}
                       <a
                         href="/privacy-policy"
                         target="_blank"
@@ -300,6 +300,15 @@ export default function RegisterPage() {
                         className="text-primary font-medium hover:underline"
                       >
                         Kebijakan Privasi
+                      </a>
+                      {", dan "}
+                      <a
+                        href="/cookies-policy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary font-medium hover:underline"
+                      >
+                        Kebijakan Cookie
                       </a>{" "}
                       Glim
                     </span>
